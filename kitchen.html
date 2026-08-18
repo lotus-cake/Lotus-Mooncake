@@ -1,0 +1,1772 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>L'otus 月饼厨房端</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --olive:#465B00; --olive-dark:#36470A; --champagne:#D9B77A; --bronze:#9B6827;
+  --cream:#FAF8F2; --ink:#2A2A24; --muted:#8A8874; --line:#E8E3D5;
+  --danger:#B33A3A; --ok:#3E7C4F;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--cream);color:var(--ink);
+  font-family:'Noto Sans SC',-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;font-size:15px}
+body{padding-bottom:76px}
+button{font-family:inherit}
+input,select,textarea{font-family:inherit;font-size:16px}
+header{position:sticky;top:0;z-index:20;background:var(--bronze);color:#fff;
+  padding:10px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(60,40,10,.25)}
+.brand{flex:1}
+.brand .t1{font-weight:700;font-size:16px}
+.brand .t2{font-size:11px;color:#F2DDB4;letter-spacing:2px}
+#btnLogout{background:none;border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:8px;font-size:10px;padding:4px 7px;cursor:pointer}
+.conn{position:absolute;left:0;right:0;top:100%;background:var(--danger);color:#fff;font-size:12px;text-align:center;padding:3px;display:none}
+.demo-band{background:var(--olive);color:#fff;font-size:12px;text-align:center;padding:4px 10px}
+nav{position:fixed;bottom:0;left:0;right:0;z-index:20;background:#fff;border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;border:none;padding:8px 0 6px;color:var(--muted);font-size:11px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer}
+nav button.on{color:var(--bronze);font-weight:700}
+nav svg{width:22px;height:22px}
+.page{display:none;padding:14px;max-width:760px;margin:0 auto}
+.page.on{display:block}
+h2{font-size:16px;font-weight:700;margin:4px 0 12px;color:var(--olive-dark)}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.row{display:flex;gap:10px}.row>*{flex:1;min-width:0}
+label.f{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+input[type=text],input[type=tel],input[type=date],input[type=number],input[type=password],select,textarea{
+  width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--champagne);border-color:var(--champagne)}
+.seg{display:flex;gap:8px;flex-wrap:wrap}
+.seg button{flex:1;padding:9px 6px;border-radius:10px;border:1.5px solid var(--line);background:#fff;font-size:13.5px;cursor:pointer;color:var(--ink);min-width:86px}
+.seg button.on{border-color:var(--bronze);background:var(--bronze);color:#fff;font-weight:700}
+.seg button small{display:block;font-size:10px;color:var(--muted);margin-top:2px;font-weight:400}
+.seg button.on small{color:#F2DDB4}
+.btn{display:block;width:100%;padding:14px;border:none;border-radius:12px;background:var(--bronze);color:#fff;font-size:16px;font-weight:700;cursor:pointer;letter-spacing:2px}
+.btn:disabled{background:#B9B9A8}
+.btn.ghost{background:#fff;color:var(--bronze);border:1.5px solid var(--bronze)}
+.btn.small{width:auto;display:inline-block;padding:8px 14px;font-size:13px;letter-spacing:0}
+.btn.warn{background:var(--danger)}
+.kv{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line);font-size:14px;gap:10px}
+.kv:last-child{border-bottom:none}
+.pksum{display:flex;flex-wrap:wrap;gap:6px}
+.pksum .pi{background:#fff;border:1px solid var(--champagne);border-radius:10px;padding:6px 10px;font-size:12px}
+.pksum .pi b{color:var(--olive);font-size:15px;margin-left:4px}
+.pksum .pi.bad b{color:var(--danger)}
+.sect{font-size:13px;font-weight:700;color:var(--bronze);margin:16px 0 8px;display:flex;align-items:center;gap:8px}
+.sect::after{content:'';flex:1;height:1px;background:var(--line)}
+table.sum{border-collapse:collapse;width:100%;font-size:12.5px}
+table.sum th{background:var(--bronze);color:#fff;padding:7px 5px;font-weight:500;white-space:nowrap}
+table.sum td{padding:7px 5px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums}
+table.sum td:first-child{font-weight:700;text-align:left;padding-left:8px}
+table.sum tr.tot td{background:#F6EFDE;font-weight:700}
+table.sum tr.today td{background:#FBF3DF;font-weight:700}
+.twrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:#fff}
+.z{color:#C9C6B4}
+.wlog{font-size:12px;color:var(--muted);padding:6px 0;border-bottom:1px dashed var(--line);display:flex;justify-content:space-between;gap:8px;align-items:center}
+.wlog b{color:var(--ink)}
+.wlog.void{text-decoration:line-through;opacity:.5}
+.vbtn{border:none;background:#F0EDE2;color:var(--danger);border-radius:8px;font-size:11px;padding:4px 8px;cursor:pointer;flex-shrink:0}
+.empty{padding:30px 10px;text-align:center;color:var(--muted);font-size:13px}
+#toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:99px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:70;max-width:86vw;text-align:center}
+#toast.show{opacity:.95}
+.mask{position:fixed;inset:0;background:rgba(40,30,15,.55);z-index:40;display:none;align-items:flex-end;justify-content:center}
+.mask.center{align-items:center;padding:20px}
+.mbox{background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:760px;max-height:88vh;overflow-y:auto;padding:18px 16px 24px}
+.mask.center .mbox{border-radius:18px;max-width:420px}
+.mhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.mhead b{font-size:16px;color:var(--olive-dark)}
+.mclose{border:none;background:#F0EDE2;border-radius:99px;width:32px;height:32px;font-size:16px;cursor:pointer;color:var(--muted)}
+.pin-box{background:#fff;border-radius:16px;padding:22px;width:100%;max-width:340px;text-align:center}
+.pin-box input{text-align:center;letter-spacing:4px;font-size:20px;margin:12px 0}
+.pin-box input::placeholder{letter-spacing:0;font-size:15px}
+.note{font-size:12px;color:var(--muted);line-height:1.7;margin-top:8px}
+.warnrow{color:var(--danger);font-weight:700}
+.okrow{color:var(--ok);font-weight:700}
+.stage-group{font-size:11px;color:var(--muted);letter-spacing:1px;margin:10px 0 6px}
+.stage-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.stage-grid button{padding:12px 6px;border-radius:12px;border:1.5px solid var(--line);background:#fff;font-size:14px;cursor:pointer;font-weight:500}
+.stage-grid button.on{border-color:var(--bronze);background:var(--bronze);color:#fff;font-weight:700}
+.hintbox{background:#FBF3DF;border:1px dashed var(--champagne);border-radius:10px;padding:8px 12px;font-size:12.5px;margin-top:8px;line-height:1.7}
+.todaygrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tstat{background:#FBF7EC;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.tstat .n{font-size:22px;font-weight:700;color:var(--olive-dark);font-variant-numeric:tabular-nums}
+.tstat .l{font-size:11px;color:var(--muted)}
+.tstat.bad .n{color:var(--danger)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="t1">中秋月饼 · 厨房端</div>
+    <div class="t2">L'OTUS CENTRAL KITCHEN</div>
+  </div>
+  <span id="connBadge" style="font-size:10px;padding:3px 8px;border-radius:99px;background:rgba(255,255,255,.15);color:#fff;margin-right:6px">连接中…</span>
+  <button id="btnLogout"><span id="roleTag">—</span> 退出</button>
+  <div class="conn" id="connBar">网络已断开,数据暂不能保存</div>
+</header>
+<div class="demo-band" id="demoBand" style="display:none">演示模式:未连接 Firebase,数据仅本页有效</div>
+
+<!-- ============ 看板 ============ -->
+<div class="page on" id="pg-dash">
+  <h2>生产看板</h2>
+
+  <div class="card">
+    <div class="note" style="margin:0 0 8px"><b>TODAY · <span id="todayLabel"></span></b></div>
+    <div class="todaygrid" id="todayStats"></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span class="note" style="margin:0"><b>生产安排</b>(Owner 在订单App安排)</span>
+
+    </div>
+    <div class="seg" id="planDaySeg" style="margin-bottom:8px">
+      <button data-v="D" class="on" id="planBtnD">今日</button>
+      <button data-v="M" id="planBtnM">明日</button>
+    </div>
+    <div id="planBody"></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span class="note" style="margin:0"><b>出货安排</b>(订单+现货,当日订单当日烤;现货由 Owner 在订单App安排)</span>
+
+    </div>
+    <div class="seg" id="shipDaySeg" style="margin-bottom:8px">
+      <button data-v="D" class="on" id="shipBtnD">今日</button>
+      <button data-v="M" id="shipBtnM">明日</button>
+    </div>
+    <div class="twrap" style="margin-bottom:10px"><table class="sum" id="shipMatrix"></table></div>
+    <div id="shipBody"></div>
+  </div>
+
+  <div class="card" id="pairCard" style="display:none">
+    <div class="note" style="margin:0 0 8px"><b>配对与液量提示</b>(可包 = 馅球 与 冻芯 的较小值)</div>
+    <div id="pairBody"></div>
+  </div>
+  <div class="card">
+    <div class="note" style="margin:0 0 8px"><b>生胚生产进度</b>(全季计划,压模入冻算完成)</div>
+    <div class="twrap"><table class="sum" id="gapTable"></table></div>
+    <p class="note" id="gapNote"></p>
+  </div>
+
+  <div class="card">
+    <div class="note" style="margin:0 0 8px"><b>包材够不够</b>(按剩余量推算)</div>
+    <div class="twrap"><table class="sum" id="matProj"></table></div>
+  </div>
+
+  <div class="card" id="matWarnCard" style="display:none">
+    <div class="note" style="margin:0 0 8px"><b style="color:var(--danger)">⚠ 包材预警</b></div>
+    <div class="pksum" id="matWarn"></div>
+  </div>
+  <div class="card" id="rawWarnCard" style="display:none">
+    <div class="note" style="margin:0 0 8px"><b style="color:var(--danger)">⚠ 原材料预警</b></div>
+    <div class="pksum" id="rawWarn"></div>
+  </div>
+</div>
+
+<!-- ============ 记录 ============ -->
+<div class="page" id="pg-rec">
+  <h2>记一笔工序</h2>
+  <div class="card">
+    <div class="stage-group">馅料准备</div>
+    <div class="stage-grid" data-g="1"></div>
+    <div class="stage-group">月饼制作</div>
+    <div class="stage-grid" data-g="2"></div>
+    <div class="stage-group">包装 · 组盒</div>
+    <div class="stage-grid" data-g="3"></div>
+    <div class="stage-group">出样(配送交接由客服在订单App操作)</div>
+    <div class="stage-grid" data-g="4"></div>
+  </div>
+  <div id="recForm"></div>
+  <div class="sect">今日记录(点 ✕ 可作废错误记录)</div>
+  <div class="card" id="todayRecs"></div>
+</div>
+
+<!-- ============ 库存 ============ -->
+<div class="page" id="pg-stock">
+  <h2>库存</h2>
+  <div class="seg" id="stockSeg" style="margin-bottom:10px">
+    <button data-v="ov" class="on">总览</button>
+    <button data-v="ct">盘点</button>
+  </div>
+  <div id="stockOverview">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span class="note" style="margin:0"><b>半成品 / 成品流转</b>(颗)</span>
+      <button class="btn small ghost" id="btnAdjust" style="display:none">盘点调整</button>
+    </div>
+    <div class="twrap"><table class="sum" id="flowTable"></table></div>
+  </div>
+  <div class="card">
+    <div class="kv"><span>馅料(炒好,克)</span><b id="pasteLine">—</b></div>
+  </div>
+  <div class="card">
+    <div class="note" style="margin:0 0 8px"><b>礼盒成品(盒)</b></div>
+    <div class="pksum" id="giftStock2"></div>
+  </div>
+  <div class="card">
+    <div class="note" style="margin:0 0 8px"><b>包装材料</b></div>
+    <div id="matTable"></div>
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+      <span class="note" style="margin:0"><b>原材料</b></span>
+      <span>
+        <button class="btn small ghost" id="btnRawIn">＋入库</button>
+        <button class="btn small ghost" id="btnRawUse">−领用</button>
+      </span>
+    </div>
+    <div id="rawTable"></div>
+    <p class="note">炒馅/流心/曲奇皮填「配方份数」会按配方自动扣;没录配方前用「领用」手动记。</p>
+  </div>
+  <div class="card">
+    <div class="note" style="margin:0 0 8px"><b>损耗分析</b>(哪个工序最伤)</div>
+    <div class="twrap"><table class="sum" id="lossTable"></table></div>
+    <div id="lossReasons" class="note"></div>
+  </div>
+  <div class="card">
+    <div class="note" style="margin:0 0 8px"><b>试吃 / 出样统计</b>(不算生产损耗)</div>
+    <div class="pksum" id="sampleStats"></div>
+  </div>
+  </div><!-- /stockOverview -->
+
+  <div id="stockCount" style="display:none">
+    <div class="card">
+      <div class="note" style="margin:0 0 4px"><b>半成品盘点</b>(选类别 → 填实际数,留空=不动;保存按差额生成盘点记录)</div>
+      <div class="seg" id="scNodeSeg" style="margin:6px 0"></div>
+      <div id="scBody"></div>
+      <label class="f">原因</label><input type="text" id="scReason" value="盘点差异">
+      <label class="f">你的名字 *</label><input type="text" id="scStaff">
+      <button class="btn small" id="btnScSave" style="margin-top:10px">保存盘点(所有已填项)</button>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="note" style="margin:0"><b>原材料盘点</b>(建议每周一次,分组清单)</span>
+        <button class="btn small" id="btnRawCount2">开始</button>
+      </div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="note" style="margin:0"><b>包材盘点</b>(底托/袋/贴纸/礼盒套)</span>
+        <button class="btn small" id="btnMatCount">开始</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="note" style="margin:0 0 8px"><b>配送统计</b>(已送各店)</div>
+    <div class="twrap"><table class="sum" id="shipStats"></table></div>
+  </div>
+</div>
+
+<!-- ============ 设置 ============ -->
+<div class="page" id="pg-set">
+  <h2>设置(Owner)</h2>
+  <div class="card">
+    <div class="note" style="margin:0 0 4px"><b>包材入库</b></div>
+    <button class="btn ghost small" id="btnMatIn">＋ 记一笔包材入库</button>
+  </div>
+  <div class="card">
+    <div class="note" style="margin:0 0 4px"><b>生产参数</b></div>
+    <div id="prmBody"></div>
+    <button class="btn small" id="btnPrmSave" style="margin-top:10px">保存参数</button>
+  </div>
+  <div class="card">
+    <div class="note" style="margin:0 0 4px"><b>配方 BOM</b>(录了克数,对应工序填份数就自动扣原料)</div>
+    <select id="rcSel" style="margin-top:6px"></select>
+    <div id="rcBody" style="margin-top:6px"></div>
+    <div class="row" style="margin-top:8px">
+      <div><label class="f" id="rcYLabel">每份标准产出</label><input type="number" id="rcYOut" min="0" step="0.1"></div>
+      <div id="rcGppWrap"><label class="f">分馅 克/颗</label><input type="number" id="rcGpp" min="0" step="0.1" placeholder="25"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn small ghost" id="btnRcAdd">＋加一行</button>
+      <button class="btn small" id="btnRcSave">保存配方</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="note" style="margin:0 0 4px"><b>自定义原材料</b>(默认清单没有的)</div>
+    <button class="btn small ghost" id="btnRawNew">＋添加材料</button>
+  </div>
+  <div class="card">
+    <div class="note" style="margin:0 0 4px"><b>包材预警线</b>(低于此数看板亮红)</div>
+    <div id="thBody"></div>
+    <div class="note" style="margin:8px 0 4px"><b>原料预警线</b>(0=不预警)</div>
+    <div id="rawThBody"></div>
+    <button class="btn small" id="btnSaveTh" style="margin-top:10px">保存预警线</button>
+  </div>
+  <div class="card">
+    <div class="note" style="margin:0 0 4px"><b>批量导入配方</b>(粘贴 Claude 整理好的导入代码)</div>
+    <textarea id="impText" rows="4" placeholder='{"recipes":{...},"rawmats":{...}}'></textarea>
+    <button class="btn small" id="btnImp" style="margin-top:8px">导入</button>
+    <p class="note">导入直接写入数据库,不会出现在公开文件里。已有的同名配方会被覆盖。</p>
+  </div>
+  <div class="card">
+    <button class="btn small ghost" id="btnExport">导出生产记录 Excel</button>
+  </div>
+  <p class="note" id="dbInfo"></p>
+</div>
+
+<nav>
+  <button class="on" data-p="dash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>看板</button>
+  <button data-p="rec"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>记录</button>
+  <button data-p="stock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l1.5-5h15L21 9M3 9h18M3 9v11h18V9"/></svg>库存</button>
+  <button data-p="set"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6A7 7 0 0 0 19 12z"/></svg>设置</button>
+</nav>
+
+<div id="loginMask" style="position:fixed;inset:0;z-index:60;background:linear-gradient(160deg,#6B4517,var(--bronze));display:flex;align-items:center;justify-content:center;padding:20px">
+  <div class="pin-box">
+    <div style="font-size:12px;letter-spacing:3px;color:var(--bronze)">L'OTUS CENTRAL KITCHEN</div>
+    <div style="font-weight:700;font-size:18px;margin:6px 0 4px">月饼厨房端</div>
+    <input type="password" id="loginCode" inputmode="numeric" maxlength="8" placeholder="访问码">
+    <button class="btn" style="width:100%" onclick="tryLogin()">登录</button>
+    <div class="note" id="loginHint" style="margin-top:10px"></div>
+  </div>
+</div>
+<div class="mask" id="mMask"><div class="mbox" id="mBox"></div></div>
+<div id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* ================================================================
+   ▼▼▼ 粘贴和订单 App 完全相同的 Firebase 配置(共用一个数据库) ▼▼▼
+================================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyA0QCS2lXF24GxcQWSi2D0t7CfrDzE8Bh0",
+  authDomain: "lotus-mooncake.firebaseapp.com",
+  databaseURL: "https://lotus-mooncake-default-rtdb.firebaseio.com",
+  projectId: "lotus-mooncake",
+  storageBucket: "lotus-mooncake.firebasestorage.app",
+  messagingSenderId: "1061048356919",
+  appId: "1:1061048356919:web:d91f819b897ff1710fefb2"
+};
+const DB_ROOT = "v1";  // 生产链已上线,记的是真账
+const ACCESS_CODES = {   // ★ 部署前修改
+  KITCHEN: "7777",       // 厨房通用
+  OWNER:   "0000"        // 和订单App的 Owner 码保持一致
+};
+/* ================================================================ */
+
+const FLAVORS=[
+  {k:"js",n:"金沙"},{k:"mt",n:"抹茶柚子"},{k:"tr",n:"黑松露"},
+  {k:"cp",n:"陈皮红豆"},{k:"mk",n:"摩卡"},{k:"wl",n:"乌龙"}];
+const FN=k=>(FLAVORS.find(f=>f.k===k)||{}).n||k;
+const PRODUCTS=[
+  {k:"mix6",n:"六粒混合",box:6},{k:"js6",n:"六粒金沙",box:6},
+  {k:"js2",n:"两粒金沙",box:2},{k:"mt2",n:"两粒抹茶柚子",box:2},
+  {k:"tr2",n:"两粒黑松露",box:2},{k:"cp2",n:"两粒陈皮红豆",box:2},
+  {k:"mk2",n:"两粒摩卡",box:2},{k:"wl2",n:"两粒乌龙",box:2},
+  {k:"bb2",n:"两粒盲盒",box:2}];
+const PN=k=>(PRODUCTS.find(p=>p.k===k)||{}).n||k;
+const BOX_BOM={mix6:{js:1,mt:1,tr:1,cp:1,mk:1,wl:1},js6:{js:6},
+  js2:{js:2},mt2:{mt:2},tr2:{tr:2},cp2:{cp:2},mk2:{mk:2},wl2:{wl:2}};
+const MATS=[
+  {k:"tray",n:"月饼底托",per:"颗×1"},{k:"bag",n:"包装袋",per:"颗×1"},
+  {k:"oxy",n:"吸氧剂",per:"颗×2"},
+  ...FLAVORS.map(f=>({k:"st_"+f.k,n:f.n+"贴纸",per:"颗×1"})),
+  {k:"kit6",n:"六粒礼盒套装",per:"盒×1"},{k:"kit2",n:"两粒礼盒套装",per:"盒×1"}];
+const MATN=k=>(MATS.find(m=>m.k===k)||{}).n||k;
+const RAW_GROUPS=[["semi","半成品"],["fs","共同·粉糖类"],["re","共同·乳蛋油"],["fl","口味专属"],["aux","辅料/其它"]];
+const DEFAULT_RAW=[
+  {k:"yolk",n:"熟咸蛋黄(半成品)",u:"g",gr:"semi"},
+  {k:"yolkraw",n:"生咸蛋黄",u:"包",gr:"re"},
+  {k:"flour",n:"面粉",u:"g",gr:"fs"},{k:"cakeflour",n:"低筋面粉",u:"g",gr:"fs"},
+  {k:"sugar",n:"糖",u:"g",gr:"fs"},{k:"icing",n:"糖粉",u:"g",gr:"fs"},
+  {k:"glucose",n:"葡萄糖",u:"g",gr:"fs"},{k:"malt",n:"麦芽糖",u:"g",gr:"fs"},
+  {k:"starch",n:"澄粉",u:"g",gr:"fs"},{k:"salt",n:"盐",u:"g",gr:"fs"},
+  {k:"butter",n:"Butter",u:"g",gr:"re"},{k:"cheese",n:"Cream Cheese",u:"g",gr:"re"},
+  {k:"egg",n:"鸡蛋(全蛋液)",u:"g",gr:"re"},{k:"milkpow",n:"奶粉",u:"g",gr:"re"},
+  {k:"evap",n:"淡奶 Evaporated",u:"g",gr:"re"},{k:"oil",n:"油",u:"g",gr:"re"},
+  {k:"coconut",n:"椰蓉",u:"g",gr:"re"},
+  {k:"puree",n:"果茸",u:"g",gr:"fl"},{k:"matcha",n:"抹茶粉",u:"g",gr:"fl"},
+  {k:"chenpi",n:"陈皮",u:"g",gr:"fl"},{k:"redbean",n:"红豆",u:"g",gr:"fl"},
+  {k:"truffle",n:"黑松露酱",u:"g",gr:"fl"},{k:"oolong",n:"乌龙茶",u:"包",gr:"fl"},
+  {k:"coffee",n:"咖啡/摩卡料",u:"g",gr:"fl"}];
+const RAWG=k=>{const m=allRaw().find(x=>x.k===k);return (m&&m.gr)||"aux";};
+const fmtYolkRaw=v=>{const b=Math.floor(Math.abs(v)/10),p=Math.round((Math.abs(v)%10)*10)/10;return (v<0?"−":"")+(b?b+"箱":"")+p+"包";};
+let RAWCUSTOM={};   // v1/prod/rawmats 自定义材料 {key:{n,u}}
+let RECIPES={};     // v1/prod/recipes {recipeKey:{matKey:每份用量}}
+function allRaw(){
+  return [...DEFAULT_RAW,...Object.entries(RAWCUSTOM).map(([k,v])=>({k,n:v.n,u:v.u||"g",gr:v.gr||v.g||"aux"}))];
+}
+const RAWN=k=>{const m=allRaw().find(x=>x.k===k);return m?m.n:k;};
+const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
+const RECIPE_DEFS=[
+  ...FLAVORS.map(f=>({k:"paste_"+f.k,n:f.n+"馅(每份配方)"})),
+  ...FLAVORS.map(f=>({k:"lava_"+f.k,n:f.n+"流心(每份配方)"})),
+  ...FLAVORS.map(f=>({k:"skin_"+f.k,n:f.n+"曲奇皮(每份配方)"}))];
+const RECIPE_STAGE={paste:"paste_",lava:"lava_",skin:"skin_"};
+function recipeFor(stage,flavor){
+  const rk=RECIPE_STAGE[stage]?RECIPE_STAGE[stage]+flavor:null;
+  if(!rk)return null;
+  const r=RECIPES[rk];
+  return (r&&Object.keys(r).length)?{key:rk,bom:r}:null;
+}
+const STAGES=[
+  {k:"bakeyolk",n:"烤咸蛋黄",g:1, flavor:false, unit:"包"},
+  {k:"paste", n:"炒馅",     g:1, flavor:true,  unit:"克"},
+  {k:"fen",   n:"分馅",     g:1, flavor:true,  unit:"颗"},
+  {k:"lava",  n:"流心制作", g:1, flavor:true,  unit:"克"},
+  {k:"fill",  n:"灌模",     g:1, flavor:true,  unit:"模"},
+  {k:"wrap1", n:"包流心馅", g:1, flavor:true,  unit:"颗"},
+  {k:"skin",  n:"曲奇皮",   g:1, flavor:true,  unit:"颗"},
+  {k:"wrap2", n:"包制",     g:2, flavor:true,  unit:"颗"},
+  {k:"mold",  n:"压模",     g:2, flavor:true,  unit:"颗"},
+  {k:"bake",  n:"烘烤",     g:2, flavor:true,  unit:"颗"},
+  {k:"pack",  n:"单颗包装", g:3, flavor:true,  unit:"颗"},
+  {k:"boxup", n:"礼盒组装", g:3, flavor:false, unit:"盒"},
+  {k:"sample",n:"试吃/出样",g:4, flavor:true,  unit:"颗"},
+  {k:"ship",  n:"配送出库", g:0, flavor:false, unit:"盒", ext:true}, // 由客服在订单App记交接
+];
+const SN=k=>(STAGES.find(s=>s.k===k)||{n:{matin:"包材入库",adjust:"盘点调整",rawin:"原料入库",rawuse:"原料领用"}[k]||k}).n;
+const WASTE_REASONS={
+  mold:["压模失败","破皮","露馅","变形","重量不合格","操作失误","其他"],
+  bake:["爆裂","漏馅","上色不合格","变形","开裂","其他"],
+  def:["操作损耗","残留损耗","重量偏差","破损","其他"]};
+const SAMPLE_REASONS=["试吃","QC","拍照","客人Sample","Marketing","赠送"];
+const STORE_NAME={CAM:"Cambie",BBY:"Burnaby",ALD:"Alderbridge"};
+const ADJ_NODES=[
+  {k:"paste",n:"馅料(克)",flavor:true},{k:"fen",n:"分馅",flavor:true},
+    {k:"lava",n:"流心液(克)",flavor:true},{k:"core",n:"冻芯(颗)",flavor:true},{k:"lxx",n:"流心馅",flavor:true},
+  {k:"wet",n:"未压模",flavor:true},{k:"rdy",n:"待烘烤",flavor:true},
+  {k:"baked",n:"烘烤成品",flavor:true},{k:"packed",n:"包装成品",flavor:true},
+  {k:"skin",n:"曲奇皮",flavor:true},{k:"gift",n:"礼盒成品",product:true},
+  {k:"mat",n:"包装材料",mat:true},{k:"raw",n:"原材料",raw:true}];
+
+const pad2=n=>String(n).padStart(2,"0");
+const todayStr=()=>{const d=new Date();return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());};
+const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());};
+const nowHM=()=>{const d=new Date();return pad2(d.getHours())+":"+pad2(d.getMinutes());};
+const fmtMD=s=>{if(!s)return"";const[,m,d]=s.split("-");const dt=new Date(s+"T12:00:00");return `${+m}/${+d} 周${"日一二三四五六"[dt.getDay()]}`;};
+const esc=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+function flavorPieces(qty){
+  const q=k=>(qty&&qty[k])||0;
+  return {js:q("mix6")+q("js6")*6+q("js2")*2, mt:q("mix6")+q("mt2")*2, tr:q("mix6")+q("tr2")*2,
+          cp:q("mix6")+q("cp2")*2, mk:q("mix6")+q("mk2")*2, wl:q("mix6")+q("wl2")*2};
+}
+
+/* ---------------- 数据 ---------------- */
+let DB=null, RECS={}, ORDERS={}, TH={}, PLAN={}, WPLAN={}, TARGETS={}, YIELDS={}, PARAMS={};
+const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,...PARAMS})[k];
+const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
+let AUTHED=false;
+function setConn(ok,msg){
+  const b=document.getElementById("connBadge");if(!b)return;
+  b.textContent=ok?"✓ 云端已连接":"✗ "+msg;
+  b.style.background=ok?"rgba(120,180,90,.35)":"rgba(220,80,80,.55)";
+}
+function initData(){
+  if(isConfigured){
+    firebase.initializeApp(firebaseConfig);
+    firebase.auth().onAuthStateChanged(u=>{AUTHED=!!u;setConn(!!u,"未登录");});
+    firebase.auth().signInAnonymously().catch(e=>{AUTHED=false;setConn(false,"连接失败:"+e.message);toast("云端连接失败:"+e.message+"(检查 Firebase 匿名登录是否启用)");});
+    DB=firebase.database();
+    DB.ref(DB_ROOT+"/prod/records").on("value",s=>{RECS=s.val()||{};renderAll();});
+    DB.ref(DB_ROOT+"/orders").on("value",s=>{ORDERS=s.val()||{};renderAll();});
+    DB.ref(DB_ROOT+"/prod/meta/th").on("value",s=>{TH=s.val()||{};renderAll();});
+    DB.ref(DB_ROOT+"/prod/rawmats").on("value",s=>{RAWCUSTOM=s.val()||{};renderAll();});
+    DB.ref(DB_ROOT+"/prod/recipes").on("value",s=>{RECIPES=s.val()||{};renderAll();});
+    DB.ref(DB_ROOT+"/prod/plan").on("value",s=>{PLAN=s.val()||{};renderAll();});
+    DB.ref(DB_ROOT+"/prod/walkplan").on("value",s=>{WPLAN=s.val()||{};renderAll();});
+    DB.ref(DB_ROOT+"/prod/meta/targets").on("value",s=>{TARGETS=s.val()||{};renderAll();});
+    DB.ref(DB_ROOT+"/prod/meta/yields").on("value",s=>{YIELDS=s.val()||{};renderAll();});
+    DB.ref(DB_ROOT+"/prod/meta/params").on("value",s=>{PARAMS=s.val()||{};renderAll();});
+    DB.ref(".info/connected").on("value",s=>{document.getElementById("connBar").style.display=s.val()===false?"block":"none";});
+    document.getElementById("dbInfo").textContent="已连接 Firebase:"+firebaseConfig.projectId+"(与订单App共用)";
+  }else{
+    document.getElementById("demoBand").style.display="block";
+    document.getElementById("dbInfo").textContent="演示模式。粘贴 Firebase 配置后正式使用。";
+    const D=todayStr();
+    ORDERS={
+      "MC-0001":{no:"MC-0001",name:"王小姐",status:"有效",store:"CAM",pickupDate:D,qty:{mix6:1,mt2:1},boxes:2},
+      "MC-0002":{no:"MC-0002",name:"李太",status:"有效",store:"BBY",pickupDate:tomorrowStr(),qty:{mix6:2},boxes:2},
+      "MC-0003":{no:"MC-0003",name:"陈先生",status:"有效",store:"CAM",pickupDate:tomorrowStr(),qty:{js6:1,js2:2},boxes:3},
+      "MC-0004":{no:"MC-0004",name:"Sandy",status:"有效",store:"ALD",batch:true,qty:{mix6:23},boxes:23,
+        pickups:{a1:{date:D,qty:{mix6:3},boxes:3}}},
+    };
+    RECS={
+      r1:{ts:1,date:D,time:"08:10",stage:"paste",flavor:"js",inQ:2,good:5200,waste:0,staff:"Susan",note:"2份配方"},
+      r2:{ts:2,date:D,time:"09:00",stage:"fen",flavor:"js",inQ:3000,good:100,waste:0,staff:"Susan"},
+      r3:{ts:3,date:D,time:"09:20",stage:"lava",flavor:"js",good:105,waste:3,reason:"破损",staff:"Kate"},
+      r4:{ts:4,date:D,time:"10:00",stage:"wrap1",flavor:"js",inQ:100,good:98,waste:2,reason:"操作损耗",staff:"Kate"},
+      r5:{ts:5,date:D,time:"10:30",stage:"skin",flavor:"js",good:120,waste:0,staff:"Lynn"},
+      r6:{ts:6,date:D,time:"11:00",stage:"wrap2",flavor:"js",inQ:98,good:97,waste:1,reason:"破皮",staff:"Lynn"},
+      r7:{ts:7,date:D,time:"13:00",stage:"mold",flavor:"js",inQ:97,good:92,waste:5,reason:"压模失败",staff:"Kate"},
+      r8:{ts:8,date:D,time:"14:00",stage:"bake",flavor:"js",inQ:92,good:90,waste:2,reason:"开裂",staff:"Susan"},
+      r9:{ts:9,date:D,time:"15:30",stage:"matin",mat:"tray",good:500,staff:"Yuki"},
+      r10:{ts:10,date:D,time:"15:31",stage:"matin",mat:"bag",good:500,staff:"Yuki"},
+      r11:{ts:11,date:D,time:"15:32",stage:"matin",mat:"oxy",good:1000,staff:"Yuki"},
+      r12:{ts:12,date:D,time:"15:33",stage:"matin",mat:"st_js",good:300,staff:"Yuki"},
+      r13:{ts:13,date:D,time:"15:34",stage:"matin",mat:"kit6",good:100,staff:"Yuki"},
+      r14:{ts:14,date:D,time:"16:00",stage:"pack",flavor:"js",inQ:90,good:90,waste:0,staff:"Kate"},
+      r15:{ts:15,date:D,time:"17:00",stage:"boxup",product:"js6",good:5,waste:0,staff:"Susan"},
+      r16:{ts:16,date:D,time:"17:20",stage:"sample",flavor:"js",good:2,reason:"QC",staff:"Susan"},
+      r17:{ts:17,date:D,time:"17:40",stage:"ship",product:"js6",store:"CAM",use:"订单",good:2,staff:"Susan"},
+      w0:{ts:0.05,date:D,time:"06:50",stage:"rawin",raw:"yolkraw",good:20,note:"2箱",staff:"Yuki"},
+      w1:{ts:0.1,date:D,time:"07:00",stage:"bakeyolk",good:4,staff:"Lynn"},
+      w2:{ts:0.2,date:D,time:"07:01",stage:"rawin",raw:"butter",good:5000,staff:"Yuki"},
+      w3:{ts:0.3,date:D,time:"07:02",stage:"rawin",raw:"milkpow",good:2000,staff:"Yuki"},
+      w4:{ts:0.4,date:D,time:"07:03",stage:"rawin",raw:"malt",good:3000,staff:"Yuki"},
+      w5:{ts:18,date:D,time:"18:00",stage:"rawuse",raw:"malt",good:150,note:"流心补料",staff:"Kate"},
+    };
+    RECIPES={};
+    TARGETS={js:2000,mt:1750,tr:800,cp:800,mk:600,wl:600};
+    PLAN[D]={text:"炒金沙馅 4份\n分馅 金沙 400颗\n压模 抹茶 300颗(入冻)\n烤今日订单(见出货安排)"};
+    PLAN[tomorrowStr()]={text:"炒抹茶馅 3份\n压模 金沙 400颗(入冻)"};
+    WPLAN[D]={CAM:{js2:2,bb2:2},BBY:{mix6:1}};
+    // 演示:r1 炒馅2份按配方自动扣料
+    RECS.r1.rawUse={yolk:1300,butter:100,malt:1520};RECS.r1.ts=1.5;
+    TH={oxy:200,tray:100,bag:100,kit6:20,kit2:30,raw_yolk:1000,raw_malt:500};
+    setTimeout(renderAll,0);
+  }
+}
+function addRec(r,cb){
+  r.ts=Date.now();r.date=r.date||todayStr();r.time=nowHM();
+  if(DB)DB.ref(DB_ROOT+"/prod/records").push(r,err=>{if(err)toast("保存失败:"+err.message);else cb&&cb();});
+  else{RECS["r"+r.ts+Math.random()]=r;renderAll();cb&&cb();}
+}
+function voidRec(key){
+  const r=RECS[key];if(!r||r.voided)return;
+  const can=ROLE&&(ROLE.type==="owner"||(ROLE.type==="kitchen"&&r.date===todayStr()));
+  if(!can)return toast("只有 Owner 能作废往日记录");
+  openModal(mhead("作废这条记录?")+`
+    <p class="note" style="margin:0 0 10px">${r.date} ${r.time||""} ${esc(r.staff||"")} · ${SN(r.stage)}${r.flavor?" "+FN(r.flavor):""}${r.product?" "+PN(r.product):""} · ${r.good}${r.waste?"(损"+r.waste+")":""}<br>作废后库存自动回退,记录保留划线痕迹。</p>
+    <label class="f">你的名字 *</label><input type="text" id="vStaff" value="${esc(STAFF)}">
+    <button class="btn warn" style="margin-top:12px" id="vGo">确认作废</button>`,true);
+  document.getElementById("vGo").onclick=()=>{
+    const s=document.getElementById("vStaff").value.trim();
+    if(!s)return toast("请填名字");
+    STAFF=s;
+    const patch={voided:true,voidBy:s,voidAt:todayStr()+" "+nowHM()};
+    if(DB)DB.ref(DB_ROOT+"/prod/records/"+key).update(patch,()=>{closeModal();toast("已作废");});
+    else{Object.assign(RECS[key],patch);renderAll();closeModal();toast("已作废");}
+  };
+}
+function saveTh(){ if(DB)DB.ref(DB_ROOT+"/prod/meta/th").set(TH); }
+
+/* ---------------- 库存推算(记录为唯一事实,跳过已作废) ---------------- */
+function calcStock(){
+  const S={paste:{},fen:{},lava:{},core:{},lxx:{},wet:{},rdy:{},baked:{},packed:{},skin:{},gift:{},mat:{},raw:{},
+           cumPacked:{},cumBox:{},cumMold:{}};
+  FLAVORS.forEach(f=>{["paste","fen","lava","core","lxx","wet","rdy","baked","packed","skin","cumPacked","cumMold"].forEach(k=>S[k][f.k]=0);});
+  PRODUCTS.forEach(p=>{S.gift[p.k]=0;S.cumBox[p.k]=0;});
+  MATS.forEach(m=>S.mat[m.k]=0);
+  Object.values(RECS).sort((a,b)=>(a.ts||0)-(b.ts||0)).forEach(r=>{
+    if(r.voided)return;
+    const f=r.flavor,g=+r.good||0,i=+r.inQ||0;
+    if(r.rawUse)Object.entries(r.rawUse).forEach(([k,v])=>{S.raw[k]=(S.raw[k]||0)-(+v||0);});
+    switch(r.stage){
+      case"paste": S.paste[f]+=g; break;
+      case"bakeyolk": S.raw.yolkraw=(S.raw.yolkraw||0)-g; S.raw.yolk=(S.raw.yolk||0)+Math.round(g*PRM("yolkBagG")*10)/10; break;
+      case"fen":   if(r.remain!=null){S.fen[f]+=g;S.paste[f]=+r.remain;} else {S.paste[f]-=i; S.fen[f]+=g;} break;
+      case"lava":  S.lava[f]+=g; break;
+      case"fill":  S.core[f]+=g*PRM("perMold"); if(r.remain!=null)S.lava[f]=+r.remain; else S.lava[f]-=(+r.used||0); break;
+      case"wrap1": S.fen[f]-=i; S.core[f]-=i; S.lxx[f]+=g; break;
+      case"skin":  S.skin[f]+=g; break;
+      case"wrap2": S.skin[f]-=i; S.lxx[f]-=i; S.wet[f]+=g; break;
+      case"mold":  S.wet[f]-=i; S.rdy[f]+=g; S.cumMold[f]+=g; break;
+      case"bake":  S.rdy[f]-=i; S.baked[f]+=g; break;
+      case"pack":  S.baked[f]-=i; S.packed[f]+=g; S.cumPacked[f]+=g;
+                   S.mat.tray-=g;S.mat.bag-=g;S.mat.oxy-=g*2;S.mat["st_"+f]-=g; break;
+      case"boxup":{
+        const p=r.product;
+        if(p==="bb2"){FLAVORS.forEach(x=>{if(r.mix&&r.mix[x.k])S.packed[x.k]-=r.mix[x.k];});}
+        else{const bom=BOX_BOM[p]||{};FLAVORS.forEach(x=>{const c=(bom[x.k]||0)*g;if(c)S.packed[x.k]-=c;});}
+        S.mat[(PRODUCTS.find(x=>x.k===p)||{}).box===6?"kit6":"kit2"]-=g;
+        S.gift[p]+=g; S.cumBox[p]+=g; break;}
+      case"sample":S.packed[f]-=g; break;
+      case"ship":  S.gift[r.product]-=g; break;
+      case"matin": S.mat[r.mat]+=g; break;
+      case"rawin": S.raw[r.raw]=(S.raw[r.raw]||0)+g; break;
+      case"rawuse":S.raw[r.raw]=(S.raw[r.raw]||0)-g; break;
+      case"adjust":{
+        const d=+r.delta||0;
+        if(r.node==="skin")S.skin[r.key]=(S.skin[r.key]||0)+d;
+        else if(r.node==="gift")S.gift[r.key]=(S.gift[r.key]||0)+d;
+        else if(r.node==="mat")S.mat[r.key]=(S.mat[r.key]||0)+d;
+        else if(r.node==="raw")S.raw[r.key]=(S.raw[r.key]||0)+d;
+        else if(S[r.node])S[r.node][r.key]=(S[r.node][r.key]||0)+d;
+        break;}
+    }
+  });
+  return S;
+}
+
+/* ---------------- 订单需求 ---------------- */
+function liveOrders(){return Object.values(ORDERS).filter(o=>o.status==="有效");}
+function demandQtyByDate(d){
+  const q={};
+  liveOrders().forEach(o=>{
+    if(!o.batch&&o.pickupDate===d)Object.entries(o.qty||{}).forEach(([k,v])=>q[k]=(q[k]||0)+v);
+    if(o.batch)Object.values(o.pickups||{}).forEach(r=>{if(r.date===d)Object.entries(r.qty||{}).forEach(([k,v])=>q[k]=(q[k]||0)+v);});
+  });
+  return q;
+}
+function demandDates(){
+  const set=new Set();
+  liveOrders().forEach(o=>{
+    if(!o.batch&&o.pickupDate)set.add(o.pickupDate);
+    if(o.batch)Object.values(o.pickups||{}).forEach(r=>{if(r.date)set.add(r.date);});
+  });
+  return [...set].sort();
+}
+function demandTotalQty(){
+  const q={};
+  liveOrders().forEach(o=>Object.entries(o.qty||{}).forEach(([k,v])=>{if(k!=="bb2")q[k]=(q[k]||0)+v;}));
+  return q;
+}
+function shipNeedByStore(d){
+  const m={CAM:0,BBY:0,ALD:0};
+  liveOrders().forEach(o=>{
+    if(!o.batch&&o.pickupDate===d&&m[o.store]!=null)m[o.store]+=o.boxes||0;
+    if(o.batch)Object.values(o.pickups||{}).forEach(r=>{if(r.date===d&&m[o.store]!=null)m[o.store]+=r.boxes||0;});
+  });
+  return m;
+}
+
+/* ---------------- 登录 ---------------- */
+let ROLE=null;
+function tryLogin(){
+  const c=document.getElementById("loginCode").value.trim();
+  let r=null;
+  if(c===ACCESS_CODES.OWNER)r={type:"owner"};
+  else if(c===ACCESS_CODES.KITCHEN)r={type:"kitchen"};
+  if(!r){toast("访问码不正确");return;}
+  ROLE=r;try{localStorage.setItem("mck_role",JSON.stringify(r));}catch(e){}
+  document.getElementById("loginMask").style.display="none";
+  applyRole();renderAll();
+}
+document.getElementById("loginCode").addEventListener("keydown",e=>{if(e.key==="Enter")tryLogin();});
+document.getElementById("btnLogout").addEventListener("click",()=>{
+  try{localStorage.removeItem("mck_role");}catch(e){} location.reload();});
+function applyRole(){
+  if(!ROLE)return;
+  document.getElementById("roleTag").textContent=ROLE.type==="owner"?"Owner":"厨房";
+  document.querySelector('nav button[data-p="set"]').style.display=ROLE.type==="owner"?"":"none";
+  document.getElementById("btnAdjust").style.display=ROLE.type==="owner"?"":"none";
+}
+
+/* ---------------- 弹窗/toast ---------------- */
+function openModal(html,center){
+  const m=document.getElementById("mMask");
+  m.classList.toggle("center",!!center);
+  document.getElementById("mBox").innerHTML=html;
+  m.style.display="flex";
+}
+function closeModal(){document.getElementById("mMask").style.display="none";}
+document.getElementById("mMask").addEventListener("click",e=>{if(e.target.id==="mMask")closeModal();});
+const mhead=t=>`<div class="mhead"><b>${t}</b><button class="mclose" onclick="closeModal()">✕</button></div>`;
+function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");
+  clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),2600);}
+let STAFF="";
+
+/* ---------------- 看板 ---------------- */
+function itemsTextQ(qty){
+  return PRODUCTS.filter(p=>qty&&qty[p.k]>0).map(p=>`${p.n}×${qty[p.k]}`).join(" · ");
+}
+function ordersFor(d,st){
+  const out=[];
+  liveOrders().forEach(o=>{
+    if(!o.batch&&o.pickupDate===d&&o.store===st)
+      out.push({no:o.no,name:o.name||"",qty:o.qty||{},boxes:o.boxes||0,batch:false});
+    if(o.batch)Object.values(o.pickups||{}).forEach(r=>{
+      if(r.date===d&&o.store===st)
+        out.push({no:o.no,name:(o.name||"")+"(分批)",qty:r.qty||{},boxes:r.boxes||0,batch:true});});
+  });
+  return out;
+}
+function bakeNeed(d){
+  const q={};
+  liveOrders().forEach(o=>{
+    if(!o.batch&&o.pickupDate===d)Object.entries(o.qty||{}).forEach(([k,v])=>q[k]=(q[k]||0)+v);
+    if(o.batch)Object.values(o.pickups||{}).forEach(r=>{if(r.date===d)Object.entries(r.qty||{}).forEach(([k,v])=>q[k]=(q[k]||0)+v);});
+  });
+  Object.values(WPLAN[d]||{}).forEach(sq=>Object.entries(sq||{}).forEach(([k,v])=>q[k]=(q[k]||0)+v));
+  return q;
+}
+function bakePieces(qty){
+  const fp=flavorPieces(qty);
+  // 盲盒2颗:口味未定,单列提示
+  const bb=(qty.bb2||0)*2;
+  return {fp,bb};
+}
+let planDaySel="D",shipDaySel="D";
+function shipMatrixHtml(d){
+  const perStore={};["CAM","BBY","ALD"].forEach(st=>perStore[st]={});
+  liveOrders().forEach(o=>{
+    if(!o.batch&&o.pickupDate===d&&perStore[o.store])
+      Object.entries(o.qty||{}).forEach(([k,v])=>perStore[o.store][k]=(perStore[o.store][k]||0)+v);
+    if(o.batch)Object.values(o.pickups||{}).forEach(r=>{
+      if(r.date===d&&perStore[o.store])
+        Object.entries(r.qty||{}).forEach(([k,v])=>perStore[o.store][k]=(perStore[o.store][k]||0)+v);});
+  });
+  const walk={};
+  Object.values(WPLAN[d]||{}).forEach(sq=>Object.entries(sq||{}).forEach(([k,v])=>walk[k]=(walk[k]||0)+(+v||0)));
+  const cols=PRODUCTS;
+  const cell=v=>v?`<b>${v}</b>`:'<span class="z">0</span>';
+  let h=`<tr><th></th>${cols.map(p=>`<th>${p.n}</th>`).join("")}<th>合计盒</th></tr>`;
+  const sum={};let grand=0;
+  ["ALD","BBY","CAM"].forEach(st=>{
+    let rowTot=0;
+    h+=`<tr><td>${st}</td>${cols.map(p=>{
+      const v=perStore[st][p.k]||0;sum[p.k]=(sum[p.k]||0)+v;rowTot+=v;return `<td>${cell(v)}</td>`;
+    }).join("")}<td><b>${rowTot||'<span class="z">0</span>'}</b></td></tr>`;
+    grand+=rowTot;
+  });
+  let wTot=0;
+  h+=`<tr><td>现货</td>${cols.map(p=>{
+    const v=walk[p.k]||0;sum[p.k]=(sum[p.k]||0)+v;wTot+=v;return `<td>${cell(v)}</td>`;
+  }).join("")}<td><b>${wTot||'<span class="z">0</span>'}</b></td></tr>`;
+  grand+=wTot;
+  h+=`<tr class="tot"><td>SUM</td>${cols.map(p=>`<td>${sum[p.k]||0}</td>`).join("")}<td>${grand}</td></tr>`;
+  return h;
+}
+function shipDayBlock(d,isToday){
+  const q=bakeNeed(d);
+  const {fp,bb}=bakePieces(q);
+  const tot=FLAVORS.reduce((s,f)=>s+(fp[f.k]||0),0)+bb;
+  if(!tot)return `<div class="note">${fmtMD(d)} 暂无出货</div>`;
+  let h=`<div class="note" style="margin:0 0 4px"><b>当日烘烤清单</b>(订单+现货合并)</div>
+  <div class="pksum" style="margin-bottom:10px">${
+    FLAVORS.filter(f=>fp[f.k]).map(f=>`<span class="pi">${f.n}<b>${fp[f.k]}</b></span>`).join("")}${
+    bb?`<span class="pi">盲盒散颗(口味自选)<b>${bb}</b></span>`:""}
+    <span class="pi">合计<b>${tot}颗</b></span></div>`;
+  // 各店装车对照
+  const shipped={CAM:0,BBY:0,ALD:0};
+  Object.values(RECS).forEach(r=>{
+    if(!r.voided&&r.stage==="ship"&&r.date===d&&shipped[r.store]!=null)shipped[r.store]+=+r.good||0;});
+  h+=`<div class="note" style="margin:0 0 4px"><b>各店装车</b></div>`;
+  ["CAM","BBY","ALD"].forEach(st=>{
+    let ob=0;
+    liveOrders().forEach(o=>{
+      if(!o.batch&&o.pickupDate===d&&o.store===st)ob+=o.boxes||0;
+      if(o.batch&&o.store===st)Object.values(o.pickups||{}).forEach(r=>{if(r.date===d)ob+=r.boxes||0;});
+    });
+    const wq=(WPLAN[d]||{})[st]||{};
+    const wb=Object.values(wq).reduce((s,v)=>s+(+v||0),0);
+    const need=ob+wb;
+    if(!need)return;
+    h+=`<div class="kv"><span>${STORE_NAME[st]}<span class="note" style="margin-left:6px">订单${ob}盒${wb?" + 现货"+wb+"盒":""}</span></span>
+      <b class="${isToday?(shipped[st]>=need?"okrow":"warnrow"):""}">应送 ${need} 盒${isToday?` → 已交接 ${shipped[st]}${shipped[st]>=need?" ✓":""}`:""}</b></div>`;
+  });
+  return h;
+}
+function renderDash(){
+  const D=todayStr(),M=tomorrowStr(),S=calcStock();
+  document.getElementById("todayLabel").textContent=fmtMD(D);
+  let packedT=0,wasteT=0,boxT=0,bakedT=0;
+  Object.values(RECS).forEach(r=>{
+    if(r.voided||r.date!==D)return;
+    if(r.stage==="pack")packedT+=+r.good||0;
+    if(r.stage==="boxup")boxT+=+r.good||0;
+    if(r.stage==="bake")bakedT+=+r.good||0;
+    if(["wrap1","wrap2","mold","bake","pack","lava","skin","fen"].includes(r.stage))wasteT+=+r.waste||0;
+  });
+  const {fp:fpT,bb:bbT}=bakePieces(bakeNeed(D));
+  const needSum=FLAVORS.reduce((s,f)=>s+(fpT[f.k]||0),0)+bbT;
+  document.getElementById("todayStats").innerHTML=
+    `<div class="tstat"><div class="n">${needSum}</div><div class="l">今日要烤(颗,按订单+现货)</div></div>
+     <div class="tstat"><div class="n">${bakedT}</div><div class="l">今日已烤(颗)</div></div>
+     <div class="tstat"><div class="n">${boxT}</div><div class="l">今日组盒(盒)</div></div>
+     <div class="tstat ${wasteT>0?"bad":""}"><div class="n">${wasteT}</div><div class="l">今日损耗(颗)</div></div>`;
+  // 生产安排
+  const planHtml=d=>{
+    const p=PLAN[d];
+    if(!p||(!p.text&&!p.items))return '<div class="note">还没有安排(Owner 在订单App的 Owner 中心填写)</div>';
+    const items=Object.values(p.items||{});
+    const doneOf=it=>{
+      let s=0;
+      Object.values(RECS).forEach(r=>{
+        if(r.voided||r.date!==d||r.stage!==it.stage)return;
+        if(it.flavor&&r.flavor!==it.flavor)return;
+        if(["paste","lava","skin"].includes(it.stage))s+=+r.inQ||0;
+        else if(it.stage==="fill")s+=+r.good||0;
+        else if(it.stage==="bakeyolk")s+=+r.good||0;
+        else s+=+r.good||0;
+      });
+      return Math.round(s*10)/10;
+    };
+    let lines=items.map(it=>{
+      if(it.stage==="custom"){
+        return `<div class="wlog"><span>· ${esc(it.text||"")}${it.qty?` ${it.qty}${esc(it.unit||"")}`:""}</span><b><span class="z">手动项</span></b></div>`;
+      }
+      const sn=SN(it.stage)||it.stage;
+      const fl=it.flavor&&(STAGES.find(s=>s.k===it.stage)||{}).flavor!==false?FN(it.flavor)+" ":"";
+      const u=["paste","lava","skin"].includes(it.stage)?"份":it.stage==="fill"?"模":it.stage==="bakeyolk"?"包":"颗";
+      const dn=doneOf(it);
+      const st=dn>=it.qty?'<span class="okrow">✓ 完成</span>':(dn>0?`<b class="warnrow">${dn}/${it.qty}</b>`:'<span class="z">未开始</span>');
+      return `<div class="wlog"><span>· ${sn} ${fl}${it.qty}${u}</span><b>${st}</b></div>`;
+    }).join("");
+    if(p.text)lines+=p.text.split("\n").filter(x=>x.trim()).map(x=>`<div class="wlog"><span>· ${esc(x)}</span></div>`).join("");
+    return (lines||'<div class="note">空安排</div>')
+      +(p.by?`<div class="note" style="margin-top:4px">${esc(p.by)} 更新于 ${p.at||""}</div>`:"");
+  };
+  document.getElementById("planBtnD").textContent="今日 "+fmtMD(D);
+  document.getElementById("planBtnM").textContent="明日 "+fmtMD(M);
+  document.getElementById("shipBtnD").textContent="今日 "+fmtMD(D);
+  document.getElementById("shipBtnM").textContent="明日 "+fmtMD(M);
+  document.getElementById("planBody").innerHTML=planHtml(planDaySel==="D"?D:M);
+  // 出货安排(按钮切换)
+  const sd=shipDaySel==="D"?D:M;
+  document.getElementById("shipMatrix").innerHTML=shipMatrixHtml(sd);
+  document.getElementById("shipBody").innerHTML=shipDayBlock(sd,shipDaySel==="D");
+  // 配对与液量提示
+  {
+    const rows=[];
+    FLAVORS.forEach(f=>{
+      const fen=S.fen[f.k]||0,core=S.core[f.k]||0,liq=S.lava[f.k]||0;
+      if(!fen&&!core&&!liq)return;
+      const can=Math.min(fen,core);
+      const std=PRM("perMold")*PRM("coreG");
+      let t=`<b>${f.n}</b> 可包 <b>${can}</b>`;
+      if(fen>core)t+=` · 馅球多 ${fen-core}(该多灌模)`;
+      else if(core>fen)t+=` · 冻芯多 ${core-fen}(该多分馅)`;
+      if(liq>0)t+=` · 液剩 ${liq}g ≈ 可灌 ${Math.floor(liq/std)}模/${Math.floor(liq/std)*PRM("perMold")}颗`;
+      rows.push(`<div class="wlog"><span>${t}</span></div>`);
+    });
+    document.getElementById("pairCard").style.display=rows.length?"block":"none";
+    document.getElementById("pairBody").innerHTML=rows.join("");
+  }
+  // 生胚进度(vs 全季计划)
+  const hasTargets=FLAVORS.some(f=>TARGETS[f.k]>0);
+  let h=`<tr><th>口味</th><th>全季计划</th><th>已压模生胚</th><th>还差</th><th>冻胚库存</th><th>已包装</th></tr>`;
+  let tn=0,tm=0;
+  FLAVORS.forEach(f=>{
+    const n=+TARGETS[f.k]||0,m=S.cumMold[f.k]||0;
+    tn+=n;tm+=m;
+    const gap=Math.max(0,n-m);
+    h+=`<tr><td>${f.n}</td><td>${n||'<span class="z">·</span>'}</td><td>${m||'<span class="z">·</span>'}</td>
+      <td>${n?(gap?`<b class="warnrow">${gap}</b>`:'<span class="okrow">✓</span>'):'<span class="z">·</span>'}</td>
+      <td>${S.rdy[f.k]||0}</td><td>${S.cumPacked[f.k]||0}</td></tr>`;
+  });
+  h+=`<tr class="tot"><td>合计</td><td>${tn}</td><td>${tm}</td><td>${Math.max(0,tn-tm)}</td><td>${FLAVORS.reduce((s,f)=>s+(S.rdy[f.k]||0),0)}</td><td>${FLAVORS.reduce((s,f)=>s+(S.cumPacked[f.k]||0),0)}</td></tr>`;
+  document.getElementById("gapTable").innerHTML=h;
+  document.getElementById("gapNote").textContent=hasTargets?"":"全季计划还没设定(Owner 在设置页填,如 金沙2000/抹茶柚子1750)";
+  // 包材推算:颗数缺口按全季计划(没设则按订单),礼盒套按订单
+  const totQ=flavorPieces(demandTotalQty());
+  const gaps={};
+  FLAVORS.forEach(f=>{
+    const base=hasTargets?(+TARGETS[f.k]||0):(totQ[f.k]||0);
+    gaps[f.k]=Math.max(0,base-(S.cumPacked[f.k]||0));});
+  const gapPieces=FLAVORS.reduce((s,f)=>s+gaps[f.k],0);
+  const bq=demandTotalQty();
+  let gap6=0,gap2=0;
+  PRODUCTS.forEach(p=>{if(p.k==="bb2")return;
+    const g=Math.max(0,(bq[p.k]||0)-(S.cumBox[p.k]||0));
+    if(p.box===6)gap6+=g;else gap2+=g;});
+  const needMat=m=>{
+    if(m.k==="tray"||m.k==="bag")return gapPieces;
+    if(m.k==="oxy")return gapPieces*2;
+    if(m.k==="kit6")return gap6;
+    if(m.k==="kit2")return gap2;
+    if(m.k.startsWith("st_"))return gaps[m.k.slice(3)]||0;
+    return 0;};
+  h=`<tr><th>材料</th><th>现有</th><th>还需≈</th><th>缺口</th></tr>`;
+  MATS.forEach(m=>{
+    const have=S.mat[m.k]||0,nd=needMat(m),short=Math.max(0,nd-have);
+    const low=TH[m.k]>0&&have<=TH[m.k];
+    h+=`<tr><td>${m.n}${low?" ⚠":""}</td><td class="${low?"warnrow":""}">${have}</td><td>${nd||'<span class="z">·</span>'}</td>
+      <td>${short?`<b class="warnrow">缺 ${short}</b>`:'<span class="okrow">够</span>'}</td></tr>`;
+  });
+  document.getElementById("matProj").innerHTML=h;
+  const matWarns=MATS.filter(m=>TH[m.k]>0&&S.mat[m.k]<=TH[m.k]);
+  document.getElementById("matWarnCard").style.display=matWarns.length?"block":"none";
+  document.getElementById("matWarn").innerHTML=matWarns.map(m=>`<span class="pi bad">${m.n}<b>${S.mat[m.k]}</b></span>`).join("");
+  const rawWarns=allRaw().filter(m=>TH["raw_"+m.k]>0&&(S.raw[m.k]||0)<=TH["raw_"+m.k]);
+  document.getElementById("rawWarnCard").style.display=rawWarns.length?"block":"none";
+  document.getElementById("rawWarn").innerHTML=rawWarns.map(m=>`<span class="pi bad">${m.n}<b>${(S.raw[m.k]||0)+m.u}</b></span>`).join("");
+}
+
+document.getElementById("planDaySeg").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  planDaySel=b.dataset.v;
+  document.querySelectorAll("#planDaySeg button").forEach(x=>x.classList.toggle("on",x===b));
+  renderDash();
+});
+document.getElementById("shipDaySeg").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  shipDaySel=b.dataset.v;
+  document.querySelectorAll("#shipDaySeg button").forEach(x=>x.classList.toggle("on",x===b));
+  renderDash();
+});
+
+/* ---------------- 生产安排 / 现货安排 编辑(Owner) ---------------- */
+
+
+/* ---------------- 记录页 ---------------- */
+let curStage="";
+function renderStageGrid(){
+  [1,2,3,4].forEach(g=>{
+    const el=document.querySelector(`.stage-grid[data-g="${g}"]`);if(!el)return;
+    el.innerHTML=STAGES.filter(s=>s.g===g).map(s=>
+      `<button data-v="${s.k}" class="${s.k===curStage?"on":""}">${s.n}</button>`).join("");
+  });
+}
+document.querySelectorAll(".stage-grid").forEach(el=>el.addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  curStage=b.dataset.v;renderStageGrid();renderRecForm();
+  document.getElementById("recForm").scrollIntoView({behavior:"smooth",block:"start"});
+}));
+function flavorBadge(stage,f,S){
+  switch(stage){
+    case"paste":return (S.paste[f]||0)+"g";
+    case"skin": return "皮"+(S.skin[f]||0);
+    case"fen":  return "馅"+(S.paste[f]||0)+"g";
+    case"lava": return "液"+(S.lava[f]||0)+"g";
+    case"fill": return "液"+(S.lava[f]||0)+"g";
+    case"wrap1":return "馅"+(S.fen[f]||0)+"/芯"+(S.core[f]||0);
+    case"wrap2":return "皮"+(S.skin[f]||0)+"/馅"+(S.lxx[f]||0);
+    case"mold": return "待"+(S.wet[f]||0);
+    case"bake": return "待"+(S.rdy[f]||0);
+    case"pack": return "烤好"+(S.baked[f]||0);
+    case"sample":return "成品"+(S.packed[f]||0);
+    default:return"";
+  }
+}
+function stockHint(stage,f){
+  const S=calcStock();
+  switch(stage){
+    case"fen":  return f?`${FN(f)}馅料现有 ${S.paste[f]||0} 克`:"";
+    case"wrap1":return f?`${FN(f)}馅球 ${S.fen[f]||0} 颗 · 冻芯 ${S.core[f]||0} 颗(可包 ${Math.min(S.fen[f]||0,S.core[f]||0)})`:"";
+    case"wrap2":return f?`${FN(f)}曲奇皮 ${S.skin[f]||0} 颗 · 流心馅 ${S.lxx[f]||0} 颗`:"";
+    case"mold": return f?`${FN(f)}未压模 ${S.wet[f]||0} 颗`:"";
+    case"bake": return f?`${FN(f)}待烘烤 ${S.rdy[f]||0} 颗`:"";
+    case"pack": return f?`${FN(f)}烘烤成品 ${S.baked[f]||0} 颗 · 底托${S.mat.tray} 袋${S.mat.bag} 吸氧剂${S.mat.oxy} 贴纸${S.mat["st_"+f]||0}`:"";
+    case"sample":return f?`${FN(f)}包装成品 ${S.packed[f]||0} 颗`:"";
+    case"skin": return f?`${FN(f)}曲奇皮现有 ${S.skin[f]||0} 颗`:"";
+    default:return"";
+  }
+}
+function overdraw(rec){
+  const S=calcStock(),out=[];
+  const f=rec.flavor,g=rec.good,i=rec.inQ||0;
+  const chk=(need,have,name)=>{if(need>have)out.push(`${name}:需要 ${need},现有 ${have}`);};
+  if(rec.rawUse)Object.entries(rec.rawUse).forEach(([k,v])=>chk(v,S.raw[k]||0,RAWN(k)+"("+RAWU(k)+")"));
+  if(rec.stage==="rawuse")chk(g,S.raw[rec.raw]||0,RAWN(rec.raw)+"("+RAWU(rec.raw)+")");
+  switch(rec.stage){
+    case"fen":chk(i,S.paste[f]||0,FN(f)+"馅料(克)");break;
+    case"wrap1":chk(i,S.fen[f]||0,FN(f)+"馅球");chk(i,S.core[f]||0,FN(f)+"冻芯");break;
+    case"wrap2":chk(i,S.skin[f]||0,FN(f)+"曲奇皮");chk(i,S.lxx[f]||0,FN(f)+"流心馅");break;
+    case"bakeyolk":chk(rec.good,S.raw.yolkraw||0,"生咸蛋黄(包)");break;
+    case"fill":if(rec.remain>(S.lava[f]||0))out.push(`剩余液(${rec.remain}g)比系统现有(${S.lava[f]||0}g)还多 — 之前可能少记了流心制作,保存将按你填的校准`);break;
+    case"fen":if(rec.remain>(S.paste[f]||0))out.push(`剩余馅(${rec.remain}g)比系统现有(${S.paste[f]||0}g)还多 — 保存将按你填的校准`);break;
+    case"mold":chk(i,S.wet[f]||0,FN(f)+"未压模");break;
+    case"bake":chk(i,S.rdy[f]||0,FN(f)+"待烘烤");break;
+    case"pack":chk(i,S.baked[f]||0,FN(f)+"烘烤成品");chk(g,S.mat.tray,"底托");chk(g,S.mat.bag,"包装袋");
+      chk(g*2,S.mat.oxy,"吸氧剂");chk(g,S.mat["st_"+f]||0,FN(f)+"贴纸");break;
+    case"boxup":{
+      if(rec.product==="bb2"){FLAVORS.forEach(x=>{if(rec.mix&&rec.mix[x.k])chk(rec.mix[x.k],S.packed[x.k]||0,x.n+"包装成品");});}
+      else{const bom=BOX_BOM[rec.product]||{};FLAVORS.forEach(x=>{const c=(bom[x.k]||0)*g;if(c)chk(c,S.packed[x.k]||0,x.n+"包装成品");});}
+      const kk=(PRODUCTS.find(x=>x.k===rec.product)||{}).box===6?"kit6":"kit2";
+      chk(g,S.mat[kk],MATN(kk));break;}
+    case"sample":chk(g,S.packed[f]||0,FN(f)+"包装成品");break;
+    case"ship":chk(g,S.gift[rec.product]||0,PN(rec.product)+"礼盒");break;
+  }
+  return out;
+}
+let rFlavor="",rProduct="",rStore="",rUseVal="",rReasonVal="",bbMix={};
+function renderRecForm(keepNums){
+  const el=document.getElementById("recForm");
+  if(!curStage){el.innerHTML="";return;}
+  const st=STAGES.find(s=>s.k===curStage);
+  const S=calcStock();
+  rFlavor="";rProduct="";rStore="";rUseVal="";rReasonVal="";bbMix={};
+  let h=`<div class="card"><div class="note" style="margin:0"><b>${st.n}</b>(${st.unit})</div>`;
+  if(st.flavor){
+    h+=`<label class="f">口味(括号里是当前上游库存)</label>
+        <div class="seg" id="rFlv">${FLAVORS.map(f=>
+          `<button data-v="${f.k}">${f.n}<small>${flavorBadge(curStage,f.k,S)}</small></button>`).join("")}</div>
+        <div class="hintbox" id="rHint" style="display:none"></div>`;
+  }
+  if(curStage==="boxup"){
+    h+=`<label class="f">礼盒产品</label><div class="seg" id="rProd">${PRODUCTS.map(p=>`<button data-v="${p.k}">${p.n}<small>库存${S.gift[p.k]||0}</small></button>`).join("")}</div>
+        <div id="bbMixWrap" style="display:none"><label class="f">盲盒口味组成(每盒2颗)</label><div id="bbMixBody"></div></div>
+        <div class="hintbox" id="rHint" style="display:none"></div>`;
+  }
+  if(curStage==="ship"){
+    h+=`<label class="f">礼盒产品(括号=现库存)</label><div class="seg" id="rProd">${PRODUCTS.map(p=>`<button data-v="${p.k}">${p.n}<small>${S.gift[p.k]||0}盒</small></button>`).join("")}</div>
+        <label class="f">配送门店</label><div class="seg" id="rStore">${Object.entries(STORE_NAME).map(([k,n])=>`<button data-v="${k}">${n}</button>`).join("")}</div>
+        <label class="f">用途</label><div class="seg" id="rUse"><button data-v="订单">订单预留</button><button data-v="现货">门店现货</button></div>
+        <div class="hintbox" id="rHint" style="display:none"></div>`;
+  }
+  if(curStage==="bakeyolk"){
+    const raw=S.raw.yolkraw||0;
+    h+=`<div><label class="f">烤了几包 *</label><input type="number" id="rGood" min="0" step="0.5" inputmode="decimal"></div>
+        <div class="hintbox">生咸蛋黄现有 ${fmtYolkRaw(raw)};烤好按 1包=${PRM("yolkBagG")}g 计入「熟咸蛋黄」,之后盘点校准。</div>`;
+  }else if(curStage==="paste"){
+    h+=`<div class="row"><div><label class="f">配方份数(填了自动扣原料)</label><input type="number" id="rIn" min="0" inputmode="decimal"></div>
+        <div><label class="f">完成重量(克) *</label><input type="number" id="rGood" min="0" inputmode="numeric"></div></div>
+        <div class="hintbox" id="recipeHint" style="display:none"></div>`;
+  }else if(curStage==="fen"){
+    h+=`<div class="row"><div><label class="f">分出(颗) *</label><input type="number" id="rGood" min="0" inputmode="numeric"></div>
+        <div><label class="f">剩余馅(克) *</label><input type="number" id="rRemain" min="0" inputmode="numeric"></div></div>
+        <div class="hintbox" id="fenHint"></div>`;
+  }else if(curStage==="fill"){
+    h+=`<div class="row"><div><label class="f">灌了几模 *</label><input type="number" id="rGood" min="0" inputmode="numeric"></div>
+        <div><label class="f">剩余流心液(克) *</label><input type="number" id="rRemain" min="0" inputmode="numeric"></div></div>
+        <div class="hintbox" id="fillHint"></div>`;
+  }else if(curStage==="lava"||curStage==="skin"){
+    h+=`<div class="row"><div><label class="f">配方份数(填了自动扣原料)</label><input type="number" id="rIn" min="0" inputmode="decimal"></div>
+        <div><label class="f">完成(${st.unit}) *</label><input type="number" id="rGood" min="0" inputmode="numeric"></div></div>
+        <div><label class="f">损耗</label><input type="number" id="rWaste" min="0" inputmode="numeric" value="0"></div>
+        <div id="rReasonWrap" style="display:none"><label class="f">损耗原因 *</label>
+        <div class="seg" id="rReason">${WASTE_REASONS.def.map(r=>`<button data-v="${r}">${r}</button>`).join("")}</div></div>
+        <div class="hintbox" id="recipeHint" style="display:none"></div>`;
+  }else if(curStage==="sample"){
+    h+=`<div><label class="f">出库数量(颗) *</label><input type="number" id="rGood" min="0" inputmode="numeric"></div>
+        <label class="f">用途 *</label><div class="seg" id="rReason">${SAMPLE_REASONS.map(r=>`<button data-v="${r}">${r}</button>`).join("")}</div>`;
+  }else if(curStage==="boxup"){
+    h+=`<div><label class="f">组装盒数 *</label><input type="number" id="rGood" min="0" inputmode="numeric"></div>`;
+  }else if(curStage==="ship"){
+    h+=`<div><label class="f">配送盒数 *</label><input type="number" id="rGood" min="0" inputmode="numeric"></div>`;
+  }else{
+    h+=`<div class="row"><div><label class="f">投入 *</label><input type="number" id="rIn" min="0" inputmode="numeric"></div>
+        <div><label class="f">合格 *</label><input type="number" id="rGood" min="0" inputmode="numeric"></div></div>
+        <div class="kv"><span>损耗(自动=投入−合格)</span><b id="rWasteShow">0</b></div>
+        <div id="rReasonWrap" style="display:none"><label class="f">损耗原因 *</label>
+        <div class="seg" id="rReason">${(WASTE_REASONS[curStage]||WASTE_REASONS.def).map(r=>`<button data-v="${r}">${r}</button>`).join("")}</div></div>`;
+  }
+  h+=`<div class="row"><div><label class="f">记录日期</label><input type="date" id="rDate" value="${todayStr()}" min="2026-08-01" max="${todayStr()}"></div>
+      <div><label class="f">备注 / Batch</label><input type="text" id="rNote" placeholder="选填,如 0904-01"></div></div>
+      <label class="f">操作人 Staff Name *</label><input type="text" id="rStaff" value="${esc(STAFF)}" placeholder="你的名字">
+      <button class="btn" style="margin-top:14px" id="rGo">提交记录</button></div>`;
+  el.innerHTML=h;
+  const hint=()=>{const hd=document.getElementById("rHint");if(!hd)return;
+    const t=stockHint(curStage,rFlavor);hd.style.display=t?"block":"none";hd.textContent=t;};
+  const recipeHint=()=>{
+    const hd=document.getElementById("recipeHint");if(!hd)return;
+    if(!["paste","lava","skin"].includes(curStage)){hd.style.display="none";return;}
+    const rc=recipeFor(curStage,rFlavor);
+    const portions=+((document.getElementById("rIn")||{}).value)||0;
+    if(!rc){hd.style.display="block";
+      hd.innerHTML="该配方还没录入(设置→配方BOM)。暂不自动扣原料,可用库存页「原料领用」手动记。";return;}
+    const S2=calcStock();
+    const rk=rc.key,y=YIELDS[rk]||{};
+    const expTxt=(()=>{
+      if(!portions)return"";
+      if(curStage==="paste"&&y.g)return `<b>预计产出 ≈ ${Math.round(y.g*portions)} 克</b> · `;
+      if(curStage!=="paste"&&y.out)return `<b>预计产出 ≈ ${Math.round(y.out*portions)} 颗</b>(少于此数记配方耗损)· `;
+      return "";})();
+    hd.style.display="block";
+    hd.innerHTML=expTxt+"按配方"+(portions?`×${portions}份将自动扣:`:"每份用料:")+"<br>"+
+      Object.entries(rc.bom).map(([k,v])=>{
+        const need=portions?Math.round(v*portions*100)/100:v;
+        const have=S2.raw[k]||0,lack=portions&&need>have;
+        return `${RAWN(k)} ${need}${RAWU(k)}${lack?` <b style="color:var(--danger)">(现有${have})</b>`:""}`;
+      }).join(" · ");
+  };
+  const flv=document.getElementById("rFlv");
+  if(flv)flv.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+    rFlavor=b.dataset.v;flv.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));hint();recipeHint();
+    const fh=document.getElementById("fenHint")||document.getElementById("fillHint");
+    if(fh){const ev=new Event("input");const r1=document.getElementById("rRemain");if(r1)r1.dispatchEvent(ev);else if(document.getElementById("rGood"))document.getElementById("rGood").dispatchEvent(ev);}});
+  const rInEl=document.getElementById("rIn");
+  if(rInEl&&["paste","lava","skin"].includes(curStage))rInEl.addEventListener("input",recipeHint);
+  recipeHint();
+  const calibHint=()=>{
+    const S2=calcStock();
+    if(curStage==="fen"){
+      const hd=document.getElementById("fenHint");if(!hd)return;
+      const have=S2.paste[rFlavor]||0;
+      const rm=parseFloat((document.getElementById("rRemain")||{}).value);
+      const gd=parseFloat((document.getElementById("rGood")||{}).value)||0;
+      const gpp=(YIELDS["paste_"+rFlavor]||{}).gpp||PRM("fenG");
+      let t=`${FN(rFlavor)}馅现有 ${have}g · 标准 ${gpp}g/颗`;
+      if(!isNaN(rm)){const used=Math.round((have-rm)*10)/10;
+        const exp=Math.floor(Math.max(0,used)/gpp);
+        t+=`<br>本次用馅 ≈ <b>${used}g</b>,标准应出 <b>${exp}颗</b>`+(gd?`,实出 ${gd}颗`+(exp-gd>0?` → <b style="color:var(--danger)">配方耗损 ${exp-gd}颗(待审)</b>`:" ✓"):"");
+      }
+      hd.innerHTML=t;
+    }
+    if(curStage==="fill"){
+      const hd=document.getElementById("fillHint");if(!hd)return;
+      const have=S2.lava[rFlavor]||0;
+      const per=PRM("perMold"),cg=PRM("coreG"),std=per*cg;
+      const rm=parseFloat((document.getElementById("rRemain")||{}).value);
+      const md=parseFloat((document.getElementById("rGood")||{}).value)||0;
+      let t=`${FN(rFlavor)}流心液现有 ${have}g · 模具共${PRM("molds")}个 · 标准 ${per}颗×${cg}g=${std}g/模 · 现有液体约可灌 <b>${Math.floor(have/std)}模</b>`;
+      if(!isNaN(rm)&&md>0){const used=Math.round((have-rm)*10)/10;
+        const avg=Math.round(used/md*10)/10, over=Math.round((used-md*std)*10)/10;
+        t+=`<br>本次用液 ≈ <b>${used}g</b>,平均 <b>${avg}g/模</b>(标准${std})`+(over>0?` → <b style="color:var(--danger)">超耗 ${over}g(待审)</b>`:" ✓")+` · 得冻芯 ${md*per}颗`;
+      }
+      hd.innerHTML=t;
+    }
+  };
+  ["rRemain","rGood"].forEach(id=>{const el=document.getElementById(id);
+    if(el&&["fen","fill"].includes(curStage))el.addEventListener("input",calibHint);});
+  if(["fen","fill"].includes(curStage))calibHint();
+  const prod=document.getElementById("rProd");
+  if(prod)prod.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+    rProduct=b.dataset.v;prod.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+    const hd=document.getElementById("rHint"),S2=calcStock();
+    if(curStage==="boxup"){
+      const w=document.getElementById("bbMixWrap");
+      w.style.display=rProduct==="bb2"?"block":"none";
+      if(rProduct==="bb2"){renderBBMix();hd.style.display="block";
+        hd.textContent="单颗库存:"+FLAVORS.map(f=>`${f.n} ${S2.packed[f.k]||0}`).join(" · ")+` · 两粒套 ${S2.mat.kit2}`;}
+      else{const bom=BOX_BOM[rProduct];hd.style.display="block";
+        hd.textContent="单颗库存:"+Object.keys(bom).map(f=>`${FN(f)} ${S2.packed[f]||0}颗`).join(" · ")
+          +` · ${(PRODUCTS.find(x=>x.k===rProduct)||{}).box===6?"六粒套 "+S2.mat.kit6:"两粒套 "+S2.mat.kit2}`;}
+    }
+    if(curStage==="ship"){hd.style.display="block";hd.textContent=`${PN(rProduct)}礼盒库存 ${S2.gift[rProduct]||0} 盒`;}
+  });
+  const stg=document.getElementById("rStore");
+  if(stg)stg.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+    rStore=b.dataset.v;stg.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));});
+  const use=document.getElementById("rUse");
+  if(use)use.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+    rUseVal=b.dataset.v;use.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));});
+  const rs=document.getElementById("rReason");
+  if(rs)rs.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+    rReasonVal=b.dataset.v;rs.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));});
+  const inEl=document.getElementById("rIn"),goodEl=document.getElementById("rGood");
+  const wasteAuto=()=>{const w=Math.max(0,(+inEl.value||0)-(+goodEl.value||0));
+    const ws=document.getElementById("rWasteShow");if(ws)ws.textContent=w;
+    const rw=document.getElementById("rReasonWrap");if(rw)rw.style.display=w>0?"block":"none";return w;};
+  if(inEl&&goodEl&&document.getElementById("rWasteShow")){
+    inEl.addEventListener("input",wasteAuto);goodEl.addEventListener("input",wasteAuto);}
+  const wEl=document.getElementById("rWaste");
+  if(wEl)wEl.addEventListener("input",()=>{
+    const rw=document.getElementById("rReasonWrap");if(rw)rw.style.display=(+wEl.value||0)>0?"block":"none";});
+  document.getElementById("rGo").onclick=()=>{
+    const staff=document.getElementById("rStaff").value.trim();
+    if(!staff)return toast("请填操作人");
+    STAFF=staff;
+    const good=+((goodEl||{}).value)||0;
+    const inQ=+((inEl||{}).value)||0;
+    if(st.flavor&&!rFlavor)return toast("请选口味");
+    if((curStage==="boxup"||curStage==="ship")&&!rProduct)return toast("请选礼盒产品");
+    if(curStage==="ship"&&!rStore)return toast("请选配送门店");
+    if(curStage==="ship"&&!rUseVal)return toast("请选用途(订单/现货)");
+    if(good<=0)return toast("请填数量");
+    const rec={stage:curStage,good,note:document.getElementById("rNote").value.trim(),staff,
+      date:document.getElementById("rDate").value||todayStr()};
+    if(st.flavor)rec.flavor=rFlavor;
+    if(curStage==="boxup"||curStage==="ship")rec.product=rProduct;
+    if(curStage==="ship"){rec.store=rStore;rec.use=rUseVal;}
+    if(curStage==="paste"){rec.inQ=inQ;rec.waste=0;
+      const rc=recipeFor("paste",rFlavor);
+      if(rc&&inQ>0){rec.rawUse={};Object.entries(rc.bom).forEach(([k,v])=>rec.rawUse[k]=Math.round(v*inQ*100)/100);}
+      const y=YIELDS["paste_"+rFlavor]||{};
+      if(inQ>0&&y.g){const exp=Math.round(y.g*inQ);rec.expOut=exp;
+        const yl=Math.max(0,exp-good);if(yl>0){rec.yieldLoss=yl;rec.pendA=true;}}}
+    else if(curStage==="bakeyolk"){rec.waste=0;
+      const short=[];if((S.raw.yolkraw||0)<good)short.push(`生咸蛋黄:需要${good}包,现有${fmtYolkRaw(S.raw.yolkraw||0)}`);
+      rec._short=short;}
+    else if(curStage==="fen"){
+      const rm=parseFloat((document.getElementById("rRemain")||{}).value);
+      if(isNaN(rm))return toast("请填剩余馅克数(称一下盆里剩的)");
+      const have=S.paste[rFlavor]||0;
+      const used=Math.round((have-rm)*10)/10;
+      rec.remain=rm;rec.used=used;rec.inQ=Math.max(0,used);rec.waste=0;
+      const gpp=(YIELDS["paste_"+rFlavor]||{}).gpp||PRM("fenG");
+      if(used>0){const exp=Math.floor(used/gpp);rec.expOut=exp;
+        const yl=Math.max(0,exp-good);if(yl>0){rec.yieldLoss=yl;rec.pendA=true;}}}
+    else if(curStage==="fill"){
+      const rm=parseFloat((document.getElementById("rRemain")||{}).value);
+      if(isNaN(rm))return toast("请填剩余流心液克数");
+      if(good<=0)return toast("请填灌了几模");
+      const have=S.lava[rFlavor]||0;
+      const used=Math.round((have-rm)*10)/10;
+      rec.remain=rm;rec.used=used;rec.waste=0;
+      const std=good*PRM("perMold")*PRM("coreG");
+      rec.expOut=good*PRM("perMold");
+      const over=Math.round((used-std)*10)/10;
+      if(over>0){rec.yieldLoss=over;rec.lossUnit="g";rec.pendA=true;}}
+    else if(curStage==="lava"||curStage==="skin"){
+      rec.waste=+((wEl||{}).value)||0;
+      if(rec.waste>0&&!rReasonVal)return toast("有损耗(操作)必须选原因");
+      if(rec.waste>0)rec.reason=rReasonVal;
+      if(inQ>0){rec.inQ=inQ;
+        const rc=recipeFor(curStage,rFlavor);
+        if(rc){rec.rawUse={};Object.entries(rc.bom).forEach(([k,v])=>rec.rawUse[k]=Math.round(v*inQ*100)/100);}
+        if(curStage==="lava"&&rc){
+          const bomTot=Object.entries(rc.bom).reduce((s,[k,v])=>s+(RAWU(k)==="g"?v:0),0);
+          if(bomTot>0){const exp=Math.round(bomTot*inQ);rec.expOut=exp;
+            const yl=Math.round(Math.max(0,exp-good)*10)/10;
+            if(yl>0){rec.yieldLoss=yl;rec.lossUnit="g";rec.pendA=true;}}}
+        else{
+          const y=YIELDS["skin_"+rFlavor]||{};
+          if(y.out){const exp=Math.round(y.out*inQ);rec.expOut=exp;
+            const yl=Math.max(0,exp-good-rec.waste);if(yl>0){rec.yieldLoss=yl;rec.pendA=true;}}}}}
+    else if(curStage==="sample"){if(!rReasonVal)return toast("请选用途");rec.reason=rReasonVal;}
+    else if(curStage==="boxup"){
+      if(rProduct==="bb2"){
+        const total=FLAVORS.reduce((s,f)=>s+(bbMix[f.k]||0),0);
+        if(total!==2)return toast("盲盒每盒必须选满2颗口味");
+        rec.mix={};FLAVORS.forEach(f=>{if(bbMix[f.k])rec.mix[f.k]=bbMix[f.k]*good;});
+      }
+    }
+    else if(curStage!=="ship"){
+      if(inQ<=0)return toast("请填投入数量");
+      if(good>inQ)return toast("合格不能大于投入");
+      rec.inQ=inQ;rec.waste=inQ-good;
+      if(rec.waste>0){if(!rReasonVal)return toast("有损耗必须选原因");rec.reason=rReasonVal;}
+    }
+    const submit=()=>addRec(rec,()=>{
+      toast(`✓ ${st.n} ${rec.flavor?FN(rec.flavor):""}${rec.product?PN(rec.product):""} ${good}${st.unit}${rec.waste?` · 操作损${rec.waste}`:""}${rec.yieldLoss?` · 配方损${rec.yieldLoss}${rec.lossUnit==="g"?"g":""}(待Owner审核)`:""}`);
+      renderRecForm(); // 工序保持选中,连续记录下一个口味
+    });
+    const short=overdraw(rec);
+    if(short.length){
+      openModal(mhead("⚠ 上游库存不足")+`
+        <p class="note" style="margin:0 0 8px">${short.map(esc).join("<br>")}</p>
+        <p class="note" style="margin:0 0 12px">可能是前面工序漏记了。可以先回去补记,或仍要保存(库存会出现负数,之后用盘点调整修正)。</p>
+        <button class="btn warn" id="odGo">仍要保存(允许负库存)</button>
+        <button class="btn ghost" style="margin-top:10px" onclick="closeModal()">返回修改</button>`,true);
+      document.getElementById("odGo").onclick=()=>{closeModal();submit();};
+    } else submit();
+  };
+}
+function renderBBMix(){
+  const el=document.getElementById("bbMixBody");
+  el.innerHTML=FLAVORS.map(f=>{
+    const v=bbMix[f.k]||0;
+    return `<div class="kv"><span>${f.n}</span>
+      <span><button class="btn small ghost" onclick="bbStep('${f.k}',-1)">−</button>
+      <b style="display:inline-block;width:30px;text-align:center">${v}</b>
+      <button class="btn small ghost" onclick="bbStep('${f.k}',1)">＋</button></span></div>`;
+  }).join("")+`<p class="note">每盒选满2颗;组装多盒时按同一组成批量扣减。</p>`;
+}
+function bbStep(k,d){
+  const tot=FLAVORS.reduce((s,f)=>s+(bbMix[f.k]||0),0);
+  if(d>0&&tot>=2)return toast("每盒只有2颗");
+  bbMix[k]=Math.max(0,(bbMix[k]||0)+d);if(!bbMix[k])delete bbMix[k];
+  renderBBMix();
+}
+function renderTodayRecs(){
+  const d=todayStr();
+  const list=Object.entries(RECS).filter(([,r])=>r.date===d).sort((a,b)=>(b[1].ts||0)-(a[1].ts||0));
+  document.getElementById("todayRecs").innerHTML=list.length?list.map(([key,r])=>{
+    const what=r.stage==="bakeyolk"?`烤咸蛋黄`:
+      r.stage==="fill"?`${FN(r.flavor)} 灌模`:
+      r.stage==="matin"?`${MATN(r.mat)} 入库`:
+      r.stage==="rawin"?`${RAWN(r.raw)} 原料入库`:
+      r.stage==="rawuse"?`${RAWN(r.raw)} 领用`:
+      r.stage==="adjust"?`盘点调整 ${adjLabel(r)}`:
+      `${SN(r.stage)}${r.flavor?" · "+FN(r.flavor):""}${r.product?" · "+PN(r.product):""}${r.store?" → "+STORE_NAME[r.store]+"("+(r.use||"")+")":""}`;
+    const num=r.stage==="adjust"?(r.delta>0?"+"+r.delta:r.delta):r.good;
+    return `<div class="wlog ${r.voided?"void":""}"><span>${r.time||""} <b>${esc(r.staff||"?")}</b> ${what}${r.note?` <span class="z">${esc(r.note)}</span>`:""}</span>
+      <span style="display:flex;gap:6px;align-items:center"><b>${num}${r.waste?` <span class="warnrow">操作损${r.waste}${r.reason?"("+esc(r.reason)+")":""}</span>`:(r.reason&&r.stage==="sample"?` <span class="z">${esc(r.reason)}</span>`:"")}${r.yieldLoss?` <span class="warnrow">配方损${r.yieldLoss}${r.lossUnit==="g"?"g":""}</span><span class="z">${r.aprv?"已审✓":"待审"}</span>`:""}</b>
+      ${r.voided?`<span class="z">已作废</span>`:`<button class="vbtn" onclick="voidRec('${key}')">✕</button>`}</span></div>`;
+  }).join(""):`<div class="note">今天还没有记录</div>`;
+}
+function adjLabel(r){
+  const nd=ADJ_NODES.find(n=>n.k===r.node)||{};
+  let obj="";
+  if(nd.flavor)obj=FN(r.key);else if(nd.product)obj=PN(r.key);else if(nd.mat)obj=MATN(r.key);else if(nd.raw)obj=RAWN(r.key);
+  return `${nd.n||r.node}${obj?" "+obj:""}`;
+}
+
+/* ---------------- 库存页 ---------------- */
+function renderStock(){
+  const S=calcStock();
+  let h=`<tr><th>口味</th><th>皮</th><th>馅球</th><th>流心液g</th><th>冻芯</th><th>流心馅</th><th>未压模</th><th>待烤</th><th>烤好</th><th>已包装</th></tr>`;
+  FLAVORS.forEach(f=>{
+    const c=k=>{const v=S[k][f.k]||0;return v?(v<0?`<b class="warnrow">${v}</b>`:v):'<span class="z">·</span>';};
+    h+=`<tr><td>${f.n}</td><td>${c("skin")}</td><td>${c("fen")}</td><td>${c("lava")}</td><td>${c("core")}</td><td>${c("lxx")}</td><td>${c("wet")}</td><td>${c("rdy")}</td><td>${c("baked")}</td><td><b>${S.packed[f.k]||0}</b></td></tr>`;
+  });
+  document.getElementById("flowTable").innerHTML=h;
+  document.getElementById("pasteLine").textContent=FLAVORS.filter(f=>S.paste[f.k]).map(f=>`${f.n} ${S.paste[f.k]}g`).join(" · ")||"—";
+  const gs=PRODUCTS.filter(p=>S.gift[p.k]!==0).map(p=>`<span class="pi">${p.n}<b>${S.gift[p.k]}</b></span>`).join("");
+  document.getElementById("giftStock2").innerHTML=gs||'<span class="note">暂无</span>';
+  document.getElementById("matTable").innerHTML=MATS.map(m=>{
+    const v=S.mat[m.k]||0,low=TH[m.k]>0&&v<=TH[m.k];
+    return `<div class="kv"><span>${m.n}<span class="note" style="margin-left:6px">(${m.per})</span></span>
+      <b class="${low?"warnrow":""}">${v}${low?" ⚠":""}</b></div>`;
+  }).join("");
+  const rawEl=document.getElementById("rawTable");
+  if(rawEl){
+    let out="",any=false;
+    RAW_GROUPS.forEach(([gk,gn])=>{
+      const rows=allRaw().filter(m=>RAWG(m.k)===gk&&((S.raw[m.k]||0)!==0||TH["raw_"+m.k]>0));
+      if(!rows.length)return;any=true;
+      out+=`<div class="sect" style="margin:8px 0 2px">${gn}</div>`+rows.map(m=>{
+        const v=S.raw[m.k]||0,low=TH["raw_"+m.k]>0&&v<=TH["raw_"+m.k];
+        const disp=m.k==="yolkraw"?fmtYolkRaw(v):v+" "+m.u;
+        return `<div class="kv"><span>${m.n}</span><b class="${v<0||low?"warnrow":""}">${disp}${low?" ⚠":""}</b></div>`;
+      }).join("");
+    });
+    rawEl.innerHTML=any?out:'<div class="note">还没有原料记录 — 点「＋入库」开始建账</div>';
+  }
+  // 损耗分析
+  const byStage={},reasons={};
+  let sampleBy={};
+  Object.values(RECS).forEach(r=>{
+    if(r.voided)return;
+    if(r.stage==="sample"){sampleBy[r.reason||"其他"]=(sampleBy[r.reason||"其他"]||0)+(+r.good||0);return;}
+    const w=+r.waste||0;
+    if(!STAGES.find(s=>s.k===r.stage))return;
+    if(["paste","fen"].includes(r.stage))return;
+    const base=(r.inQ!=null&&+r.inQ>0)?+r.inQ:(+r.good||0)+w;
+    if(!byStage[r.stage])byStage[r.stage]={in:0,w:0,y:0};
+    byStage[r.stage].in+=base;byStage[r.stage].w+=w;byStage[r.stage].y+=(+r.yieldLoss||0);
+    if(w>0&&r.reason)reasons[r.reason]=(reasons[r.reason]||0)+w;
+  });
+  let lh=`<tr><th>工序</th><th>投入</th><th>配方耗损</th><th>操作耗损</th><th>总耗率</th></tr>`,any=false;
+  STAGES.forEach(s=>{
+    const d=byStage[s.k];if(!d||!d.in)return;any=true;
+    const tot=d.w+(d.y||0),rate=d.in?(tot/d.in*100):0;
+    lh+=`<tr><td>${s.n}</td><td>${d.in}</td>
+      <td>${d.y?`<b class="warnrow">${d.y}</b>`:'<span class="z">·</span>'}</td>
+      <td>${d.w?`<b class="warnrow">${d.w}</b>`:'<span class="z">·</span>'}</td>
+      <td>${tot?rate.toFixed(1)+"%":'<span class="okrow">0%</span>'}</td></tr>`;
+  });
+  document.getElementById("lossTable").innerHTML=any?lh:`<tr><td class="empty">暂无生产记录</td></tr>`;
+  const rl=Object.entries(reasons).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  document.getElementById("lossReasons").textContent=rl.length?"主要原因:"+rl.map(([k,v])=>`${k} ${v}颗`).join(" · "):"";
+  document.getElementById("sampleStats").innerHTML=Object.keys(sampleBy).length
+    ?Object.entries(sampleBy).map(([k,v])=>`<span class="pi">${esc(k)}<b>${v}</b></span>`).join("")
+    :'<span class="note">暂无出样记录</span>';
+  // 配送统计
+  const ship={};
+  Object.values(RECS).forEach(r=>{
+    if(r.voided||r.stage!=="ship")return;
+    if(!ship[r.store])ship[r.store]={"订单":0,"现货":0};
+    ship[r.store][r.use==="现货"?"现货":"订单"]+=+r.good||0;
+  });
+  let sh=`<tr><th>门店</th><th>订单预留</th><th>门店现货</th><th>合计盒</th></tr>`;
+  ["CAM","BBY","ALD"].forEach(st=>{
+    const d=ship[st]||{"订单":0,"现货":0};
+    sh+=`<tr><td>${STORE_NAME[st]}</td><td>${d["订单"]||'<span class="z">·</span>'}</td><td>${d["现货"]||'<span class="z">·</span>'}</td><td><b>${d["订单"]+d["现货"]}</b></td></tr>`;
+  });
+  document.getElementById("shipStats").innerHTML=sh;
+}
+
+/* ---------------- 原料入库 / 领用 ---------------- */
+function rawSelHtml(id){
+  return `<select id="${id}">${RAW_GROUPS.map(([gk,gn])=>{
+    const opts=allRaw().filter(m=>RAWG(m.k)===gk).map(m=>`<option value="${m.k}">${m.n}(${m.u})</option>`).join("");
+    return opts?`<optgroup label="${gn}">${opts}</optgroup>`:"";
+  }).join("")}</select>`;
+}
+document.getElementById("btnRawIn").addEventListener("click",()=>{
+  openModal(mhead("原料入库")+`
+    <label class="f">材料</label>${rawSelHtml("riMat")}
+    <label class="f">入库数量 *</label><input type="number" id="riQty" min="0" inputmode="decimal">
+    <label class="f">备注(供应商/批次,选填)</label><input type="text" id="riNote">
+    <label class="f">操作人 *</label><input type="text" id="riStaff" value="${esc(STAFF)}">
+    <button class="btn" style="margin-top:14px" id="riGo">入库</button>`,true);
+  document.getElementById("riGo").onclick=()=>{
+    const q=+document.getElementById("riQty").value||0;
+    const s=document.getElementById("riStaff").value.trim();
+    if(q<=0)return toast("请填数量");if(!s)return toast("请填操作人");
+    STAFF=s;
+    addRec({stage:"rawin",raw:document.getElementById("riMat").value,good:q,
+      note:document.getElementById("riNote").value.trim(),staff:s},()=>{closeModal();toast("已入库");});
+  };
+});
+document.getElementById("btnRawUse").addEventListener("click",()=>{
+  openModal(mhead("原料领用(手动扣减)")+`
+    <p class="note" style="margin:0 0 6px">配方没录入时,用这里记实际用料。</p>
+    <label class="f">材料</label>${rawSelHtml("ruMat")}
+    <label class="f">用量 *</label><input type="number" id="ruQty" min="0" inputmode="decimal">
+    <label class="f">用途(如:金沙馅/流心,选填)</label><input type="text" id="ruNote">
+    <label class="f">操作人 *</label><input type="text" id="ruStaff" value="${esc(STAFF)}">
+    <button class="btn" style="margin-top:14px" id="ruGo">记领用</button>`,true);
+  document.getElementById("ruGo").onclick=()=>{
+    const q=+document.getElementById("ruQty").value||0;
+    const s=document.getElementById("ruStaff").value.trim();
+    if(q<=0)return toast("请填数量");if(!s)return toast("请填操作人");
+    STAFF=s;
+    const rec={stage:"rawuse",raw:document.getElementById("ruMat").value,good:q,
+      note:document.getElementById("ruNote").value.trim(),staff:s};
+    const short=overdraw(rec);
+    const go=()=>addRec(rec,()=>{closeModal();toast("已记领用");});
+    if(short.length){
+      openModal(mhead("⚠ 库存不足")+`
+        <p class="note" style="margin:0 0 12px">${short.map(esc).join("<br>")}<br>可能有入库没记。可以仍保存(负库存),或先补入库。</p>
+        <button class="btn warn" id="ruOd">仍要保存</button>
+        <button class="btn ghost" style="margin-top:10px" onclick="closeModal()">返回</button>`,true);
+      document.getElementById("ruOd").onclick=go;
+    } else go();
+  };
+});
+
+document.getElementById("stockSeg").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  document.querySelectorAll("#stockSeg button").forEach(x=>x.classList.toggle("on",x===b));
+  document.getElementById("stockOverview").style.display=b.dataset.v==="ov"?"":"none";
+  document.getElementById("stockCount").style.display=b.dataset.v==="ct"?"":"none";
+  if(b.dataset.v==="ct")renderSC();
+});
+const SC_NODES=[
+  {k:"paste",n:"馅(克)",u:"g"},{k:"fen",n:"馅球(颗)",u:"颗"},{k:"lava",n:"流心液(克)",u:"g"},
+  {k:"core",n:"冻芯(颗)",u:"颗"},{k:"lxx",n:"流心馅(颗)",u:"颗"},{k:"wet",n:"未压模(颗)",u:"颗"},
+  {k:"rdy",n:"冻胚/待烤(颗)",u:"颗"},{k:"baked",n:"烤好(颗)",u:"颗"},{k:"packed",n:"已包装(颗)",u:"颗"},
+  {k:"skin",n:"曲奇皮(颗)",u:"颗"},{k:"gift",n:"礼盒成品(盒)",u:"盒",product:true}];
+let scNode="paste",scDraft={};
+function scFilled(){
+  let n=0;Object.values(scDraft).forEach(o=>Object.values(o).forEach(v=>{if(v!=="")n++;}));return n;
+}
+function renderSC(){
+  const seg=document.getElementById("scNodeSeg");if(!seg)return;
+  if(!seg.dataset.init){
+    seg.innerHTML=SC_NODES.map((n,i)=>`<button data-v="${n.k}" class="${i===0?"on":""}">${n.n.split("(")[0]}</button>`).join("");
+    seg.dataset.init="1";
+    seg.addEventListener("click",e=>{
+      const b=e.target.closest("button");if(!b)return;scNode=b.dataset.v;
+      seg.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));renderSC();});
+    document.getElementById("scBody").addEventListener("input",e=>{
+      const el=e.target.closest("[data-sc]");if(!el)return;
+      if(!scDraft[scNode])scDraft[scNode]={};
+      if(el.value==="")delete scDraft[scNode][el.dataset.sc];
+      else scDraft[scNode][el.dataset.sc]=el.value;
+      const c=document.getElementById("scCount");
+      if(c)c.textContent=scFilled()?`已填 ${scFilled()} 项(切换类别不会丢,最后一起保存)`:"";
+    });
+    document.getElementById("btnScSave").addEventListener("click",()=>{
+      const s=document.getElementById("scStaff").value.trim();
+      if(!s)return toast("请填名字");
+      STAFF=s;
+      const reason=document.getElementById("scReason").value.trim()||"盘点差异";
+      const S=calcStock(),jobs=[];
+      SC_NODES.forEach(nd=>{
+        Object.entries(scDraft[nd.k]||{}).forEach(([key,val])=>{
+          const real=parseFloat(val);if(isNaN(real))return;
+          const cur=nd.k==="gift"?(S.gift[key]||0):((S[nd.k]||{})[key]||0);
+          const delta=Math.round((real-cur)*10)/10;
+          if(delta)jobs.push({stage:"adjust",node:nd.k,key,delta,good:0,reason,staff:s});
+        });
+      });
+      if(!jobs.length)return toast("填的数都和系统一致,或还没填 — 没有需要调整的项");
+      jobs.forEach(j=>addRec(j));
+      scDraft={};
+      toast(`盘点完成,共调整 ${jobs.length} 项`);
+      setTimeout(renderSC,60);
+    });
+  }
+  const S=calcStock(),nd=SC_NODES.find(x=>x.k===scNode);
+  const keys=nd.product?PRODUCTS.map(p=>({k:p.k,n:p.n})):FLAVORS.map(f=>({k:f.k,n:f.n}));
+  const dr=scDraft[scNode]||{};
+  document.getElementById("scBody").innerHTML=
+    `<div class="note" style="margin:4px 0"><b>${nd.n}</b></div>`+
+    keys.map(x=>{
+      const cur=nd.k==="gift"?(S.gift[x.k]||0):((S[nd.k]||{})[x.k]||0);
+      return `<div class="kv"><span>${x.n}<span class="note" style="margin-left:6px">系统 ${cur}${nd.u}</span></span>
+        <input type="number" data-sc="${x.k}" step="0.1" placeholder="实际" value="${dr[x.k]!=null?dr[x.k]:""}" style="width:100px;text-align:center"></div>`;
+    }).join("")+
+    `<div class="note" id="scCount" style="margin-top:6px;color:var(--bronze)">${scFilled()?`已填 ${scFilled()} 项(切换类别不会丢,最后一起保存)`:""}</div>`;
+  const st=document.getElementById("scStaff");
+  if(st&&!st.value)st.value=STAFF||"";
+}
+document.getElementById("btnRawCount2").addEventListener("click",()=>{
+  if(!ROLE)return;
+  const S=calcStock();
+  openModal(mhead("原材料盘点")+`
+    <p class="note" style="margin:0 0 8px">建议<b>每周一次</b>。数一遍实物,把<b>实际数</b>填进对应格子;<b>留空 = 这项不动</b>。保存后系统按差额逐项生成盘点记录,Owner 可在记录和导出中复核。</p>
+    <div style="max-height:46vh;overflow-y:auto">
+      ${RAW_GROUPS.map(([gk,gn])=>{
+        const rows=allRaw().filter(m=>RAWG(m.k)===gk);
+        if(!rows.length)return"";
+        return `<div class="sect" style="margin:8px 0 2px">${gn}</div>`+rows.map(m=>`
+        <div class="kv"><span>${m.n}<span class="note" style="margin-left:6px">系统 ${m.k==="yolkraw"?fmtYolkRaw(S.raw[m.k]||0):(S.raw[m.k]||0)+" "+m.u}</span></span>
+        <input type="number" data-rc="${m.k}" step="0.1" placeholder="实际(${m.u})" style="width:100px;text-align:center"></div>`).join("");
+      }).join("")}
+    </div>
+    <label class="f">原因</label><input type="text" id="rcReason" value="盘点差异">
+    <label class="f">你的名字 *</label><input type="text" id="rcStaff" value="${esc(STAFF)}">
+    <button class="btn" style="margin-top:14px" id="rcGo">保存盘点</button>`,true);
+  document.getElementById("rcGo").onclick=()=>{
+    const s=document.getElementById("rcStaff").value.trim();
+    if(!s)return toast("请填名字");
+    const reason=document.getElementById("rcReason").value.trim()||"盘点差异";
+    STAFF=s;
+    const jobs=[];
+    document.querySelectorAll("[data-rc]").forEach(i=>{
+      if(i.value==="")return;
+      const real=parseFloat(i.value);if(isNaN(real))return;
+      const k=i.dataset.rc;
+      const delta=Math.round((real-(S.raw[k]||0))*100)/100;
+      if(delta)jobs.push({stage:"adjust",node:"raw",key:k,delta,good:0,reason,staff:s});
+    });
+    if(!jobs.length)return toast("没有需要调整的项(填的数都和系统一致或全留空)");
+    jobs.forEach(j=>addRec(j));
+    closeModal();toast(`盘点完成,调整了 ${jobs.length} 项`);
+  };
+});
+
+document.getElementById("btnMatCount").addEventListener("click",()=>{
+  if(!ROLE)return;
+  const S=calcStock();
+  openModal(mhead("包材盘点")+`
+    <p class="note" style="margin:0 0 8px">数实物填<b>实际数</b>;<b>留空=不动</b>。保存按差额生成盘点记录。</p>
+    <div style="max-height:46vh;overflow-y:auto">
+      ${MATS.map(m=>`<div class="kv"><span>${m.n}<span class="note" style="margin-left:6px">系统 ${S.mat[m.k]||0}</span></span>
+        <input type="number" data-mc="${m.k}" step="1" placeholder="实际" style="width:100px;text-align:center"></div>`).join("")}
+    </div>
+    <label class="f">原因</label><input type="text" id="mcReason" value="盘点差异">
+    <label class="f">你的名字 *</label><input type="text" id="mcStaff" value="${esc(STAFF)}">
+    <button class="btn" style="margin-top:14px" id="mcGo">保存盘点</button>`,true);
+  document.getElementById("mcGo").onclick=()=>{
+    const s=document.getElementById("mcStaff").value.trim();
+    if(!s)return toast("请填名字");
+    STAFF=s;
+    const reason=document.getElementById("mcReason").value.trim()||"盘点差异";
+    const jobs=[];
+    document.querySelectorAll("[data-mc]").forEach(i=>{
+      if(i.value==="")return;
+      const real=parseFloat(i.value);if(isNaN(real))return;
+      const delta=Math.round(real-(S.mat[i.dataset.mc]||0));
+      if(delta)jobs.push({stage:"adjust",node:"mat",key:i.dataset.mc,delta,good:0,reason,staff:s});
+    });
+    if(!jobs.length)return toast("没有需要调整的项");
+    jobs.forEach(j=>addRec(j));
+    closeModal();toast(`包材盘点完成,调整 ${jobs.length} 项`);
+  };
+});
+
+/* ---------------- 盘点调整(Owner) ---------------- */
+document.getElementById("btnAdjust").addEventListener("click",()=>{
+  if(!ROLE||ROLE.type!=="owner")return toast("仅限 Owner");
+  const S=calcStock();
+  openModal(mhead("盘点调整")+`
+    <p class="note" style="margin:0 0 8px">实数和系统对不上时用这里修正。填<b>实际盘点数</b>,系统自动算差额并留痕。</p>
+    <label class="f">类别</label>
+    <select id="ajNode">${ADJ_NODES.map(n=>`<option value="${n.k}">${n.n}</option>`).join("")}</select>
+    <div id="ajKeyWrap"></div>
+    <div class="kv"><span>系统当前数</span><b id="ajCur">—</b></div>
+    <label class="f">实际盘点数 *</label>
+    <input type="number" id="ajReal" inputmode="numeric">
+    <label class="f">原因 *</label>
+    <input type="text" id="ajReason" placeholder="如:盘点差异 / 前期漏记">
+    <label class="f">你的名字 *</label>
+    <input type="text" id="ajStaff" value="${esc(STAFF)}">
+    <button class="btn" style="margin-top:14px" id="ajGo">保存调整</button>`,true);
+  const nodeSel=document.getElementById("ajNode"),keyWrap=document.getElementById("ajKeyWrap");
+  let ajKey="";
+  const renderKey=()=>{
+    const nd=ADJ_NODES.find(n=>n.k===nodeSel.value);
+    if(nd.flavor)keyWrap.innerHTML=`<label class="f">口味</label><select id="ajKey">${FLAVORS.map(f=>`<option value="${f.k}">${f.n}</option>`).join("")}</select>`;
+    else if(nd.product)keyWrap.innerHTML=`<label class="f">产品</label><select id="ajKey">${PRODUCTS.map(p=>`<option value="${p.k}">${p.n}</option>`).join("")}</select>`;
+    else if(nd.mat)keyWrap.innerHTML=`<label class="f">材料</label><select id="ajKey">${MATS.map(m=>`<option value="${m.k}">${m.n}</option>`).join("")}</select>`;
+    else if(nd.raw)keyWrap.innerHTML=`<label class="f">原材料</label><select id="ajKey">${allRaw().map(m=>`<option value="${m.k}">${m.n}(${m.u})</option>`).join("")}</select>`;
+    else keyWrap.innerHTML="";
+    const ks=document.getElementById("ajKey");
+    if(ks)ks.addEventListener("change",updCur);
+    updCur();
+  };
+  const curVal=()=>{
+    const node=nodeSel.value,ks=document.getElementById("ajKey");
+    const key=ks?ks.value:"";
+    if(node==="skin")return S.skin[key]||0;
+    if(node==="gift")return S.gift[key]||0;
+    if(node==="mat")return S.mat[key]||0;
+    if(node==="raw")return S.raw[key]||0;
+    return (S[node]||{})[key]||0;
+  };
+  const updCur=()=>{document.getElementById("ajCur").textContent=curVal();};
+  nodeSel.addEventListener("change",renderKey);
+  renderKey();
+  document.getElementById("ajGo").onclick=()=>{
+    const real=parseFloat(document.getElementById("ajReal").value);
+    if(isNaN(real))return toast("请填实际盘点数");
+    const reason=document.getElementById("ajReason").value.trim();
+    if(!reason)return toast("请填原因");
+    const s=document.getElementById("ajStaff").value.trim();
+    if(!s)return toast("请填名字");
+    STAFF=s;
+    const node=nodeSel.value,ks=document.getElementById("ajKey");
+    const delta=Math.round((real-curVal())*100)/100;
+    if(!delta)return toast("和系统一致,无需调整");
+    addRec({stage:"adjust",node,key:ks?ks.value:"",delta,good:0,reason,staff:s},()=>{
+      closeModal();toast(`已调整:${delta>0?"+":""}${delta}`);});
+  };
+});
+
+/* ---------------- 设置 ---------------- */
+document.getElementById("btnMatIn").addEventListener("click",()=>{
+  openModal(mhead("包材入库")+`
+    <label class="f">材料</label>
+    <select id="miMat">${MATS.map(m=>`<option value="${m.k}">${m.n}</option>`).join("")}</select>
+    <label class="f">入库数量 *</label>
+    <input type="number" id="miQty" min="0" inputmode="numeric">
+    <label class="f">操作人 *</label>
+    <input type="text" id="miStaff" value="${esc(STAFF)}">
+    <button class="btn" style="margin-top:14px" id="miGo">入库</button>`,true);
+  document.getElementById("miGo").onclick=()=>{
+    const q=+document.getElementById("miQty").value||0;
+    const s=document.getElementById("miStaff").value.trim();
+    if(q<=0)return toast("请填数量");
+    if(!s)return toast("请填操作人");
+    STAFF=s;
+    addRec({stage:"matin",mat:document.getElementById("miMat").value,good:q,staff:s},()=>{
+      closeModal();toast("已入库");});
+  };
+});
+const PRM_DEFS=[["molds","模具总数(个)"],["perMold","每模颗数"],["coreG","流心 克/颗"],["yolkBagG","咸蛋黄 克/包(烤后)"],["fenG","分馅默认 克/颗"]];
+function renderPrm(){
+  const el=document.getElementById("prmBody");if(!el)return;
+  if(!el.dataset.init){
+    el.innerHTML=PRM_DEFS.map(([k,n])=>`<div class="kv"><span>${n}</span>
+      <input type="number" data-prm="${k}" step="0.1" style="width:100px;text-align:center"></div>`).join("");
+    el.dataset.init="1";
+    document.getElementById("btnPrmSave").addEventListener("click",()=>{
+      if(!ROLE||ROLE.type!=="owner")return toast("仅限 Owner");
+      document.querySelectorAll("[data-prm]").forEach(i=>{const v=parseFloat(i.value);if(!isNaN(v)&&v>0)PARAMS[i.dataset.prm]=v;});
+      if(DB)DB.ref(DB_ROOT+"/prod/meta/params").set(PARAMS);
+      renderAll();toast("参数已保存");
+    });
+  }
+  PRM_DEFS.forEach(([k])=>{const x=document.querySelector(`[data-prm="${k}"]`);if(x&&document.activeElement!==x)x.value=PRM(k);});
+}
+function renderTh(){
+  const el=document.getElementById("thBody");if(!el)return;
+  el.innerHTML=MATS.map(m=>`<div class="kv"><span>${m.n}</span>
+    <input type="number" data-th="${m.k}" min="0" value="${TH[m.k]||0}" style="width:90px;text-align:center"></div>`).join("");
+  const rel=document.getElementById("rawThBody");
+  if(rel)rel.innerHTML=RAW_GROUPS.map(([gk,gn])=>{
+    const rows=allRaw().filter(m=>RAWG(m.k)===gk);
+    if(!rows.length)return"";
+    return `<div class="sect" style="margin:8px 0 2px">${gn}</div>`+rows.map(m=>`<div class="kv"><span>${m.n}(${m.u})</span>
+    <input type="number" data-th="raw_${m.k}" min="0" value="${TH["raw_"+m.k]||0}" style="width:90px;text-align:center"></div>`).join("");
+  }).join("");
+  renderRecipeEditor();
+}
+let rcRows=[],rcLoaded="";
+function renderRecipeEditor(){
+  const sel=document.getElementById("rcSel");if(!sel)return;
+  if(!sel.dataset.init){
+    sel.innerHTML=RECIPE_DEFS.map(r=>`<option value="${r.k}">${r.n}</option>`).join("");
+    sel.dataset.init="1";
+    sel.addEventListener("change",()=>{rcLoaded="";renderRecipeEditor();});
+    document.getElementById("btnRcAdd").addEventListener("click",()=>{
+      rcRows.push({k:allRaw()[0].k,q:0});drawRcRows();});
+    document.getElementById("btnRcSave").addEventListener("click",()=>{
+      if(!ROLE||ROLE.type!=="owner")return toast("仅限 Owner");
+      syncRcRows();
+      const bom={};rcRows.forEach(r=>{if(r.k&&r.q>0)bom[r.k]=r.q;});
+      RECIPES[sel.value]=bom;
+      if(DB)DB.ref(DB_ROOT+"/prod/recipes/"+sel.value).set(Object.keys(bom).length?bom:null);
+      const yo=parseFloat(document.getElementById("rcYOut").value)||0;
+      const gp=parseFloat(document.getElementById("rcGpp").value)||0;
+      const isPaste=sel.value.startsWith("paste_");
+      const yv=isPaste?{g:yo||null,gpp:gp||null}:{out:yo||null};
+      YIELDS[sel.value]=yv;
+      if(DB)DB.ref(DB_ROOT+"/prod/meta/yields/"+sel.value).set(yv);
+      renderAll();toast("配方与标准产出已保存");});
+  }
+  if(rcLoaded!==sel.value){
+    rcLoaded=sel.value;
+    rcRows=Object.entries(RECIPES[sel.value]||{}).map(([k,q])=>({k,q}));
+    drawRcRows();
+    const rk=sel.value, y=YIELDS[rk]||{};
+    const isPaste=rk.startsWith("paste_");
+    document.getElementById("rcYLabel").textContent=isPaste?"每份标准产出(克)":"每份标准产出(颗)";
+    document.getElementById("rcGppWrap").style.display=isPaste?"":"none";
+    document.getElementById("rcYOut").value=isPaste?(y.g||""):(y.out||"");
+    document.getElementById("rcGpp").value=y.gpp||"";
+  }
+}
+function syncRcRows(){
+  document.querySelectorAll("#rcBody [data-ri]").forEach(row=>{
+    const i=+row.dataset.ri;
+    rcRows[i]={k:row.querySelector("select").value,q:+row.querySelector("input").value||0};
+  });
+}
+function drawRcRows(){
+  const el=document.getElementById("rcBody");if(!el)return;
+  el.innerHTML=rcRows.length?rcRows.map((r,i)=>`
+    <div class="kv" data-ri="${i}" style="gap:6px">
+      <select style="flex:1">${allRaw().map(m=>`<option value="${m.k}" ${m.k===r.k?"selected":""}>${m.n}(${m.u})</option>`).join("")}</select>
+      <input type="number" min="0" step="0.1" value="${r.q||""}" placeholder="每份用量" style="width:100px;text-align:center">
+      <button class="vbtn" onclick="syncRcRows();rcRows.splice(${i},1);drawRcRows()">✕</button>
+    </div>`).join(""):'<div class="note">该配方还没有材料行 — 点「＋加一行」</div>';
+}
+document.getElementById("btnSaveTh").addEventListener("click",()=>{
+  document.querySelectorAll("[data-th]").forEach(i=>{TH[i.dataset.th]=+i.value||0;});
+  saveTh();renderAll();toast("预警线已保存");
+});
+document.getElementById("btnRawNew").addEventListener("click",()=>{
+  openModal(mhead("添加自定义材料")+`
+    <label class="f">材料名 *</label><input type="text" id="rnName">
+    <div class="row"><div><label class="f">单位</label>
+      <select id="rnUnit"><option>g</option><option>个</option><option>ml</option><option>包</option><option>瓶</option></select></div>
+      <div><label class="f">分组</label>
+      <select id="rnGroup">${RAW_GROUPS.map(([k,n])=>`<option value="${k}">${n}</option>`).join("")}</select></div></div>
+    <button class="btn" style="margin-top:14px" id="rnGo">添加</button>`,true);
+  document.getElementById("rnGo").onclick=()=>{
+    const n=document.getElementById("rnName").value.trim();
+    if(!n)return toast("请填材料名");
+    const k="c_"+Date.now().toString(36);
+    const v={n,u:document.getElementById("rnUnit").value,gr:document.getElementById("rnGroup").value};
+    RAWCUSTOM[k]=v;
+    if(DB)DB.ref(DB_ROOT+"/prod/rawmats/"+k).set(v);
+    renderAll();closeModal();toast("已添加:"+n);
+  };
+});
+document.getElementById("btnImp").addEventListener("click",()=>{
+  if(!ROLE||ROLE.type!=="owner")return toast("仅限 Owner");
+  let data;
+  try{data=JSON.parse(document.getElementById("impText").value.trim());}
+  catch(e){return toast("格式不对:"+e.message);}
+  const rc=data.recipes||{},rm=data.rawmats||{};
+  const validKeys=new Set(RECIPE_DEFS.map(r=>r.k));
+  const bad=Object.keys(rc).filter(k=>!validKeys.has(k));
+  if(bad.length)return toast("未知配方键:"+bad.join(","));
+  Object.entries(rm).forEach(([k,v])=>{
+    RAWCUSTOM[k]=v;
+    if(DB)DB.ref(DB_ROOT+"/prod/rawmats/"+k).set(v);
+  });
+  const known=new Set(allRaw().map(m=>m.k));
+  const missing=[];
+  Object.entries(rc).forEach(([k,bom])=>{
+    Object.keys(bom).forEach(mk=>{if(!known.has(mk))missing.push(k+"→"+mk);});
+  });
+  if(missing.length)return toast("配方里有未定义材料:"+missing.slice(0,3).join(","));
+  Object.entries(rc).forEach(([k,bom])=>{
+    RECIPES[k]=bom;
+    if(DB)DB.ref(DB_ROOT+"/prod/recipes/"+k).set(bom);
+  });
+  Object.entries(data.yields||{}).forEach(([k,v])=>{
+    YIELDS[k]=v;
+    if(DB)DB.ref(DB_ROOT+"/prod/meta/yields/"+k).set(v);
+  });
+  document.getElementById("impText").value="";
+  renderAll();
+  toast(`已导入 ${Object.keys(rc).length} 个配方${Object.keys(rm).length?" + "+Object.keys(rm).length+" 种材料":""}`);
+});
+document.getElementById("btnExport").addEventListener("click",()=>{
+  const rows=[["日期","时间","工序","口味","产品","门店","用途","投入","合格/数量","剩余(盘点)","预计产出","配方耗损","审核","操作耗损","原因","材料/原料","自动扣原料","调整对象","调整差额","备注","操作人","状态"]];
+  Object.values(RECS).sort((a,b)=>(a.ts||0)-(b.ts||0)).forEach(r=>{
+    rows.push([r.date||"",r.time||"",SN(r.stage),r.flavor?FN(r.flavor):"",r.product?PN(r.product):"",
+      r.store?STORE_NAME[r.store]:"",r.use||"",r.inQ!=null?r.inQ:"",r.good!=null?r.good:"",
+      r.expOut!=null?r.expOut:"",r.yieldLoss?(r.yieldLoss+(r.lossUnit==="g"?"g":"")):"",r.yieldLoss?(r.aprv?"已审":"待审"):"",
+      r.waste||"",r.reason||"",r.mat?MATN(r.mat):(r.raw?RAWN(r.raw):""),
+      r.rawUse?Object.entries(r.rawUse).map(([k,v])=>`${RAWN(k)}${v}${RAWU(k)}`).join(" "):"",
+      r.stage==="adjust"?adjLabel(r):"",r.stage==="adjust"?r.delta:"",
+      r.note||"",r.staff||"",r.voided?`已作废(${r.voidBy||""})`:"正常"]);
+  });
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),"生产记录");
+  XLSX.writeFile(wb,`月饼生产记录_${todayStr()}.xlsx`);
+  toast("已导出");
+});
+
+/* ---------------- 全局 ---------------- */
+document.querySelector("nav").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on",x===b));
+  document.querySelectorAll(".page").forEach(p=>p.classList.toggle("on",p.id==="pg-"+b.dataset.p));
+  renderAll();
+});
+function renderAll(){renderDash();renderStageGrid();renderTodayRecs();renderStock();renderTh();renderPrm();}
+initData();renderAll();
+if(!isConfigured)document.getElementById("loginHint").textContent="演示模式访问码:厨房 7777 · Owner 0000";
+try{
+  const saved=localStorage.getItem("mck_role");
+  if(saved){ROLE=JSON.parse(saved);
+    if(ROLE&&(ROLE.type==="owner"||ROLE.type==="kitchen")){
+      document.getElementById("loginMask").style.display="none";applyRole();renderAll();
+    } else ROLE=null;}
+}catch(e){}
+</script>
+</body>
+</html>
