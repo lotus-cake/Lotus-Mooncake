@@ -1586,6 +1586,30 @@ document.getElementById("btnMatCount").addEventListener("click",()=>{
   };
 });
 
+document.getElementById("btnDedup").addEventListener("click",()=>{
+  if(!ROLE||ROLE.type!=="owner")return toast("仅限 Owner");
+  const groups={};
+  Object.entries(RECS).forEach(([k,r])=>{
+    if(r.voided)return;
+    if(r.stage!=="rawin"&&r.stage!=="matin")return;
+    if(!((r.note||"").includes("期初建账")))return;
+    const g=r.stage+":"+(r.raw||r.mat||"");
+    (groups[g]=groups[g]||[]).push([k,r]);
+  });
+  let n=0;
+  Object.values(groups).forEach(arr=>{
+    if(arr.length<2)return;
+    arr.sort((a,b)=>(a[1].ts||0)-(b[1].ts||0));
+    arr.slice(1).forEach(([k])=>{
+      const patch={voided:true,voidBy:"系统去重",voidAt:todayStr()+" "+nowHM()};
+      if(DB)DB.ref(DB_ROOT+"/prod/records/"+k).update(patch);else RECS[k].voided=true;
+      n++;
+    });
+  });
+  renderAll();
+  toast(n?`已作废重复期初 ${n} 条,每项只保留最早一条`:"没有发现重复的期初建账");
+});
+
 /* ---------------- 盘点调整(Owner) ---------------- */
 document.getElementById("btnAdjust").addEventListener("click",()=>{
   if(!ROLE||ROLE.type!=="owner")return toast("仅限 Owner");
