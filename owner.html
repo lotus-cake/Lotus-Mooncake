@@ -648,6 +648,8 @@ const DEFAULT_RAW=[
 const KMATS=[{k:"tray",n:"月饼底托"},{k:"bag",n:"包装袋"},{k:"oxy",n:"脱氧剂"},
   ...FLAVORS.map(f=>({k:"st_"+f.k,n:f.n+"贴纸"})),{k:"kit6",n:"六粒礼盒套装"},{k:"kit2",n:"两粒礼盒套装"}];
 let RECIPES={},RAWCUSTOM={},YIELDS={},COSTS={},PARAMS={};
+const CORE_SHARE={mk:"js",wl:"js"};
+const CG=f=>CORE_SHARE[f]||f;
 const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
 const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,...PARAMS})[k];
 function allRaw(){return [...DEFAULT_RAW,...Object.entries(RAWCUSTOM).map(([k,v])=>({k,n:v.n,u:v.u||"g"}))];}
@@ -656,7 +658,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-4";
+const APP_BUILD="b0819-5";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -2469,9 +2471,9 @@ function prodStockNow(){
     switch(r.stage){
       case"paste": S.paste[f]+=g; break;
       case"fen":   if(r.remain!=null){S.fen[f]+=g;S.paste[f]=+r.remain;}else{S.paste[f]-=i;S.fen[f]+=g;} break;
-      case"lava":  S.lava[f]+=g; break;
-      case"fill":  S.core[f]+=g*PRM("perMold"); if(r.remain!=null)S.lava[f]=+r.remain; else S.lava[f]-=(+r.used||0); break;
-      case"wrap1": S.fen[f]-=i; S.core[f]-=i; S.lxx[f]+=g; break;
+      case"lava":  S.lava[CG(f)]+=g; break;
+      case"fill":  S.core[CG(f)]+=g*PRM("perMold"); if(r.remain!=null)S.lava[CG(f)]=+r.remain; else S.lava[CG(f)]-=(+r.used||0); break;
+      case"wrap1": S.fen[f]-=i; S.core[CG(f)]-=i; S.lxx[f]+=g; break;
       case"skin":  S.skin[f]+=g; break;
       case"wrap2": S.skin[f]-=i; S.lxx[f]-=i; S.wet[f]+=g; break;
       case"mold":  S.wet[f]-=i; S.cumMold[f]+=g; break;
@@ -2506,7 +2508,7 @@ function renderSmart(){
     const bomTot=Object.entries(RECIPES["lava_"+f]||{}).reduce((s,[k,v])=>s+(RAWU(k)==="g"?v:0),0);
     const skinNeed=Math.max(0,needW2-(S.skin[f]||0));
     const skinOut=(YIELDS["skin_"+f]||{}).out;
-    data.push({n:fv.n,T,done,R,
+    data.push({n:fv.n,T,done,R,_w1n:needW1,
       paste:pasteGNeed>0?(pasteY?ceilHalf(pasteGNeed/pasteY)+"份":Math.round(pasteGNeed/100)/10+"kg"):0,
       lava:liqNeed>0?(bomTot?ceilHalf(liqNeed/bomTot)+"份":Math.round(liqNeed/100)/10+"kg"):0,
       fill:molds>0?molds+"模":0,
@@ -2515,8 +2517,26 @@ function renderSmart(){
       fen:fenNeed,w1:needW1,w2:needW2,mold:R});
   });
   if(!data.length){el.innerHTML='<div class="note">先在下方设定全季生胚目标,这里会自动倒推各工序还差的工作量</div>';return;}
+  // 金沙/摩卡/乌龙共用流心: 灌模与流心需求汇总到金沙行,其余两行标"共用"
+  {
+    const FK={};data.forEach(d=>FK[FLAVORS.find(f=>f.n===d.n).k]=d);
+    const poolMembers=["js","mk","wl"].filter(k=>FK[k]);
+    if(poolMembers.length){
+      const w1sum=poolMembers.reduce((s,k)=>s+FK[k]._w1n,0);
+      const coreNeed=Math.max(0,w1sum-(S.core["js"]||0));
+      const molds=Math.ceil(coreNeed/PRM("perMold"));
+      const liqNeed=Math.max(0,Math.round(molds*PRM("perMold")*PRM("coreG")-(S.lava["js"]||0)));
+      const bomTot=Object.entries(RECIPES["lava_js"]||{}).reduce((s,[k,v])=>s+(RAWU(k)==="g"?v:0),0);
+      poolMembers.forEach(k=>{FK[k].fill="共用";FK[k].lava="共用";});
+      if(FK.js){
+        FK.js.fill=molds>0?molds+"模":0;
+        FK.js.lava=liqNeed>0?(bomTot?ceilHalf(liqNeed/bomTot)+"份":Math.round(liqNeed/100)/10+"kg"):0;
+        FK.js.poolNote=true;
+      }
+    }
+  }
   const pctAll=sumT?Math.min(100,Math.round(sumDone/sumT*100)):0;
-  const cell=v=>v?`<b class="warnrow">${v}${typeof v==="number"?"":""}</b>`:'<span class="okrow">✓</span>';
+  const cell=v=>v==="共用"?'<span class="z" title="金沙/摩卡/乌龙共用流心">共用</span>':(v?`<b class="warnrow">${v}</b>`:'<span class="okrow">✓</span>');
   let h=`<div class="kv" style="margin-bottom:4px"><span>全部口味合计</span><b>${sumDone} / ${sumT} 颗(${pctAll}%)</b></div>
     <div style="height:10px;border-radius:99px;background:#EEE8D8;overflow:hidden;margin-bottom:10px">
       <div style="height:100%;width:${pctAll}%;background:var(--olive)"></div></div>
