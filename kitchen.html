@@ -467,6 +467,7 @@ function flavorPieces(qty){
 let DB=null, RECS={}, ORDERS={}, TH={}, PLAN={}, WPLAN={}, TARGETS={}, YIELDS={}, PARAMS={};
 const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,...PARAMS})[k];
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
+const NF=n=>(+n).toLocaleString("en-US");
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1098,10 +1099,14 @@ function renderRecForm(keepNums){
       const rm=parseFloat((document.getElementById("rRemain")||{}).value);
       const gd=parseFloat((document.getElementById("rGood")||{}).value)||0;
       const gpp=(YIELDS["paste_"+rFlavor]||{}).gpp||PRM("fenG");
-      let t=`${FN(rFlavor)}馅现有 ${have}g · 标准 ${gpp}g/颗`;
+      let t=`<div><b>现有</b>:${FN(rFlavor)}馅 ${NF(have)} g(标准 ${gpp} g/颗)</div>`;
       if(!isNaN(rm)){const used=Math.round((have-rm)*10)/10;
         const exp=Math.floor(Math.max(0,used)/gpp);
-        t+=`<br>本次用馅 ≈ <b>${used}g</b>,标准应出 <b>${exp}颗</b>`+(gd?`,实出 ${gd}颗`+(exp-gd>0?` → <b style="color:var(--danger)">配方耗损 ${exp-gd}颗(待审)</b>`:" ✓"):"");
+        t+=`<div><b>本次</b>:用馅 ${NF(used)} g → 按标准应分出 <b>${NF(exp)} 颗</b>${gd?`,实际 <b>${NF(gd)} 颗</b>`:""}</div>`;
+        if(gd)t+=exp-gd>0
+          ?`<div style="color:var(--danger)">少了 <b>${exp-gd} 颗</b> → 会记一笔「配方耗损」,等 Owner 审核</div>`
+          :`<div style="color:var(--ok)">✓ 达到标准</div>`;
+        t+=`<div><b>保存后</b>:馅剩 ${NF(rm)} g(按你填的校准)</div>`;
       }
       hd.innerHTML=t;
     }
@@ -1111,10 +1116,14 @@ function renderRecForm(keepNums){
       const per=PRM("perMold"),cg=PRM("coreG"),std=per*cg;
       const rm=parseFloat((document.getElementById("rRemain")||{}).value);
       const md=parseFloat((document.getElementById("rGood")||{}).value)||0;
-      let t=`${FN(rFlavor)}流心液现有 ${have}g · 模具共${PRM("molds")}个 · 标准 ${per}颗×${cg}g=${std}g/模 · 现有液体约可灌 <b>${Math.floor(have/std)}模</b>`;
+      let t=`<div><b>现有</b>:${FN(rFlavor)}流心液 ${NF(have)} g,约够灌 <b>${Math.floor(have/std)} 模</b>(标准 ${std} g/模 = ${per}颗×${cg}g;模具共 ${PRM("molds")} 个)</div>`;
       if(!isNaN(rm)&&md>0){const used=Math.round((have-rm)*10)/10;
         const avg=Math.round(used/md*10)/10, over=Math.round((used-md*std)*10)/10;
-        t+=`<br>本次用液 ≈ <b>${used}g</b>,平均 <b>${avg}g/模</b>(标准${std})`+(over>0?` → <b style="color:var(--danger)">超耗 ${over}g(待审)</b>`:" ✓")+` · 得冻芯 ${md*per}颗`;
+        t+=`<div><b>本次</b>:灌 ${md} 模,用液 ${NF(used)} g(平均 <b>${avg} g/模</b>,标准 ${std} g/模)</div>`;
+        t+=`<div><b>结果</b>:得冻芯 <b>${NF(md*per)} 颗</b> · 液剩 ${NF(rm)} g</div>`;
+        t+=over>0
+          ?`<div style="color:var(--danger)">比标准多用 <b>${over} g</b> → 会记一笔「配方耗损」,等 Owner 审核</div>`
+          :`<div style="color:var(--ok)">✓ 用量在标准内</div>`;
       }
       hd.innerHTML=t;
     }
@@ -1286,9 +1295,12 @@ function renderTodayRecs(){
   const showDate=from!==to;
   document.getElementById("todayRecs").innerHTML=(total?list.map(([key,r])=>{
     const what=recDesc(r);
-    const num=r.stage==="adjust"?(r.delta>0?"+"+r.delta:r.delta):r.good;
+    const UNIT={bakeyolk:"包",fill:"模",paste:"g",lava:"g",fen:"颗",skin:"颗",wrap1:"颗",wrap2:"颗",mold:"颗",bake:"颗",pack:"颗",boxup:"盒",sample:"颗",ship:"盒"};
+    const num=r.stage==="adjust"?((r.delta>0?"+"+r.delta:r.delta)):
+      r.stage==="rawin"||r.stage==="rawuse"?`${r.good} ${RAWU(r.raw)||""}`:
+      `${r.good}${UNIT[r.stage]?" "+UNIT[r.stage]:""}`;
     return `<div class="wlog ${r.voided?"void":""}"><span>${showDate?`<span class="z">${(r.date||"").slice(5)}</span> `:""}${r.time||""} <b>${esc(r.staff||"?")}</b> ${what}${r.note?` <span class="z">${esc(r.note)}</span>`:""}</span>
-      <span style="display:flex;gap:6px;align-items:center"><b>${num}${r.waste?` <span class="warnrow">操作损${r.waste}${r.reason?"("+esc(r.reason)+")":""}</span>`:(r.reason&&r.stage==="sample"?` <span class="z">${esc(r.reason)}</span>`:"")}${r.yieldLoss?` <span class="warnrow">配方损${r.yieldLoss}${r.lossUnit==="g"?"g":""}</span><span class="z">${r.aprv?"已审✓":"待审"}</span>`:""}</b>
+      <span style="display:flex;gap:6px;align-items:center"><b>${num}${r.waste?` <span class="warnrow">操作损${r.waste}${r.reason?"("+esc(r.reason)+")":""}</span>`:(r.reason&&r.stage==="sample"?` <span class="z">${esc(r.reason)}</span>`:"")}${r.yieldLoss?` <span class="warnrow">配方损 ${r.yieldLoss}${r.lossUnit==="g"?" g":" 颗"}</span><span class="z">${r.aprv?"已审✓":"待审"}</span>`:""}</b>
       ${r.voided?`<span class="z">已作废</span>`:`<button class="vbtn" onclick="voidRec('${key}')">✕</button>`}</span></div>`;
   }).join("")+(total>300?`<div class="note">仅显示前 300 条(共 ${total} 条),缩小日期范围或用导出看全部</div>`:""):`<div class="note">这个范围内没有记录</div>`);
 }
