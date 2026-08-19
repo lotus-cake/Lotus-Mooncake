@@ -459,8 +459,13 @@ const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("�
 let AUTHED=false;
 function setConn(ok,msg){
   const b=document.getElementById("connBadge");if(!b)return;
-  b.textContent=ok?"✓ 云端已连接":"✗ "+msg;
-  b.style.background=ok?"rgba(120,180,90,.35)":"rgba(220,80,80,.55)";
+  if(ok){
+    b.textContent="";b.title="云端已连接";
+    b.style.cssText="flex:none;width:10px;height:10px;border-radius:99px;background:#9CCB6B;box-shadow:0 0 0 3px rgba(156,203,107,.25);padding:0;margin-right:2px";
+  }else{
+    b.textContent="✗ "+msg;b.title="";
+    b.style.cssText="white-space:nowrap;flex:none;font-size:10px;padding:3px 8px;border-radius:99px;background:rgba(220,80,80,.6);color:#fff;margin-right:4px";
+  }
 }
 function initData(){
   if(isConfigured){
