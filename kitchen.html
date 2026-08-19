@@ -468,7 +468,7 @@ let DB=null, RECS={}, ORDERS={}, TH={}, PLAN={}, WPLAN={}, TARGETS={}, YIELDS={}
 const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,...PARAMS})[k];
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 const NF=n=>(+n).toLocaleString("en-US");
-const APP_BUILD="b0819-1";
+const APP_BUILD="b0819-2";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1373,28 +1373,41 @@ function renderStock(){
     });
     rawEl.innerHTML=any?out:'<div class="note">还没有原料记录 — 点「＋入库」开始建账</div>';
   }
-  // 损耗分析
+  // 损耗分析(耗率 = 同单位相除: 损耗量 ÷ 该工序的标准量)
   const byStage={},reasons={};
   let sampleBy={};
+  const UNITQ={bakeyolk:"包",fill:"模",paste:"份",lava:"份",skin:"份",fen:"颗",wrap1:"颗",wrap2:"颗",mold:"颗",bake:"颗",pack:"颗",boxup:"盒"};
   Object.values(RECS).forEach(r=>{
     if(r.voided)return;
     if(r.stage==="sample"){sampleBy[r.reason||"其他"]=(sampleBy[r.reason||"其他"]||0)+(+r.good||0);return;}
-    const w=+r.waste||0;
     if(!STAGES.find(s=>s.k===r.stage))return;
-    if(["paste","fen"].includes(r.stage))return;
-    const base=(r.inQ!=null&&+r.inQ>0)?+r.inQ:(+r.good||0)+w;
-    if(!byStage[r.stage])byStage[r.stage]={in:0,w:0,y:0};
-    byStage[r.stage].in+=base;byStage[r.stage].w+=w;byStage[r.stage].y+=(+r.yieldLoss||0);
-    if(w>0&&r.reason)reasons[r.reason]=(reasons[r.reason]||0)+w;
+    const w=+r.waste||0, y=+r.yieldLoss||0;
+    // 展示投入(带单位) 与 耗率分母(与损耗同单位)
+    let inQ, denom;
+    switch(r.stage){
+      case"fill":  inQ=+r.good||0; denom=(+r.good||0)*PRM("perMold")*PRM("coreG"); break;   // 损耗g ÷ 标准用液g
+      case"paste": case"lava": inQ=+r.inQ||0; denom=+r.expOut||0; break;                     // 损耗g ÷ 标准产出g
+      case"skin":  inQ=+r.inQ||0; denom=+r.expOut||((+r.good||0)+w); break;                  // 颗
+      case"fen":   inQ=+r.used||+r.inQ||0; denom=+r.expOut||0; break;                        // 颗
+      case"bakeyolk": inQ=+r.good||0; denom=0; break;
+      default:     inQ=(+r.inQ>0)?+r.inQ:((+r.good||0)+w); denom=inQ;                        // 颗对颗
+    }
+    const opLoss=(r.lossType==="op")?(w+y):w, fmLoss=(r.lossType==="op")?0:y;
+    if(!byStage[r.stage])byStage[r.stage]={in:0,w:0,y:0,dn:0,gUnit:r.lossUnit==="g"};
+    const d=byStage[r.stage];
+    d.in+=inQ; d.w+=opLoss; d.y+=fmLoss; d.dn+=denom;
+    if(r.lossUnit==="g")d.gUnit=true;
+    if(opLoss>0&&(r.reason||r.lossReason))reasons[r.reason||r.lossReason]=(reasons[r.reason||r.lossReason]||0)+opLoss;
   });
   let lh=`<tr><th>工序</th><th>投入</th><th>配方耗损</th><th>操作耗损</th><th>总耗率</th></tr>`,any=false;
   STAGES.forEach(s=>{
     const d=byStage[s.k];if(!d||!d.in)return;any=true;
-    const tot=d.w+(d.y||0),rate=d.in?(tot/d.in*100):0;
-    lh+=`<tr><td>${s.n}</td><td>${d.in}</td>
-      <td>${d.y?`<b class="warnrow">${d.y}</b>`:'<span class="z">·</span>'}</td>
-      <td>${d.w?`<b class="warnrow">${d.w}</b>`:'<span class="z">·</span>'}</td>
-      <td>${tot?rate.toFixed(1)+"%":'<span class="okrow">0%</span>'}</td></tr>`;
+    const u=d.gUnit?" g":(["fen","wrap1","wrap2","mold","bake","pack"].includes(s.k)?" 颗":"");
+    const tot=d.w+d.y, rate=d.dn>0?(tot/d.dn*100):null;
+    lh+=`<tr><td>${s.n}</td><td>${NF(d.in)} ${UNITQ[s.k]||""}</td>
+      <td>${d.y?`<b class="warnrow">${d.y}${u}</b>`:'<span class="z">·</span>'}</td>
+      <td>${d.w?`<b class="warnrow">${d.w}${u}</b>`:'<span class="z">·</span>'}</td>
+      <td>${tot?(rate!=null?rate.toFixed(1)+"%":"—"):'<span class="okrow">0%</span>'}</td></tr>`;
   });
   document.getElementById("lossTable").innerHTML=any?lh:`<tr><td class="empty">暂无生产记录</td></tr>`;
   const rl=Object.entries(reasons).sort((a,b)=>b[1]-a[1]).slice(0,5);
