@@ -1799,20 +1799,34 @@ document.getElementById("btnImp").addEventListener("click",()=>{
     delete RAWCUSTOM[k];
     if(DB)DB.ref(DB_ROOT+"/prod/rawmats/"+k).remove();
   });
-  let stockN=0;
-  if(data.stock){
+  let stockN=0,skipN=0;
+  {
     const now=Date.now(),date=todayStr(),time=nowHM();
-    const known2=new Set(allRaw().map(m=>m.k));
-    Object.entries(data.stock).forEach(([k,v],ix)=>{
-      if(!known2.has(k)||!(+v>0))return;
-      const rec={ts:now+ix,date,time,stage:"rawin",raw:k,good:+v,note:"期初建账(导入)",staff:"Owner"};
-      if(DB)DB.ref(DB_ROOT+"/prod/records").push(rec);else RECS["s"+now+ix]=rec;
-      stockN++;
-    });
+    const hasInit=(stage,field,k)=>Object.values(RECS).some(r=>!r.voided&&r.stage===stage&&r[field]===k&&(r.note||"").includes("期初建账"));
+    if(data.stock){
+      const known2=new Set(allRaw().map(m=>m.k));
+      Object.entries(data.stock).forEach(([k,v],ix)=>{
+        if(!known2.has(k)||!(+v>0))return;
+        if(hasInit("rawin","raw",k)){skipN++;return;}
+        const rec={ts:now+ix,date,time,stage:"rawin",raw:k,good:+v,note:"期初建账(导入)",staff:"Owner"};
+        if(DB)DB.ref(DB_ROOT+"/prod/records").push(rec);else RECS["s"+now+ix]=rec;
+        stockN++;
+      });
+    }
+    if(data.matstock){
+      const knownM=new Set(MATS.map(m=>m.k));
+      Object.entries(data.matstock).forEach(([k,v],ix)=>{
+        if(!knownM.has(k)||!(+v>0))return;
+        if(hasInit("matin","mat",k)){skipN++;return;}
+        const rec={ts:now+500+ix,date,time,stage:"matin",mat:k,good:+v,note:"期初建账(导入)",staff:"Owner"};
+        if(DB)DB.ref(DB_ROOT+"/prod/records").push(rec);else RECS["m"+now+ix]=rec;
+        stockN++;
+      });
+    }
   }
   document.getElementById("impText").value="";
   renderAll();
-  toast(`已导入 ${Object.keys(rc).length} 个配方${Object.keys(rm).length?" + "+Object.keys(rm).length+" 种材料":""}${stockN?" + "+stockN+" 项期初库存":""}`);
+  toast(`已导入 ${Object.keys(rc).length} 个配方${Object.keys(rm).length?" + "+Object.keys(rm).length+" 种材料":""}${stockN?" + "+stockN+" 项期初库存":""}${skipN?"(跳过已建账 "+skipN+" 项)":""}`);
 });
 document.getElementById("btnExport").addEventListener("click",()=>{
   const rows=[["日期","时间","工序","口味","产品","门店","用途","投入","合格/数量","剩余(盘点)","预计产出","配方耗损","审核","操作耗损","原因","材料/原料","自动扣原料","调整对象","调整差额","备注","操作人","状态"]];
