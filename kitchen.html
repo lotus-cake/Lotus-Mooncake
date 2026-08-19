@@ -434,7 +434,7 @@ const STAGES=[
   {k:"pack",  n:"单颗包装", g:3, flavor:true,  unit:"颗"},
   {k:"boxup", n:"礼盒组装", g:3, flavor:false, unit:"盒"},
   {k:"sample",n:"试吃/出样",g:4, flavor:true,  unit:"颗"},
-  {k:"ship",  n:"配送出库", g:0, flavor:false, unit:"盒", ext:true}, // 由客服在订单App记交接
+  {k:"ship",  n:"出货交接", g:0, flavor:false, unit:"盒", ext:true}, // 由客服在订单App记交接
 ];
 const SN=k=>(STAGES.find(s=>s.k===k)||{n:{matin:"包材入库",adjust:"盘点调整",rawin:"原料入库",rawuse:"原料领用",ship:"出货交接",recv:"门店收货"}[k]||k}).n;
 const WASTE_REASONS={
@@ -469,7 +469,7 @@ const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,...PARAMS})[k
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 const NF=n=>(+n).toLocaleString("en-US");
 const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
-const APP_BUILD="b0819-3";
+const APP_BUILD="b0819-4";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1286,7 +1286,7 @@ function recDesc(r){
     r.stage==="rawin"?`${RAWN(r.raw)} 原料入库`:
     r.stage==="rawuse"?`${RAWN(r.raw)} 领用`:
     r.stage==="adjust"?`盘点调整 ${adjLabel(r)}`:
-    `${SN(r.stage)}${r.flavor?" · "+FN(r.flavor):""}${r.product?" · "+PN(r.product):""}${r.store?" → "+STORE_NAME[r.store]+"("+(r.use||"")+")":""}`;
+    `${SN(r.stage)}${r.flavor?" · "+FN(r.flavor):""}${r.product?" · "+PN(r.product):""}${r.store?" → "+STORE_NAME[r.store]+"("+({order:"订单",walkin:"现货"}[r.use]||r.use||"")+")":""}`;
 }
 function renderTodayRecs(){
   const from=(document.getElementById("recFrom")||{}).value||"";
