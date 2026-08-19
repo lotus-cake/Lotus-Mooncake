@@ -378,15 +378,13 @@ const RAW_GROUPS=[["semi","半成品"],["fs","共同·粉糖类"],["re","共同�
 const DEFAULT_RAW=[
   {k:"yolk",n:"熟咸蛋黄(半成品)",u:"g",gr:"semi"},
   {k:"yolkraw",n:"生咸蛋黄",u:"包",gr:"re"},
-  {k:"flour",n:"面粉",u:"g",gr:"fs"},{k:"cakeflour",n:"低筋面粉",u:"g",gr:"fs"},
+  {k:"cakeflour",n:"低筋面粉",u:"g",gr:"fs"},
   {k:"sugar",n:"糖",u:"g",gr:"fs"},{k:"icing",n:"糖粉",u:"g",gr:"fs"},
   {k:"glucose",n:"葡萄糖",u:"g",gr:"fs"},{k:"malt",n:"麦芽糖",u:"g",gr:"fs"},
   {k:"starch",n:"澄粉",u:"g",gr:"fs"},{k:"salt",n:"盐",u:"g",gr:"fs"},
-  {k:"butter",n:"Butter",u:"g",gr:"re"},{k:"cheese",n:"Cream Cheese",u:"g",gr:"re"},
+  {k:"butter_us",n:"Butter(无盐)",u:"g",gr:"re"},{k:"butter_s",n:"Butter(有盐)",u:"g",gr:"re"},{k:"cheese",n:"Cream Cheese",u:"g",gr:"re"},
   {k:"egg",n:"鸡蛋(全蛋液)",u:"g",gr:"re"},{k:"milkpow",n:"奶粉",u:"g",gr:"re"},
   {k:"evap",n:"淡奶 Evaporated",u:"g",gr:"re"},{k:"oil",n:"油",u:"g",gr:"re"},
-  {k:"coconut",n:"椰蓉",u:"g",gr:"re"},
-  {k:"puree",n:"果茸",u:"g",gr:"fl"},{k:"matcha",n:"抹茶粉",u:"g",gr:"fl"},
   {k:"chenpi",n:"陈皮",u:"g",gr:"fl"},{k:"redbean",n:"红豆",u:"g",gr:"fl"},
   {k:"truffle",n:"黑松露酱",u:"g",gr:"fl"},{k:"oolong",n:"乌龙茶",u:"包",gr:"fl"},
   {k:"coffee",n:"咖啡/摩卡料",u:"g",gr:"fl"}];
@@ -1737,6 +1735,13 @@ document.getElementById("btnImp").addEventListener("click",()=>{
   Object.entries(data.yields||{}).forEach(([k,v])=>{
     YIELDS[k]=v;
     if(DB)DB.ref(DB_ROOT+"/prod/meta/yields/"+k).set(v);
+  });
+  Object.entries(data.costs||{}).forEach(([k,v])=>{
+    if(DB)DB.ref(DB_ROOT+"/prod/meta/costs/"+k).set(v);
+  });
+  (data.removemats||[]).forEach(k=>{
+    delete RAWCUSTOM[k];
+    if(DB)DB.ref(DB_ROOT+"/prod/rawmats/"+k).remove();
   });
   let stockN=0;
   if(data.stock){
