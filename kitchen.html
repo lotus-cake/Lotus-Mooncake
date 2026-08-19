@@ -381,7 +381,7 @@ const BOX_BOM={mix6:{js:1,mt:1,tr:1,cp:1,mk:1,wl:1},js6:{js:6},
   js2:{js:2},mt2:{mt:2},tr2:{tr:2},cp2:{cp:2},mk2:{mk:2},wl2:{wl:2}};
 const MATS=[
   {k:"tray",n:"月饼底托",per:"颗×1"},{k:"bag",n:"包装袋",per:"颗×1"},
-  {k:"oxy",n:"吸氧剂",per:"颗×2"},
+  {k:"oxy",n:"脱氧剂",per:"颗×2"},
   ...FLAVORS.map(f=>({k:"st_"+f.k,n:f.n+"贴纸",per:"颗×1"})),
   {k:"kit6",n:"六粒礼盒套装",per:"盒×1"},{k:"kit2",n:"两粒礼盒套装",per:"盒×1"}];
 const MATN=k=>(MATS.find(m=>m.k===k)||{}).n||k;
@@ -957,7 +957,7 @@ function stockHint(stage,f){
     case"wrap2":return f?`${FN(f)}曲奇皮 ${S.skin[f]||0} 颗 · 流心馅 ${S.lxx[f]||0} 颗`:"";
     case"mold": return f?`${FN(f)}未压模 ${S.wet[f]||0} 颗`:"";
     case"bake": return f?`${FN(f)}待烘烤 ${S.rdy[f]||0} 颗`:"";
-    case"pack": return f?`${FN(f)}烘烤成品 ${S.baked[f]||0} 颗 · 底托${S.mat.tray} 袋${S.mat.bag} 吸氧剂${S.mat.oxy} 贴纸${S.mat["st_"+f]||0}`:"";
+    case"pack": return f?`${FN(f)}烘烤成品 ${S.baked[f]||0} 颗 · 底托${S.mat.tray} 袋${S.mat.bag} 脱氧剂${S.mat.oxy} 贴纸${S.mat["st_"+f]||0}`:"";
     case"sample":return f?`${FN(f)}包装成品 ${S.packed[f]||0} 颗`:"";
     case"skin": return f?`${FN(f)}曲奇皮现有 ${S.skin[f]||0} 颗`:"";
     default:return"";
@@ -979,7 +979,7 @@ function overdraw(rec){
     case"mold":chk(i,S.wet[f]||0,FN(f)+"未压模");break;
     case"bake":chk(i,S.rdy[f]||0,FN(f)+"待烘烤");break;
     case"pack":chk(i,S.baked[f]||0,FN(f)+"烘烤成品");chk(g,S.mat.tray,"底托");chk(g,S.mat.bag,"包装袋");
-      chk(g*2,S.mat.oxy,"吸氧剂");chk(g,S.mat["st_"+f]||0,FN(f)+"贴纸");break;
+      chk(g*2,S.mat.oxy,"脱氧剂");chk(g,S.mat["st_"+f]||0,FN(f)+"贴纸");break;
     case"boxup":{
       if(rec.product==="bb2"){FLAVORS.forEach(x=>{if(rec.mix&&rec.mix[x.k])chk(rec.mix[x.k],S.packed[x.k]||0,x.n+"包装成品");});}
       else{const bom=BOX_BOM[rec.product]||{};FLAVORS.forEach(x=>{const c=(bom[x.k]||0)*g;if(c)chk(c,S.packed[x.k]||0,x.n+"包装成品");});}
