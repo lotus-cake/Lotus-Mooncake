@@ -199,15 +199,15 @@ table.sum .z{color:#C9C6B4}
 </head>
 <body>
 
-<header>
-  <div class="brand">
-    <div class="t1">中秋月饼 · 订单</div>
-    <div class="t2">L'OTUS · OWNER 中控</div>
+<header style="flex-wrap:nowrap;gap:8px">
+  <div class="brand" style="flex:1;min-width:0">
+    <div class="t1" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Owner 中控</div>
+    <div class="t2" style="white-space:nowrap">L'OTUS · 中秋月饼</div>
   </div>
-  <div class="gauge" id="g6"></div>
-  <div class="gauge" id="g2"></div>
-  <span id="connBadge" style="font-size:10px;padding:3px 8px;border-radius:99px;background:rgba(255,255,255,.15);color:#fff;margin-right:6px">连接中…</span>
-  <button id="btnLogout" title="退出登录" style="background:none;border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:8px;font-size:10px;padding:4px 7px;cursor:pointer">
+  <div class="gauge" id="g6" style="display:none"></div>
+  <div class="gauge" id="g2" style="display:none"></div>
+  <span id="connBadge" style="white-space:nowrap;flex:none;font-size:10px;padding:3px 8px;border-radius:99px;background:rgba(255,255,255,.15);color:#fff;margin-right:6px">连接中…</span>
+  <button id="btnLogout" title="退出登录" style="flex:none;white-space:nowrap;background:none;border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:8px;font-size:10px;padding:4px 7px;cursor:pointer">
     <span id="roleTag">—</span> 退出</button>
   <div class="conn" id="connBar">网络已断开,数据暂不能保存</div>
 </header>
@@ -541,12 +541,12 @@ const firebaseConfig = {
   appId: "1:1061048356919:web:d91f819b897ff1710fefb2"
 };
 const DB_ROOT = "v1";  // 生产链已上线,记的是真账
-const OWNER_PIN   = "0000"; // ★ Owner 访问码 — 部署前务必修改
+const OWNER_PIN   = "4689"; // ★ Owner 访问码 — 部署前务必修改
 const ACCESS_CODES = {       // ★ 各角色访问码 — 部署前全部修改
-  CAM:  "1111",   // Cambie 门店
-  BBY:  "2222",   // Burnaby 门店
-  ALD:  "3333",   // Alderbridge 门店
-  CS:   "5678",   // 客服
+  CAM:  "1294",   // Cambie 门店
+  BBY:  "6234",   // Burnaby 门店
+  ALD:  "6579",   // Alderbridge 门店
+  CS:   "6454",   // 客服
   OWNER: OWNER_PIN
 };
 const PROXY_URL   = "";     // 识别中转地址(后续配置)
