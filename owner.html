@@ -648,6 +648,7 @@ const DEFAULT_RAW=[
 const KMATS=[{k:"tray",n:"月饼底托"},{k:"bag",n:"包装袋"},{k:"oxy",n:"脱氧剂"},
   ...FLAVORS.map(f=>({k:"st_"+f.k,n:f.n+"贴纸"})),{k:"kit6",n:"六粒礼盒套装"},{k:"kit2",n:"两粒礼盒套装"}];
 let RECIPES={},RAWCUSTOM={},YIELDS={},COSTS={},PARAMS={};
+const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
 const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,...PARAMS})[k];
 function allRaw(){return [...DEFAULT_RAW,...Object.entries(RAWCUSTOM).map(([k,v])=>({k,n:v.n,u:v.u||"g"}))];}
 const RAWN=k=>{const m=allRaw().find(x=>x.k===k);return m?m.n:k;};
@@ -655,7 +656,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-2";
+const APP_BUILD="b0819-3";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -2195,20 +2196,21 @@ function renderOpToday(){
     const sh=shippedFor(D,st);shipB+=sumQ(sh["订单"])+sumQ(sh["现货"]);
     const rc=recvFor(D,st);recvB+=rc.ob+rc.wb;
   });
-  let bakedT=0,packT=0,boxT=0,opW=0,fmW=0;
+  let bakedT=0,packT=0,boxT=0,opG=0,opC=0,fmG=0,fmC=0;
   Object.values(PRODRECS||{}).forEach(r=>{
     if(r.voided||r.date!==D)return;
     if(r.stage==="bake")bakedT+=+r.good||0;
     if(r.stage==="pack")packT+=+r.good||0;
     if(r.stage==="boxup")boxT+=+r.good||0;
-    if(r.lossType==="op"){opW+=(+r.waste||0)+(+r.yieldLoss||0);}
-    else{opW+=+r.waste||0;fmW+=+r.yieldLoss||0;}
+    {const w=+r.waste||0,y=+r.yieldLoss||0,g=r.lossUnit==="g";
+     if(r.lossType==="op"){if(g)opG+=w+y;else opC+=w+y;}
+     else{if(g)fmG+=y;else{fmC+=y;opC+=w;}}}
   });
   el.innerHTML=
     `<div class="kv"><span>新订单</span><b>${newN} 单 · ${money(newAmt)||"$0"}</b></div>
      <div class="kv"><span>交付链</span><b>应送 ${needB} → 已交接 ${shipB} → 门店实收 ${recvB}</b></div>
      <div class="kv"><span>厨房产出</span><b>烤 ${bakedT} · 包装 ${packT} · 组盒 ${boxT}</b></div>
-     <div class="kv"><span>今日耗损</span><b class="${(opW+fmW)?"":"okrow"}" style="${(opW+fmW)?"color:var(--danger)":""}">配方 ${fmW} · 操作 ${opW}</b></div>`;
+     <div class="kv"><span>今日耗损</span><b class="${(opG+opC+fmG+fmC)?"":"okrow"}" style="${(opG+opC+fmG+fmC)?"color:var(--danger)":""}">配方 ${lossFmt(fmG,fmC)||0} · 操作 ${lossFmt(opG,opC)||0}</b></div>`;
 }
 /* --- 各店现货余量 --- */
 function renderWalkLeft(){
@@ -2578,7 +2580,7 @@ function renderFin(){
   let wrev=0;
   ["CAM","BBY","ALD"].forEach(st=>Object.values((WALKIN[st]||{}).sales||{}).forEach(x=>wrev+=x.amt||0));
   // 材料成本 = 实际消耗 × 单价
-  let rawCost=0,matCost=0,priced=0,unpriced=0,fmW=0,opW=0;
+  let rawCost=0,matCost=0,priced=0,unpriced=0,fmG=0,fmC=0,opG=0,opC=0;
   const use={},muse={};
   Object.values(PRODRECS||{}).forEach(r=>{
     if(r.voided)return;
@@ -2587,8 +2589,9 @@ function renderFin(){
     if(r.stage==="pack"){const g=+r.good||0;muse.tray=(muse.tray||0)+g;muse.bag=(muse.bag||0)+g;muse.oxy=(muse.oxy||0)+g*2;muse["st_"+r.flavor]=(muse["st_"+r.flavor]||0)+g;}
     if(r.stage==="boxup"){const g=+r.good||0;const p=PRODUCTS.find(x=>x.k===r.product)||{};
       muse[p.box===6?"kit6":"kit2"]=(muse[p.box===6?"kit6":"kit2"]||0)+g;}
-    if(r.lossType==="op"){opW+=(+r.waste||0)+(+r.yieldLoss||0);}
-    else{fmW+=+r.yieldLoss||0;opW+=+r.waste||0;}
+    {const w=+r.waste||0,y=+r.yieldLoss||0,g=r.lossUnit==="g";
+     if(r.lossType==="op"){if(g)opG+=w+y;else opC+=w+y;}
+     else{if(g)fmG+=y;else{fmC+=y;opC+=w;}}}
   });
   Object.entries(use).forEach(([k,v])=>{const p=COSTS[k];if(p>0){rawCost+=v*p;priced++;}else unpriced++;});
   Object.entries(muse).forEach(([k,v])=>{const p=COSTS[k];if(p>0){matCost+=v*p;priced++;}else unpriced++;});
@@ -2598,7 +2601,7 @@ function renderFin(){
      <div class="kv"><span>现货已收</span><b>${money(wrev)||"$0"}</b></div>
      <div class="kv"><span>材料成本(实际消耗×单价)</span><b>${money(cost)||"$0"}${unpriced?`<span class="note" style="margin-left:6px">还有${unpriced}项没填单价</span>`:""}</b></div>
      <div class="kv"><span>毛利(已收−材料成本,粗略)</span><b>${money(Math.round((coll+wrev-cost)*100)/100)}</b></div>
-     <div class="kv"><span>累计耗损</span><b style="color:var(--danger)">配方 ${fmW} · 操作 ${opW}</b></div>`;
+     <div class="kv"><span>累计耗损</span><b style="color:var(--danger)">配方 ${lossFmt(fmG,fmC)||0} · 操作 ${lossFmt(opG,opC)||0}</b></div>`;
 }
 document.getElementById("btnCosts").addEventListener("click",()=>{
   needOwner(()=>{
