@@ -465,11 +465,13 @@ function flavorPieces(qty){
 
 /* ---------------- 数据 ---------------- */
 let DB=null, RECS={}, ORDERS={}, TH={}, PLAN={}, WPLAN={}, TARGETS={}, YIELDS={}, PARAMS={};
+const CORE_SHARE={mk:"js",wl:"js"};
+const CG=f=>CORE_SHARE[f]||f;
 const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,...PARAMS})[k];
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 const NF=n=>(+n).toLocaleString("en-US");
 const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
-const APP_BUILD="b0819-4";
+const APP_BUILD="b0819-5";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -589,9 +591,9 @@ function calcStock(recsOverride){
       case"paste": S.paste[f]+=g; break;
       case"bakeyolk": S.raw.yolkraw=(S.raw.yolkraw||0)-g; S.raw.yolk=(S.raw.yolk||0)+Math.round(g*PRM("yolkBagG")*10)/10; break;
       case"fen":   if(r.remain!=null){S.fen[f]+=g;S.paste[f]=+r.remain;} else {S.paste[f]-=i; S.fen[f]+=g;} break;
-      case"lava":  S.lava[f]+=g; break;
-      case"fill":  S.core[f]+=g*PRM("perMold"); if(r.remain!=null)S.lava[f]=+r.remain; else S.lava[f]-=(+r.used||0); break;
-      case"wrap1": S.fen[f]-=i; S.core[f]-=i; S.lxx[f]+=g; break;
+      case"lava":  S.lava[CG(f)]+=g; break;
+      case"fill":  S.core[CG(f)]+=g*PRM("perMold"); if(r.remain!=null)S.lava[CG(f)]=+r.remain; else S.lava[CG(f)]-=(+r.used||0); break;
+      case"wrap1": S.fen[f]-=i; S.core[CG(f)]-=i; S.lxx[f]+=g; break;
       case"skin":  S.skin[f]+=g; break;
       case"wrap2": S.skin[f]-=i; S.lxx[f]-=i; S.wet[f]+=g; break;
       case"mold":  S.wet[f]-=i; S.rdy[f]+=g; S.cumMold[f]+=g; break;
@@ -849,14 +851,15 @@ function renderDash(){
   {
     const rows=[];
     FLAVORS.forEach(f=>{
-      const fen=S.fen[f.k]||0,core=S.core[f.k]||0,liq=S.lava[f.k]||0;
+      const fen=S.fen[f.k]||0,core=S.core[CG(f.k)]||0,liq=S.lava[CG(f.k)]||0;
       if(!fen&&!core&&!liq)return;
       const can=Math.min(fen,core);
       const std=PRM("perMold")*PRM("coreG");
+      const poolTag=CORE_SHARE[f.k]?"共用":"";
       let t=`<b>${f.n}</b> 可包 <b>${can}</b>`;
-      if(fen>core)t+=` · 馅球多 ${fen-core}(该多灌模)`;
-      else if(core>fen)t+=` · 冻芯多 ${core-fen}(该多分馅)`;
-      if(liq>0)t+=` · 液剩 ${liq}g ≈ 可灌 ${Math.floor(liq/std)}模/${Math.floor(liq/std)*PRM("perMold")}颗`;
+      if(fen>core)t+=` · 馅球多 ${fen-core}(该多灌${poolTag}模)`;
+      else if(core>fen)t+=` · ${poolTag}冻芯多 ${core-fen}(该多分馅)`;
+      if(liq>0&&!CORE_SHARE[f.k])t+=` · 液剩 ${NF(liq)}g ≈ 可灌 ${Math.floor(liq/std)}模/${Math.floor(liq/std)*PRM("perMold")}颗${f.k==="js"?"(金沙/摩卡/乌龙共用)":""}`;
       rows.push(`<div class="wlog"><span>${t}</span></div>`);
     });
     document.getElementById("pairCard").style.display=rows.length?"block":"none";
@@ -947,9 +950,9 @@ function flavorBadge(stage,f,S){
     case"paste":return (S.paste[f]||0)+"g";
     case"skin": return "皮"+(S.skin[f]||0);
     case"fen":  return "馅"+(S.paste[f]||0)+"g";
-    case"lava": return "液"+(S.lava[f]||0)+"g";
-    case"fill": return "液"+(S.lava[f]||0)+"g";
-    case"wrap1":return "馅"+(S.fen[f]||0)+"/芯"+(S.core[f]||0);
+    case"lava": return "液"+(S.lava[CG(f)]||0)+"g";
+    case"fill": return "液"+(S.lava[CG(f)]||0)+"g";
+    case"wrap1":return "馅"+(S.fen[f]||0)+"/芯"+(S.core[CG(f)]||0);
     case"wrap2":return "皮"+(S.skin[f]||0)+"/馅"+(S.lxx[f]||0);
     case"mold": return "待"+(S.wet[f]||0);
     case"bake": return "待"+(S.rdy[f]||0);
@@ -962,7 +965,7 @@ function stockHint(stage,f){
   const S=calcStock();
   switch(stage){
     case"fen":  return f?`${FN(f)}馅料现有 ${S.paste[f]||0} 克`:"";
-    case"wrap1":return f?`${FN(f)}馅球 ${S.fen[f]||0} 颗 · 冻芯 ${S.core[f]||0} 颗(可包 ${Math.min(S.fen[f]||0,S.core[f]||0)})`:"";
+    case"wrap1":return f?`${FN(f)}馅球 ${S.fen[f]||0} 颗 · 冻芯 ${S.core[CG(f)]||0} 颗${CORE_SHARE[f]?"(金沙/摩卡/乌龙共用)":""}(可包 ${Math.min(S.fen[f]||0,S.core[CG(f)]||0)})`:"";
     case"wrap2":return f?`${FN(f)}曲奇皮 ${S.skin[f]||0} 颗 · 流心馅 ${S.lxx[f]||0} 颗`:"";
     case"mold": return f?`${FN(f)}未压模 ${S.wet[f]||0} 颗`:"";
     case"bake": return f?`${FN(f)}待烘烤 ${S.rdy[f]||0} 颗`:"";
@@ -980,7 +983,7 @@ function overdraw(rec){
   if(rec.stage==="rawuse")chk(g,S.raw[rec.raw]||0,RAWN(rec.raw)+"("+RAWU(rec.raw)+")");
   switch(rec.stage){
     case"fen":chk(i,S.paste[f]||0,FN(f)+"馅料(克)");break;
-    case"wrap1":chk(i,S.fen[f]||0,FN(f)+"馅球");chk(i,S.core[f]||0,FN(f)+"冻芯");break;
+    case"wrap1":chk(i,S.fen[f]||0,FN(f)+"馅球");chk(i,S.core[CG(f)]||0,(CORE_SHARE[f]?"共用":FN(f))+"冻芯");break;
     case"wrap2":chk(i,S.skin[f]||0,FN(f)+"曲奇皮");chk(i,S.lxx[f]||0,FN(f)+"流心馅");break;
     case"bakeyolk":chk(rec.good,S.raw.yolkraw||0,"生咸蛋黄(包)");break;
     case"fill":if(rec.remain>(S.lava[f]||0))out.push(`剩余液(${rec.remain}g)比系统现有(${S.lava[f]||0}g)还多 — 之前可能少记了流心制作,保存将按你填的校准`);break;
@@ -1120,11 +1123,12 @@ function renderRecForm(keepNums){
     }
     if(curStage==="fill"){
       const hd=document.getElementById("fillHint");if(!hd)return;
-      const have=S2.lava[rFlavor]||0;
+      const have=S2.lava[CG(rFlavor)]||0;
       const per=PRM("perMold"),cg=PRM("coreG"),std=per*cg;
+      const shareNote=CORE_SHARE[rFlavor]?`<div class="z">※ 金沙/摩卡/乌龙共用同一种流心,液体与冻芯记在共用池里</div>`:"";
       const rm=parseFloat((document.getElementById("rRemain")||{}).value);
       const md=parseFloat((document.getElementById("rGood")||{}).value)||0;
-      let t=`<div><b>现有</b>:${FN(rFlavor)}流心液 ${NF(have)} g,约够灌 <b>${Math.floor(have/std)} 模</b>(标准 ${std} g/模 = ${per}颗×${cg}g;模具共 ${PRM("molds")} 个)</div>`;
+      let t=shareNote+`<div><b>现有</b>:${CORE_SHARE[rFlavor]?"共用":FN(rFlavor)}流心液 ${NF(have)} g,约够灌 <b>${Math.floor(have/std)} 模</b>(标准 ${std} g/模 = ${per}颗×${cg}g;模具共 ${PRM("molds")} 个)</div>`;
       if(!isNaN(rm)&&md>0){const used=Math.round((have-rm)*10)/10;
         if(used<0){t+=`<div style="color:var(--bronze)">剩余(${NF(rm)} g)比系统现有多 ${NF(-used)} g — 通常是「流心制作」漏记。保存会把液体直接校准到 ${NF(rm)} g,并 +${md*per} 颗冻芯。</div>`;hd.innerHTML=t;return;}
         const avg=Math.round(used/md*10)/10, over=Math.round((used-md*std)*10)/10;
@@ -1355,7 +1359,10 @@ function renderStock(){
   const S=calcStock();
   let h=`<tr><th>口味</th><th>皮</th><th>馅球</th><th>流心液g</th><th>冻芯</th><th>流心馅</th><th>未压模</th><th>待烤</th><th>烤好</th><th>已包装</th></tr>`;
   FLAVORS.forEach(f=>{
-    const c=k=>{const v=S[k][f.k]||0;return `<td data-led="${k}:${f.k}" style="cursor:pointer">${v?(v<0?`<b class="warnrow">${v}</b>`:v):'<span class="z">·</span>'}</td>`;};
+    const c=k=>{
+      if((k==="lava"||k==="core")&&CORE_SHARE[f.k])
+        return `<td data-led="${k}:${CG(f.k)}" style="cursor:pointer"><span class="z" title="金沙/摩卡/乌龙共用">共用</span></td>`;
+      const v=S[k][f.k]||0;return `<td data-led="${k}:${f.k}" style="cursor:pointer">${v?(v<0?`<b class="warnrow">${v}</b>`:v):'<span class="z">·</span>'}</td>`;};
     h+=`<tr><td>${f.n}</td>${c("skin")}${c("fen")}${c("lava")}${c("core")}${c("lxx")}${c("wet")}${c("rdy")}${c("baked")}<td data-led="packed:${f.k}" style="cursor:pointer"><b>${S.packed[f.k]||0}</b></td></tr>`;
   });
   document.getElementById("flowTable").innerHTML=h;
@@ -1542,7 +1549,10 @@ function renderSC(){
     });
   }
   const S=calcStock(),nd=SC_NODES.find(x=>x.k===scNode);
-  const keys=nd.product?PRODUCTS.map(p=>({k:p.k,n:p.n})):FLAVORS.map(f=>({k:f.k,n:f.n}));
+  const keys=nd.product?PRODUCTS.map(p=>({k:p.k,n:p.n}))
+    :(nd.k==="core"||nd.k==="lava")
+      ?FLAVORS.filter(f=>CG(f.k)===f.k).map(f=>({k:f.k,n:f.k==="js"?"金沙(摩卡/乌龙共用)":f.n}))
+      :FLAVORS.map(f=>({k:f.k,n:f.n}));
   const dr=scDraft[scNode]||{};
   document.getElementById("scBody").innerHTML=
     `<div class="note" style="margin:4px 0"><b>${nd.n}</b></div>`+
