@@ -212,6 +212,7 @@ table.sum .z{color:#C9C6B4}
     <span id="roleTag">—</span> 退出</button>
   <div class="conn" id="connBar">网络已断开,数据暂不能保存</div>
 </header>
+<div class="demo-band" id="envBand" style="display:none;background:#B58A2E">⚠ 测试沙盒(test 账本)— 随便操作,正式开卖前会切换到正式账本</div>
 <div class="demo-band" id="demoBand" style="display:none">演示模式:未连接 Firebase,数据仅本页有效,刷新即清空</div>
 
 <!-- ============ 录单 ============ -->
@@ -656,6 +657,9 @@ const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>St
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
 let AUTHED=false;
+if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
+  document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
+}
 function setConn(ok,msg){
   const b=document.getElementById("connBadge");if(!b)return;
   if(ok){
