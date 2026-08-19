@@ -99,12 +99,12 @@ table.sum tr.today td{background:#FBF3DF;font-weight:700}
 </head>
 <body>
 
-<header>
-  <div class="brand">
-    <div class="t1">中秋月饼 · 厨房端</div>
-    <div class="t2">L'OTUS CENTRAL KITCHEN</div>
+<header style="flex-wrap:nowrap;gap:8px">
+  <div class="brand" style="flex:1;min-width:0">
+    <div class="t1" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">中秋月饼 · 厨房端</div>
+    <div class="t2" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">L'OTUS CENTRAL KITCHEN</div>
   </div>
-  <span id="connBadge" style="font-size:10px;padding:3px 8px;border-radius:99px;background:rgba(255,255,255,.15);color:#fff;margin-right:6px">连接中…</span>
+  <span id="connBadge" style="white-space:nowrap;flex:none;font-size:10px;padding:3px 8px;border-radius:99px;background:rgba(255,255,255,.15);color:#fff;margin-right:6px">连接中…</span>
   <button id="btnLogout"><span id="roleTag">—</span> 退出</button>
   <div class="conn" id="connBar">网络已断开,数据暂不能保存</div>
 </header>
@@ -349,8 +349,8 @@ const firebaseConfig = {
 };
 const DB_ROOT = "v1";  // 生产链已上线,记的是真账
 const ACCESS_CODES = {   // ★ 部署前修改
-  KITCHEN: "7777",       // 厨房通用
-  OWNER:   "0000"        // 和订单App的 Owner 码保持一致
+  KITCHEN: "5991",       // 厨房通用
+  OWNER:   "4689"        // 和订单App的 Owner 码保持一致
 };
 /* ================================================================ */
 
