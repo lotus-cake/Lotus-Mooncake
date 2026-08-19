@@ -2175,7 +2175,7 @@ function renderAlerts(){
   const td=Object.values(TODOS||{}).filter(t=>!t.done).length;
   if(td)a.push({t:`退款待办 ${td} 条(见下方 Owner 待办)`,fn:""});
   // 待审批耗损
-  const pa=Object.entries(PRODRECS||{}).filter(([,r])=>!r.voided&&r.yieldLoss>0&&!r.aprv).length;
+  const pa=Object.entries(PRODRECS||{}).filter(([,r])=>!r.voided&&r.yieldLoss>0&&!r.aprv&&r.lossType!=="op").length;
   if(pa)a.push({t:`配方耗损待审批 ${pa} 条(见下方审批卡)`,fn:""});
   el.innerHTML=a.length?a.map(x=>`<div class="kv"><span style="color:${x.t.startsWith("…")?"var(--muted)":"var(--danger)"}">${x.t}</span>${x.fn?`<button class="btn small ghost" onclick="${x.fn}">查看</button>`:""}</div>`).join("")
     :'<div class="note" style="color:var(--ok)">✓ 一切正常,没有需要处理的异常</div>';
@@ -2200,7 +2200,8 @@ function renderOpToday(){
     if(r.stage==="bake")bakedT+=+r.good||0;
     if(r.stage==="pack")packT+=+r.good||0;
     if(r.stage==="boxup")boxT+=+r.good||0;
-    opW+=+r.waste||0;fmW+=+r.yieldLoss||0;
+    if(r.lossType==="op"){opW+=(+r.waste||0)+(+r.yieldLoss||0);}
+    else{opW+=+r.waste||0;fmW+=+r.yieldLoss||0;}
   });
   el.innerHTML=
     `<div class="kv"><span>新订单</span><b>${newN} 单 · ${money(newAmt)||"$0"}</b></div>
@@ -2223,22 +2224,64 @@ function renderWalkLeft(){
   el.innerHTML=h;
 }
 /* --- 配方耗损审批 --- */
+function aprvSentence(r){
+  const fl=r.flavor?FN(r.flavor):"";
+  const u=r.lossUnit==="g"?"g":"颗";
+  const loss=`<b style="color:var(--danger)">${r.yieldLoss} ${u}</b>`;
+  switch(r.stage){
+    case "fill":  return `${fl}·灌模 ${r.good} 模,用液比标准多 ${loss}`;
+    case "fen":   return `${fl}·分馅 分出 ${r.good} 颗,比标准(${r.expOut} 颗)少 ${loss}`;
+    case "paste": return `${fl}·炒馅 ${r.inQ} 份,完成 ${r.good} g,比标准(${r.expOut} g)少 ${loss}`;
+    case "lava":  return `${fl}·流心制作 ${r.inQ} 份,得液 ${r.good} g,比标准(${r.expOut} g)少 ${loss}`;
+    case "skin":  return `${fl}·曲奇皮 ${r.inQ} 份,出 ${r.good} 颗,比标准(${r.expOut} 颗)少 ${loss}`;
+    default:      return `${fl}·${r.stage} 应出 ${r.expOut},实出 ${r.good},差 ${loss}`;
+  }
+}
 function renderAprv(){
   const el=document.getElementById("opAprv");if(!el)return;
-  const list=Object.entries(PRODRECS||{}).filter(([,r])=>!r.voided&&r.yieldLoss>0&&!r.aprv)
+  const list=Object.entries(PRODRECS||{}).filter(([,r])=>!r.voided&&r.yieldLoss>0&&!r.aprv&&r.lossType!=="op")
     .sort((a,b)=>(b[1].ts||0)-(a[1].ts||0));
-  el.innerHTML=list.length?list.map(([key,r])=>{
-    const sn={paste:"炒馅",fen:"分馅",lava:"流心制作",skin:"曲奇皮"}[r.stage]||r.stage;
-    return `<div class="kv"><span>${r.date} ${sn} ${r.flavor?FN(r.flavor):""} · ${r.inQ||""}${r.stage==="fen"?"g":"份"} 应出${r.expOut} 实出${r.good} <b style="color:var(--danger)">损${r.yieldLoss}</b> · ${esc(r.staff||"")}</span>
-      <button class="btn small" onclick="aprvLoss('${key}')">通过</button></div>`;
-  }).join("")
+  el.innerHTML=list.length?list.map(([key,r])=>
+    `<div class="kv"><span>${(r.date||"").slice(5)} ${aprvSentence(r)} · ${esc(r.staff||"")}</span>
+      <span style="display:flex;gap:6px">
+        <button class="btn small" onclick="aprvLoss('${key}')">通过</button>
+        <button class="btn small ghost" onclick="aprvOpen('${key}')">处理…</button>
+      </span></div>`
+  ).join("")
   :'<div class="note">没有待审批的配方耗损</div>';
 }
 function aprvLoss(key){
   const aprv={by:"Owner",at:todayStr()+" "+nowHM()};
   if(PRODRECS[key])PRODRECS[key].aprv=aprv;
   if(DB)DB.ref(DB_ROOT+"/prod/records/"+key+"/aprv").set(aprv);
-  renderSettings();toast("已审核通过");
+  closeModal();renderSettings();toast("已审核通过");
+}
+function aprvOpen(key){
+  const r=PRODRECS[key];if(!r)return;
+  const u=r.lossUnit==="g"?"g":"颗";
+  openModal(mhead("处理这条配方耗损")+`
+    <p style="margin:0 0 6px">${(r.date||"")} · ${aprvSentence(r)} · 操作人 ${esc(r.staff||"")}${r.note?` · ${esc(r.note)}`:""}</p>
+    <p class="note" style="margin:0 0 12px">三种处理方式:</p>
+    <button class="btn" style="width:100%;margin-bottom:8px" onclick="aprvLoss('${key}')">✓ 通过 — 正常波动,认了(计入配方耗损成本)</button>
+    <button class="btn ghost" style="width:100%;margin-bottom:8px" onclick="aprvToOp('${key}')">→ 转为操作耗损 — 有具体原因(打翻/烤坏等),填原因归入操作损</button>
+    <button class="btn warn" style="width:100%" onclick="aprvVoidRec('${key}')">✕ 作废整条记录 — 数字填错了,作废后让厨房重新记</button>`,true);
+}
+function aprvToOp(key){
+  const r=PRODRECS[key];if(!r)return;
+  const reason=prompt("操作耗损的原因(必填,如:打翻/灌坏/称错):");
+  if(!reason||!reason.trim())return toast("需要填原因");
+  const patch={lossType:"op",lossReason:reason.trim(),aprv:{by:"Owner",at:todayStr()+" "+nowHM(),as:"op"}};
+  Object.assign(r,patch);
+  if(DB)DB.ref(DB_ROOT+"/prod/records/"+key).update(patch);
+  closeModal();renderSettings();toast("已转为操作耗损");
+}
+function aprvVoidRec(key){
+  const r=PRODRECS[key];if(!r)return;
+  if(!confirm("作废后这条记录的库存变动全部回退,厨房需要重新记一笔正确的。确定作废?"))return;
+  const patch={voided:true,voidBy:"Owner(审批)",voidAt:todayStr()+" "+nowHM()};
+  Object.assign(r,patch);
+  if(DB)DB.ref(DB_ROOT+"/prod/records/"+key).update(patch);
+  closeModal();renderSettings();toast("已作废,请让厨房重新记录");
 }
 /* --- 生产计划日历 --- */
 function renderCal(){
@@ -2543,7 +2586,8 @@ function renderFin(){
     if(r.stage==="pack"){const g=+r.good||0;muse.tray=(muse.tray||0)+g;muse.bag=(muse.bag||0)+g;muse.oxy=(muse.oxy||0)+g*2;muse["st_"+r.flavor]=(muse["st_"+r.flavor]||0)+g;}
     if(r.stage==="boxup"){const g=+r.good||0;const p=PRODUCTS.find(x=>x.k===r.product)||{};
       muse[p.box===6?"kit6":"kit2"]=(muse[p.box===6?"kit6":"kit2"]||0)+g;}
-    fmW+=+r.yieldLoss||0;opW+=+r.waste||0;
+    if(r.lossType==="op"){opW+=(+r.waste||0)+(+r.yieldLoss||0);}
+    else{fmW+=+r.yieldLoss||0;opW+=+r.waste||0;}
   });
   Object.entries(use).forEach(([k,v])=>{const p=COSTS[k];if(p>0){rawCost+=v*p;priced++;}else unpriced++;});
   Object.entries(muse).forEach(([k,v])=>{const p=COSTS[k];if(p>0){matCost+=v*p;priced++;}else unpriced++;});
