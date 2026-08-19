@@ -315,6 +315,7 @@ table.sum tr.today td{background:#FBF3DF;font-weight:700}
     <div class="note" style="margin:0 0 4px"><b>批量导入配方</b>(粘贴 Claude 整理好的导入代码)</div>
     <textarea id="impText" rows="4" placeholder='{"recipes":{...},"rawmats":{...}}'></textarea>
     <button class="btn small" id="btnImp" style="margin-top:8px">导入</button>
+    <button class="btn small ghost" id="btnDedup" style="margin-top:8px;margin-left:8px">清理重复的期初建账</button>
     <p class="note">导入直接写入数据库,不会出现在公开文件里。已有的同名配方会被覆盖。</p>
   </div>
   <div class="card">
@@ -1586,7 +1587,8 @@ document.getElementById("btnMatCount").addEventListener("click",()=>{
   };
 });
 
-document.getElementById("btnDedup").addEventListener("click",()=>{
+const _bd=document.getElementById("btnDedup");
+if(_bd)_bd.addEventListener("click",()=>{
   if(!ROLE||ROLE.type!=="owner")return toast("仅限 Owner");
   const groups={};
   Object.entries(RECS).forEach(([k,r])=>{
