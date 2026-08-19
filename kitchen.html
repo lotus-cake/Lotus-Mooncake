@@ -1300,7 +1300,7 @@ function renderTodayRecs(){
       r.stage==="rawin"||r.stage==="rawuse"?`${r.good} ${RAWU(r.raw)||""}`:
       `${r.good}${UNIT[r.stage]?" "+UNIT[r.stage]:""}`;
     return `<div class="wlog ${r.voided?"void":""}"><span>${showDate?`<span class="z">${(r.date||"").slice(5)}</span> `:""}${r.time||""} <b>${esc(r.staff||"?")}</b> ${what}${r.note?` <span class="z">${esc(r.note)}</span>`:""}</span>
-      <span style="display:flex;gap:6px;align-items:center"><b>${num}${r.waste?` <span class="warnrow">操作损${r.waste}${r.reason?"("+esc(r.reason)+")":""}</span>`:(r.reason&&r.stage==="sample"?` <span class="z">${esc(r.reason)}</span>`:"")}${r.yieldLoss?` <span class="warnrow">配方损 ${r.yieldLoss}${r.lossUnit==="g"?" g":" 颗"}</span><span class="z">${r.aprv?"已审✓":"待审"}</span>`:""}</b>
+      <span style="display:flex;gap:6px;align-items:center"><b>${num}${r.waste?` <span class="warnrow">操作损${r.waste}${r.reason?"("+esc(r.reason)+")":""}</span>`:(r.reason&&r.stage==="sample"?` <span class="z">${esc(r.reason)}</span>`:"")}${r.yieldLoss?` <span class="warnrow">${r.lossType==="op"?"操作损":"配方损"} ${r.yieldLoss}${r.lossUnit==="g"?" g":" 颗"}</span><span class="z">${r.lossType==="op"?"已转":(r.aprv?"已审✓":"待审")}</span>`:""}</b>
       ${r.voided?`<span class="z">已作废</span>`:`<button class="vbtn" onclick="voidRec('${key}')">✕</button>`}</span></div>`;
   }).join("")+(total>300?`<div class="note">仅显示前 300 条(共 ${total} 条),缩小日期范围或用导出看全部</div>`:""):`<div class="note">这个范围内没有记录</div>`);
 }
