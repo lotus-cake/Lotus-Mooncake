@@ -699,7 +699,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-15";
+const APP_BUILD="b0819-16";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -881,6 +881,10 @@ function askStaff(title,cb){
     const s=getStaff(); if(!s)return;
     closeModal(); cb(s);
   };
+}
+function cleanNotes(n){
+  if(!n)return "";
+  return n.split(" · ").filter(x=>!/^(自MC-[\w-]+拆分|拆分出MC-[\w-]+)$/.test(x.trim())).join(" · ");
 }
 function acctLabel(){return ROLE?(ROLE.type==="store"?STORE_NAME[ROLE.store]+"店":ROLE.type==="owner"?"Owner":"CS"):"?";}
 function fullPrice(o){const b6=+o.box6||0,b2=+o.box2||0;return b6*(PRICES.p6||0)+b2*(PRICES.p2||0);}
@@ -1243,7 +1247,7 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
 function orderCard(o,forPickup){
   const dead=o.status!=="有效";
   const items=itemsText(o.qty);
-  const link=o.linkedNo?` · 关联 ${o.linkedNo}`:"";
+  const link=(o.linkedNo&&o.linkedNo!==o.parentNo&&!o.linkedNo.startsWith(o.no+"-"))?` · 关联 ${o.linkedNo}`:"";
   const payLabel=o.payMethod?(o.payMethod==="其它"?("其它:"+esc(o.payOther||"")):esc(o.payMethod)):"";
   const foreign=(ROLE&&ROLE.type==="store"&&!o.batch&&o.store&&o.store!==ROLE.store)
     ?`<div style="background:#F4E6C8;color:#7A5A12;font-size:12px;font-weight:700;padding:3px 8px;border-radius:8px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center"><span>⚠ 此单在 ${STORE_NAME[o.store]||o.store} 取货</span>${o.status==="有效"&&!o.pickedUp?`<button class="btn small" style="padding:2px 8px" onclick="event.stopPropagation();openCrossPick('${o.no}')">跨门店代取</button>`:""}</div>`:"";
@@ -1252,8 +1256,8 @@ function orderCard(o,forPickup){
       <div class="pkinfo">
         <div class="l1"><span class="ono">${o.no}</span><span class="oname">${esc(o.name)}</span>
           <span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>${o.parentNo?`<span class="badge" style="background:#E4E9D5">子单·属 ${o.parentNo}</span>`:""}${o.status!=="有效"&&(paidOf(o)>0||o.pay==="已付")?(o.refunded?'<span class="badge" style="background:#DCE8D8;color:#3F6B3F">已退款✓</span>':'<span class="badge duepay">待退款</span>'):""}${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}${o.dueNote?`<span class="badge due">待收:${esc(o.dueNote)}</span>`:""}${o.exception?'<span class="badge exc">例外</span>':""}</div>
-        <div class="oitems">${items}(${o.boxes}盒${o.amount!=null?" · "+money(o.amount):""})</div>
-        <div class="ometa">${esc(fmtPhone(o.phone)||"")} ${o.notes?" · "+esc(o.notes):""}</div>
+        <div class="oitems">${items}(${o.boxes}盒${o.parentNo?' · <span class="z">付款随母单</span>':(o.amount!=null?" · "+money(o.amount):"")})</div>
+        <div class="ometa">${esc(fmtPhone(o.phone)||"")} ${cleanNotes(o.notes)?" · "+esc(cleanNotes(o.notes)):""}</div>
       </div>
       <button class="pkbtn ${o.pickedUp?"done":""}" onclick="event.stopPropagation();togglePick('${o.no}')">${o.pickedUp?"已取 ✓":"未取"}</button>
     </div>`;
@@ -1273,8 +1277,8 @@ function orderCard(o,forPickup){
       ${bat}${o.exception?'<span class="badge exc">例外</span>':""}
       ${o.pickedUp?'<span class="badge st-有效">已取</span>':""}
     </div>
-    <div class="oitems">${items} <b>(${o.boxes}盒${o.amount!=null?" · "+money(o.amount):""})</b>${o.manualPrice?'<span class="badge batch" style="margin-left:6px">手动价</span>':""}</div>
-    <div class="ometa">${o.batch?"分批取货,日期灵活":"取货 "+fmtMD(o.pickupDate)} · ${esc(fmtPhone(o.phone)||"无电话")} · ${payLabel}${link}${o.notes?" · "+esc(o.notes):""}</div>
+    <div class="oitems">${items} <b>(${o.boxes}盒${o.parentNo?"":(o.amount!=null?" · "+money(o.amount):"")})</b>${o.parentNo?'<span class="z"> · 付款随母单</span>':""}${o.manualPrice&&!o.parentNo?'<span class="badge batch" style="margin-left:6px">手动价</span>':""}</div>
+    <div class="ometa">${o.batch?"分批取货,日期灵活":"取货 "+fmtMD(o.pickupDate)} · ${esc(fmtPhone(o.phone)||"无电话")} · ${payLabel}${link}${cleanNotes(o.notes)?" · "+esc(cleanNotes(o.notes)):""}</div>
     ${o.status!=="有效"?`<div class="sect">生命周期</div>
       <div class="kv"><span>创建</span><b>${esc(o.createdBy||"?")} · ${o.orderDate||""}</b></div>
       ${(()=>{const h=Object.values(o.history||{}).find(x=>(x.action||"").includes("取消")||(x.action||"").includes("改期(原单)"));
@@ -1374,7 +1378,7 @@ function openDetail(no){
     <div class="kv"><span>渠道 / 单号</span><b>${esc(o.channel||"—")}${o.backendNo?" · "+esc(o.backendNo):""}</b></div>
     ${o.linkedNo?`<div class="kv"><span>关联订单</span><b>${o.linkedNo}</b></div>`:""}
     ${o.refundNote?`<div class="kv"><span>退款记录</span><b>${esc(o.refundNote)}</b></div>`:""}
-    ${o.notes?`<div class="kv"><span>备注</span><b style="text-align:right;max-width:65%">${esc(o.notes)}</b></div>`:""}
+    ${cleanNotes(o.notes)?`<div class="kv"><span>备注</span><b style="text-align:right;max-width:65%">${esc(cleanNotes(o.notes))}</b></div>`:""}
     ${o.batch?`<div class="sect">取货记录</div>${pkList||'<p class="note">还没有取货记录</p>'}`:""}
     <div style="height:12px"></div>
     ${dead?"":`<button class="btn" onclick="openEdit('${no}')">修改订单</button>`}
@@ -1756,6 +1760,18 @@ function doCancel(no){
       patchOrder(no,patch,()=>{
         logOp(no,staff,"取消订单",`${o.boxes}盒 · ${srcV}${reason?" · "+reason:""}${paid?` · 待退款→${promo?"客服(优惠单·紧急确认)":({cs:"客服",owner:"Owner",store:"取货门店(现金)"}[patch.refundRoute])}`:""}`);
         toast(no+" 已取消"+(paid?",退款已进入待退款":""));
+        // ④ 子单取消 → 询问是否把数量归还母单
+        const mom=o.parentNo&&ORDERS[o.parentNo];
+        if(mom&&mom.status==="有效"&&confirm(`把这 ${o.boxes} 盒归还到母单 ${o.parentNo} 吗?\n(客人还是要这些货、只是不按这张子单取了 → 归还;彻底不要了 → 取消)`)){
+          const nq={...(mom.qty||{})};
+          Object.entries(o.qty||{}).forEach(([k,v])=>nq[k]=(nq[k]||0)+v);
+          const bc2=boxCounts(nq);
+          patchOrder(o.parentNo,{qty:nq,box6:bc2.b6,box2:bc2.b2,boxes:bc2.total},()=>{
+            logOp(o.parentNo,staff,"子单归还",`${no} 取消,${o.boxes}盒归还母单,母单现 ${bc2.total}盒`);
+            logOp(no,staff,"归还母单",`${o.boxes}盒已归还 ${o.parentNo}`);
+            toast(`已归还 ${o.boxes}盒 到 ${o.parentNo}`);
+          });
+        }
       });
     };
     if(promo){
@@ -2031,13 +2047,14 @@ function openSplit(no){
       box6:mb.b6,box2:mb.b2,boxes:mb.total,status:"有效",pickedUp:false,
       amount:childAuto,autoAmount:childAuto,manualPrice:false,paid:0,
       parentNo:base,payNote:"付款随原单 "+base,splitAt:Date.now(),
-      linkedNo:no,notes:(o.notes?o.notes+" · ":"")+`自${no}拆分`,createdAt:Date.now(),createdBy:staff};
+      notes:cleanNotes(o.notes),createdAt:Date.now(),createdBy:staff};
+    delete child.linkedNo;
     if(o._ownerSplitExc){child.notes+=" · Owner例外拆分";delete o._ownerSplitExc;}
     delete child.pickups; delete child.history; delete child.chase; delete child.reserves;
     // #4b 先存子单,成功才改原单;任何失败大声报错且原单不动
     saveOrder(child,()=>patchOrder(no,{qty:remain,box6:rb.b6,box2:rb.b2,boxes:rb.total,
       amount:origAuto,autoAmount:origAuto,manualPrice:false,
-      linkedNo:newNo,notes:(o.notes?o.notes+" · ":"")+`拆分出${newNo}`},
+      },
       ()=>{
         logOp(no,staff,"拆分订单",`拆出 ${itemsText(sQty)}(${mb.total}盒)→ ${newNo}(${fmtMD(nd)} ${ss}),原单剩 ${rb.total}盒;两边金额已按标准价重算`);
         logOp(newNo,staff,"拆分生成",`自 ${no} 拆出 · 取货人 ${(spN||"").trim()||o.name} · 付款随原单`);
