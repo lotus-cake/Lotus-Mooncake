@@ -704,7 +704,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-20";
+const APP_BUILD="b0819-21";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -2519,7 +2519,7 @@ function renderWalkin(){
       const pn=(WALKIN_PRODUCTS.find(p=>p.k===s.product)||{}).n||s.product;
       const who=(s.acct||s.staff)?` · ${esc(s.acct||"")}${s.acct&&s.staff?"|":""}${esc(s.staff||"")}`:"";
       const srcTag=s.src==="batch"?"分批取走":s.src==="crosspick"?"跨店代取":esc(s.pm||"");
-      return `<div class="wlog"><span>${s.time||""} ${pn}${s.amt!=null&&s.amt>0?" "+money(s.amt):""}${who}</span><b>${srcTag}${s.other?":"+esc(s.other):""}</b></div>`;
+      return `<div class="wlog"><span>${s.time||""} ${pn}${(s.qty||1)>1?" ×"+s.qty:""}${s.amt!=null&&s.amt>0?" "+money(s.amt):""}${who}</span><b>${srcTag}${s.other?":"+esc(s.other):""}</b></div>`;
     }).join("")+`<div class="wlog" style="border-bottom:none"><span><b>今日现货销售额</b></span><b style="color:var(--olive)">${money(dayRev)}</b></div>`
     :`<div class="note">今日暂无现货销售</div>`);
 }
@@ -2547,7 +2547,13 @@ document.getElementById("btnRecv").addEventListener("click",()=>{
 });
 function openSale(pk){
   const pn=(WALKIN_PRODUCTS.find(p=>p.k===pk)||{}).n;
-  openModal(mhead(`现货销售:${pn} ×1`)+`
+  let slQty=1;
+  openModal(mhead(`现货销售:${pn}`)+`
+    <label class="f">数量</label>
+    <div class="stepper" style="margin:2px 0 8px">
+      <button id="slQm">−</button><span class="qv" id="slQv">1</span><button id="slQp">+</button>
+      <span class="z" style="margin-left:8px" id="slAmtPrev"></span>
+    </div>
     <label class="f">付款方式</label>
     <div class="seg" id="slSeg" style="flex-direction:column">
       ${WALK_PAY.map(m=>`<button data-v="${m}">${m}</button>`).join("")}
@@ -2557,10 +2563,15 @@ function openSale(pk){
     ${staffField()}
     <button class="btn" style="margin-top:12px" id="slGo">完成销售</button>`);
   let pm="";
+  const slPrev=()=>{document.getElementById("slQv").textContent=slQty;
+    document.getElementById("slAmtPrev").textContent=pm?`合计 ${money(walkinUnit(pk,pm)*slQty)}`:"";};
+  document.getElementById("slQm").onclick=()=>{slQty=Math.max(1,slQty-1);slPrev();};
+  document.getElementById("slQp").onclick=()=>{slQty=Math.min(20,slQty+1);slPrev();};
   document.getElementById("slSeg").addEventListener("click",e=>{
     const b=e.target.closest("button"); if(!b)return; pm=b.dataset.v;
     document.querySelectorAll("#slSeg button").forEach(x=>x.classList.toggle("on",x===b));
     document.getElementById("slOtherWrap").style.display=pm==="其它"?"block":"none";
+    slPrev();
   });
   document.getElementById("slGo").onclick=()=>{
     if(!pm)return toast("请选择付款方式");
@@ -2568,10 +2579,10 @@ function openSale(pk){
     if(pm==="其它"){other=document.getElementById("slOther").value.trim();
       if(!other)return toast("请填写其它说明");}
     const staff=getStaff();if(!staff)return;
-    const amt=walkinUnit(pk,pm);
+    const amt=walkinUnit(pk,pm)*slQty;
     addSale(wStoreVal,{date:document.getElementById("wDate").value||todayStr(),
-      time:nowHM(),product:pk,pm,other,amt,staff,ts:Date.now()});
-    closeModal();toast(`${pn} 已售出 ${money(amt)}`);
+      time:nowHM(),product:pk,qty:slQty,pm,other,amt,staff,ts:Date.now()});
+    closeModal();toast(`${pn} ×${slQty} 已售出 ${money(amt)}`);
   };
 }
 document.getElementById("btnUndoSale").addEventListener("click",()=>{
