@@ -2190,7 +2190,7 @@ function renderAlerts(){
     }).length;
     if(od)a.push({t:`⚠ 等待付款超时 ${od} 张(取货在即未收款,见前台「待收款」页)`,fn:""});
     const ms=Object.values(ORDERS||{}).reduce((s,o)=>s+Object.values(o.reserves||{}).filter(r=>r.missed&&r.releasedAt&&Date.now()-r.releasedAt<3*864e5).length,0);
-    if(ms)a.push({t:`分批预留爽约 ${ms} 条(近3天,盒数已自动退回余额)`,fn:""});
+    if(ms)a.push({t:`分批安排爽约(未到店) ${ms} 条(近3天,盒数已自动退回余额)`,fn:""});
   }
   if(pa)a.push({t:`配方耗损待审批 ${pa} 条(见下方审批卡)`,fn:""});
   el.innerHTML=a.length?a.map(x=>`<div class="kv"><span style="color:${x.t.startsWith("…")?"var(--muted)":"var(--danger)"}">${x.t}</span>${x.fn?`<button class="btn small ghost" onclick="${x.fn}">查看</button>`:""}</div>`).join("")
