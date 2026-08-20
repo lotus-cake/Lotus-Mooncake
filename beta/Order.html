@@ -675,6 +675,7 @@ function payDue(o){ // 等待付款中 且已过 取货前一天17:00
   const d=new Date(o.pickupDate+"T17:00:00"); d.setDate(d.getDate()-1);
   return Date.now()>=d.getTime();
 }
+function sumQ2(q){return Object.values(q||{}).reduce((a,b)=>a+(+b||0),0);}
 function paidOf(o){ return o.paid!=null?o.paid:(o.pay==="已付"?(o.amount||0):0); }
 function dueAmt(o){ if(o.amount==null)return null; return Math.max(0,Math.round((o.amount-paidOf(o))*100)/100); }
 function walkinUnit(pk,pm){
@@ -725,7 +726,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-35";
+const APP_BUILD="b0819-36";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -2383,6 +2384,7 @@ function openBatchPick(no){
     });
   };
 }
+window.pkUseReserve=(no,rid)=>{ openBatchPick(no); setTimeout(()=>{ if(window.bpUseReserve)window.bpUseReserve(no,rid); },50); };
 let wtQty={};
 function openWalkTake(no){
   const o=ORDERS[no];const st=batchStats(o);wtQty={};
@@ -2641,19 +2643,38 @@ document.getElementById("pkDate").addEventListener("input",renderPickup);
 function renderPickup(){
   
   const date=document.getElementById("pkDate").value;
+  const resv=[];
+  Object.values(ORDERS).forEach(o=>{
+    if(!o.batch||o.status!=="有效")return;
+    Object.entries(o.reserves||{}).forEach(([rid,r])=>{
+      if(r&&r.date===date&&r.store===pkStoreVal&&r.status!=="done"&&r.status!=="released"&&!r.done&&!r.released)resv.push({o,rid,r});
+    });
+  });
+  const resvBoxes=resv.reduce((s,x)=>s+Object.values(x.r.qty||{}).reduce((a,b)=>a+(+b||0),0),0);
   const list=datedLive().filter(o=>o.pickupDate===date&&o.store===pkStoreVal)
     .sort((a,b)=>(a.pickedUp===b.pickedUp?0:a.pickedUp?1:-1)||a.no.localeCompare(b.no));
   const done=list.filter(o=>o.pickedUp).length;
   const boxes=list.reduce((s,o)=>s+(o.boxes||0),0);
-  document.getElementById("pkDue").textContent=list.length;
+  document.getElementById("pkDue").textContent=list.length+resv.length;
   document.getElementById("pkDone").textContent=done;
-  document.getElementById("pkLeft").textContent=list.length-done;
-  document.getElementById("pkBoxes").textContent=boxes;
+  document.getElementById("pkLeft").textContent=list.length-done+resv.length;
+  document.getElementById("pkBoxes").textContent=boxes+resvBoxes;
   const agg={}; list.forEach(o=>PRODUCTS.forEach(p=>{agg[p.k]=(agg[p.k]||0)+((o.qty&&o.qty[p.k])||0);}));
+  resv.forEach(x=>PRODUCTS.forEach(p=>{agg[p.k]=(agg[p.k]||0)+((x.r.qty&&x.r.qty[p.k])||0);}));
   const sumHtml=PRODUCTS.filter(p=>agg[p.k]>0).map(p=>`<span class="pi">${p.n}<b>${agg[p.k]}</b></span>`).join("");
   document.getElementById("pkSummary").innerHTML=sumHtml||'<span class="note">该日暂无预订取货</span>';
+  const resvHtml=resv.map(({o,rid,r})=>{
+    const items=PRODUCTS.filter(p=>(r.qty||{})[p.k]>0).map(p=>`${p.n}×${r.qty[p.k]}`).join(" ");
+    const n=Object.values(r.qty||{}).reduce((a,b)=>a+(+b||0),0);
+    return `<div class="ocard" onclick="openDetail('${o.no}')">
+      <div class="ohead"><b>${o.no}</b><span class="badge batch">分批安排</span></div>
+      <div class="oitems">${items}(${n}盒)</div>
+      <div class="ometa">客人 ${esc(o.name)}${r.picker?` · 取货人 ${esc(r.picker)}${r.pickerPhone?" "+esc(fmtPhone(r.pickerPhone)):""}`:""} · 大单余 ${sumQ2(batchRemainQty(o))}盒</div>
+      <button class="pkbtn" onclick="event.stopPropagation();pkUseReserve('${o.no}','${rid}')">按安排取货</button>
+    </div>`;
+  }).join("");
   document.getElementById("pickupList").innerHTML=
-    list.length?list.map(o=>orderCard(o,true)).join(""):`<div class="empty"><span class="moon">🌗</span>${fmtMD(date)||"该日"} ${STORE_NAME[pkStoreVal]} 没有取货订单</div>`;
+    (resvHtml+(list.length?list.map(o=>orderCard(o,true)).join(""):""))||`<div class="empty"><span class="moon">🌗</span>${fmtMD(date)||"该日"} ${STORE_NAME[pkStoreVal]} 没有取货订单</div>`;
 }
 function togglePick(no){
   const o=ORDERS[no];
