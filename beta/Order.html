@@ -712,7 +712,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-28";
+const APP_BUILD="b0819-29";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1032,7 +1032,7 @@ const ZHEN={
 "付款随母单":"Paid with parent","子单":"Sub-order","已拆分":"Split",
 "六粒混合":"Mix of 6","六粒金沙":"Classic 6 (Jinsha)","两粒金沙":"Jinsha 2","两粒抹茶柚子":"Matcha Yuzu 2","两粒黑松露":"Truffle 2","两粒陈皮红豆":"Tangerine Red Bean 2","两粒摩卡":"Mocha 2","两粒乌龙":"Oolong 2","两粒盲盒":"Mystery 2",
 "六粒盒":"6-box","两粒盒":"2-box","售":"sold",
-"识别中…":"Scanning...","识别完成,请核对":"Scan done - please verify","已自动填入(金色高亮),请逐项核对后再保存。":"Auto-filled (gold highlight). Verify each field before saving."
+"识别中…":"Scanning...","保存中…":"Saving...","保存超时,请检查网络(左上角圆点需为绿色)后重试":"Save timed out - check network (top-left dot must be green) and retry","识别完成,请核对":"Scan done - please verify","已自动填入(金色高亮),请逐项核对后再保存。":"Auto-filled (gold highlight). Verify each field before saving."
 };
 const ZHEN_RX=[
 [/^已拆分 (\d+) 张子单$/, "Split into $1 sub-orders"],
@@ -1407,7 +1407,14 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
       </div>`);
     document.getElementById("cfGo").onclick=()=>{
       const staff=getStaff(); if(!staff)return;
-      closeModal();
+      const btn=document.getElementById("cfGo");
+      btn.disabled=true;btn.textContent=TT("保存中…");
+      let done=false;
+      const dog=setTimeout(()=>{
+        if(done)return;
+        btn.disabled=false;btn.textContent=TT("确认保存");
+        toast("保存超时,请检查网络(左上角圆点需为绿色)后重试");
+      },(window.SAVE_TIMEOUT||8000));
       nextOrderNo(no=>{
         const o={no,name,phone,store:fStoreVal,unpaidPlan:unpaidPlan||null,
           wxAcct:chanV==="微信"?wxAcct:null,
@@ -1423,6 +1430,7 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
         if(fBatch){o.batch=true;o.pickups={};} else o.pickupDate=date;
         if(cand.exception)o.exception=cand.exception;
         saveOrder(o,()=>{
+          done=true;clearTimeout(dog);closeModal();
           logOp(no,staff,"创建订单",`${total}盒 ${money(amt)}${o.manualPrice?"(手动定价)":""} · ${o.batch?"分批大单":fmtMD(date)} ${o.store} · ${o.pay}`+(cand.exception?" · 例外:"+cand.exception.reason:""));
           toast(`已保存 ${no} · ${total}盒 ${money(amt)}`);
           ["fName","fPhone","fRef","fNote","fPayOther","fPaid"].forEach(id=>document.getElementById(id).value="");
