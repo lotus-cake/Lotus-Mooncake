@@ -658,7 +658,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-5";
+const APP_BUILD="b0819-6";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -2180,6 +2180,16 @@ function renderAlerts(){
   if(td)a.push({t:`退款待办 ${td} 条(见下方 Owner 待办)`,fn:""});
   // 待审批耗损
   const pa=Object.entries(PRODRECS||{}).filter(([,r])=>!r.voided&&r.yieldLoss>0&&!r.aprv&&r.lossType!=="op").length;
+  {// 等待付款超时
+    const od=Object.values(ORDERS||{}).filter(o=>{
+      if(o.status!=="有效"||o.pay!=="等待付款中"||!o.pickupDate)return false;
+      const d=new Date(o.pickupDate+"T17:00:00");d.setDate(d.getDate()-1);
+      return Date.now()>=d.getTime();
+    }).length;
+    if(od)a.push({t:`⚠ 等待付款超时 ${od} 张(取货在即未收款,见前台「待收款」页)`,fn:""});
+    const ms=Object.values(ORDERS||{}).reduce((s,o)=>s+Object.values(o.reserves||{}).filter(r=>r.missed&&r.releasedAt&&Date.now()-r.releasedAt<3*864e5).length,0);
+    if(ms)a.push({t:`分批预留爽约 ${ms} 条(近3天,盒数已自动退回余额)`,fn:""});
+  }
   if(pa)a.push({t:`配方耗损待审批 ${pa} 条(见下方审批卡)`,fn:""});
   el.innerHTML=a.length?a.map(x=>`<div class="kv"><span style="color:${x.t.startsWith("…")?"var(--muted)":"var(--danger)"}">${x.t}</span>${x.fn?`<button class="btn small ghost" onclick="${x.fn}">查看</button>`:""}</div>`).join("")
     :'<div class="note" style="color:var(--ok)">✓ 一切正常,没有需要处理的异常</div>';
