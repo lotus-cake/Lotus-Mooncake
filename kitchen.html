@@ -131,8 +131,6 @@ table.sum tr.today td{background:#FBF3DF;font-weight:700}
     </div>
     <div id="planBody"></div>
   </div>
-  <div class="card"><div class="note" style="margin:0 0 8px"><b>今晚为明天准备</b></div><div id="prepTonight"></div></div>
-  <div class="card"><div class="note" style="margin:0 0 8px"><b>进度节奏</b> · <span class="z" id="paceDl"></span></div><div id="paceBox"></div></div>
 
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -473,7 +471,7 @@ const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,...PARAMS})[k
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 const NF=n=>(+n).toLocaleString("en-US");
 const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
-const APP_BUILD="b0819-8";
+const APP_BUILD="b0819-9";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -825,34 +823,6 @@ function renderDash(){
       });
       return Math.round(s*10)/10;
     };
-    const SP=calcStock();
-    // A: 上游半成品体检(不看原料;熟咸蛋黄按半成品对待)
-    const feas=it=>{
-      const f=it.flavor,q=+it.qty||0;if(!q)return null;
-      const gpp=f?(((YIELDS["paste_"+f]||{}).gpp)||PRM("fenG")):PRM("fenG");
-      const need=[]; // [名称, 需要, 现有, 单位, 前置工序名]
-      switch(it.stage){
-        case"paste": case"lava": {
-          const rc=recipeFor(it.stage,f); const yolkPer=rc&&rc.bom?(+rc.bom.yolk||0):0;
-          if(yolkPer>0)need.push(["熟咸蛋黄",Math.round(yolkPer*q),Math.round(SP.raw.yolk||0),"g","烤咸蛋黄"]);
-          break;}
-        case"fen":  need.push([FN(f)+"馅",Math.round(q*gpp),Math.round(SP.paste[f]||0),"g","炒馅·"+FN(f)]);break;
-        case"fill": need.push(["流心液(共用)",Math.round(q*PRM("perMold")*PRM("coreG")),Math.round(SP.lava[CG(f)]||0),"g","流心制作"]);break;
-        case"wrap1":need.push([FN(f)+"馅球",q,SP.fen[f]||0,"颗","分馅·"+FN(f)]);
-                    need.push(["冻芯(共用)",q,SP.core[CG(f)]||0,"颗","灌模"]);break;
-        case"wrap2":need.push([FN(f)+"流心馅",q,SP.lxx[f]||0,"颗","包流心馅·"+FN(f)]);
-                    need.push([FN(f)+"皮坯",q,SP.skin[f]||0,"颗","曲奇皮·"+FN(f)]);break;
-        case"mold": need.push([FN(f)+"湿胚",q,SP.wet[f]||0,"颗","包曲奇皮·"+FN(f)]);break;
-        case"bake": need.push([FN(f)+"生胚",q,SP.rdy[f]||0,"颗","压模·"+FN(f)]);break;
-        case"pack": need.push([FN(f)+"已烤",q,SP.baked[f]||0,"颗","烘烤·"+FN(f)]);break;
-        default:return null;
-      }
-      const lack=need.filter(([,n,h])=>h<n);
-      if(!lack.length)return {ok:true};
-      // 同日计划里是否已排了前置
-      const sameDay=lack.filter(([,,,,pre])=>items.some(o=>o!==it&&(SN(o.stage)+(o.flavor?"·"+FN(o.flavor):"")).startsWith(pre.split("·")[0])&&(!pre.includes("·")||o.flavor===f||["fill","lava"].includes(o.stage))));
-      return {ok:false,lack,sameDay:sameDay.length===lack.length};
-    };
     let lines=items.map(it=>{
       if(it.stage==="custom"){
         return `<div class="wlog"><span>· ${esc(it.text||"")}${it.qty?` ${it.qty}${esc(it.unit||"")}`:""}</span><b><span class="z">手动项</span></b></div>`;
@@ -862,10 +832,7 @@ function renderDash(){
       const u=["paste","lava","skin"].includes(it.stage)?"份":it.stage==="fill"?"模":it.stage==="bakeyolk"?"包":"颗";
       const dn=doneOf(it);
       const st=dn>=it.qty?'<span class="okrow">✓ 完成</span>':(dn>0?`<b class="warnrow">${dn}/${it.qty}</b>`:'<span class="z">未开始</span>');
-      const fz=dn>=it.qty?null:feas(it);
-      const fzTag=!fz?"":fz.ok?' <span class="okrow" style="font-size:12px">备料✓</span>'
-        :` <span style="font-size:12px;color:${fz.sameDay?"#7A6A2F":"var(--danger)"}">${fz.sameDay?"⏳ 同日先做:":"⚠ 缺:"}${fz.lack.map(([n,nd,hv,uu,pre])=>fz.sameDay?pre:`${n} 差${NF(nd-hv)}${uu}(先:${pre})`).join(";")}</span>`;
-      return `<div class="wlog"><span>· ${sn} ${fl}${it.qty}${u}${fzTag}</span><b>${st}</b></div>`;
+      return `<div class="wlog"><span>· ${sn} ${fl}${it.qty}${u}</span><b>${st}</b></div>`;
     }).join("");
     if(p.text)lines+=p.text.split("\n").filter(x=>x.trim()).map(x=>`<div class="wlog"><span>· ${esc(x)}</span></div>`).join("");
     return (lines||'<div class="note">空安排</div>')
@@ -876,45 +843,6 @@ function renderDash(){
   document.getElementById("shipBtnD").textContent="今日 "+fmtMD(D);
   document.getElementById("shipBtnM").textContent="明日 "+fmtMD(M);
   document.getElementById("planBody").innerHTML=planHtml(planDaySel==="D"?D:M);
-  // B: 今晚为明天准备(从明天计划倒推)
-  {
-    const tp=Object.values((PLAN[M]||{}).items||{});
-    const tips=[];
-    const has=st=>tp.filter(i=>i.stage===st);
-    const by=has("bakeyolk");if(by.length)tips.push(`❄→🌡 解冻生咸蛋黄 ${by.reduce((s,i)=>s+(+i.qty||0),0)} 包(明天要烤)`);
-    const pl=[...has("paste"),...has("lava"),...has("skin")];
-    if(pl.length)tips.push(`🧈 提前取 Butter 回温(明天 ${pl.map(i=>SN(i.stage)+(i.flavor?"·"+FN(i.flavor):"")+" "+i.qty+"份").join("、")})`);
-    if(has("wrap1").length){
-      const todayFill=Object.values(RECS).some(r=>!r.voided&&r.date===D&&r.stage==="fill");
-      tips.push(`🧊 确认${todayFill?"今天灌的模":"冻芯"}已入冻过夜(明天要包流心馅)`);
-    }
-    const el=document.getElementById("prepTonight");
-    if(el)el.innerHTML=tips.length?tips.map(t=>`<div class="wlog"><span>${t}</span></div>`).join(""):'<div class="note">明天的计划不需要今晚特别准备</div>';
-  }
-  // C: 进度节奏(压模生胚 vs 目标,截止日 PARAMS.deadline)
-  {
-    const el=document.getElementById("paceBox");
-    if(el){
-      const dl=PARAMS.deadline||"2026-09-20";
-      const days=Math.max(1,Math.ceil((new Date(dl+"T23:59")-Date.now())/864e5));
-      const doneBy={},recent={};
-      const d3=[0,1,2].map(i=>{const d=new Date();d.setDate(d.getDate()-i);return d.toISOString().slice(0,10);});
-      Object.values(RECS).forEach(r=>{
-        if(r.voided||r.stage!=="mold")return;
-        doneBy[r.flavor]=(doneBy[r.flavor]||0)+(+r.good||0);
-        if(d3.includes(r.date))recent[r.flavor]=(recent[r.flavor]||0)+(+r.good||0);
-      });
-      const rows=FLAVORS.filter(f=>(TARGETS[f.k]||0)>0).map(f=>{
-        const T=TARGETS[f.k],dn=doneBy[f.k]||0,rm=Math.max(0,T-dn);
-        if(!rm)return `<div class="wlog"><span>${f.n}</span><b class="okrow">✓ 已达标 ${dn}/${T}</b></div>`;
-        const needD=Math.ceil(rm/days),avg=Math.round((recent[f.k]||0)/3);
-        const bad=avg<needD;
-        return `<div class="wlog"><span>${f.n} 生胚 ${NF(dn)}/${NF(T)} · 剩 ${NF(rm)}</span><b style="${bad?"color:var(--danger)":""}">${bad?"⚠ ":""}需 ${needD}/天(近3天 ${avg}/天)</b></div>`;
-      }).join("");
-      el.innerHTML=rows||'<div class="note">Owner 端设定各口味目标后,这里会盯进度</div>';
-      const dEl=document.getElementById("paceDl");if(dEl)dEl.textContent="截止 "+fmtMD(dl);
-    }
-  }
   // 出货安排(按钮切换)
   const sd=shipDaySel==="D"?D:M;
   document.getElementById("shipMatrix").innerHTML=shipMatrixHtml(sd);
