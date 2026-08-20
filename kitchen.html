@@ -131,6 +131,8 @@ table.sum tr.today td{background:#FBF3DF;font-weight:700}
     </div>
     <div id="planBody"></div>
   </div>
+  <div class="card"><div class="note" style="margin:0 0 8px"><b>今晚为明天准备</b></div><div id="prepTonight"></div></div>
+  <div class="card"><div class="note" style="margin:0 0 8px"><b>进度节奏</b> · <span class="z" id="paceDl"></span></div><div id="paceBox"></div></div>
 
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -471,7 +473,7 @@ const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,...PARAMS})[k
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 const NF=n=>(+n).toLocaleString("en-US");
 const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
-const APP_BUILD="b0819-7";
+const APP_BUILD="b0819-8";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -874,6 +876,45 @@ function renderDash(){
   document.getElementById("shipBtnD").textContent="今日 "+fmtMD(D);
   document.getElementById("shipBtnM").textContent="明日 "+fmtMD(M);
   document.getElementById("planBody").innerHTML=planHtml(planDaySel==="D"?D:M);
+  // B: 今晚为明天准备(从明天计划倒推)
+  {
+    const tp=Object.values((PLAN[M]||{}).items||{});
+    const tips=[];
+    const has=st=>tp.filter(i=>i.stage===st);
+    const by=has("bakeyolk");if(by.length)tips.push(`❄→🌡 解冻生咸蛋黄 ${by.reduce((s,i)=>s+(+i.qty||0),0)} 包(明天要烤)`);
+    const pl=[...has("paste"),...has("lava"),...has("skin")];
+    if(pl.length)tips.push(`🧈 提前取 Butter 回温(明天 ${pl.map(i=>SN(i.stage)+(i.flavor?"·"+FN(i.flavor):"")+" "+i.qty+"份").join("、")})`);
+    if(has("wrap1").length){
+      const todayFill=Object.values(RECS).some(r=>!r.voided&&r.date===D&&r.stage==="fill");
+      tips.push(`🧊 确认${todayFill?"今天灌的模":"冻芯"}已入冻过夜(明天要包流心馅)`);
+    }
+    const el=document.getElementById("prepTonight");
+    if(el)el.innerHTML=tips.length?tips.map(t=>`<div class="wlog"><span>${t}</span></div>`).join(""):'<div class="note">明天的计划不需要今晚特别准备</div>';
+  }
+  // C: 进度节奏(压模生胚 vs 目标,截止日 PARAMS.deadline)
+  {
+    const el=document.getElementById("paceBox");
+    if(el){
+      const dl=PARAMS.deadline||"2026-09-20";
+      const days=Math.max(1,Math.ceil((new Date(dl+"T23:59")-Date.now())/864e5));
+      const doneBy={},recent={};
+      const d3=[0,1,2].map(i=>{const d=new Date();d.setDate(d.getDate()-i);return d.toISOString().slice(0,10);});
+      Object.values(RECS).forEach(r=>{
+        if(r.voided||r.stage!=="mold")return;
+        doneBy[r.flavor]=(doneBy[r.flavor]||0)+(+r.good||0);
+        if(d3.includes(r.date))recent[r.flavor]=(recent[r.flavor]||0)+(+r.good||0);
+      });
+      const rows=FLAVORS.filter(f=>(TARGETS[f.k]||0)>0).map(f=>{
+        const T=TARGETS[f.k],dn=doneBy[f.k]||0,rm=Math.max(0,T-dn);
+        if(!rm)return `<div class="wlog"><span>${f.n}</span><b class="okrow">✓ 已达标 ${dn}/${T}</b></div>`;
+        const needD=Math.ceil(rm/days),avg=Math.round((recent[f.k]||0)/3);
+        const bad=avg<needD;
+        return `<div class="wlog"><span>${f.n} 生胚 ${NF(dn)}/${NF(T)} · 剩 ${NF(rm)}</span><b style="${bad?"color:var(--danger)":""}">${bad?"⚠ ":""}需 ${needD}/天(近3天 ${avg}/天)</b></div>`;
+      }).join("");
+      el.innerHTML=rows||'<div class="note">Owner 端设定各口味目标后,这里会盯进度</div>';
+      const dEl=document.getElementById("paceDl");if(dEl)dEl.textContent="截止 "+fmtMD(dl);
+    }
+  }
   // 出货安排(按钮切换)
   const sd=shipDaySel==="D"?D:M;
   document.getElementById("shipMatrix").innerHTML=shipMatrixHtml(sd);
