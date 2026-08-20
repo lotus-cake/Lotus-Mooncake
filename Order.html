@@ -713,7 +713,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-32";
+const APP_BUILD="b0819-33";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1214,8 +1214,14 @@ function renderFAmount(){
     el.textContent=money(d.amt)||"$0";el.style.color="";
     if(d.tier&&d.promoDisc>0){
       hint.style.display="block";
-      hint.innerHTML=`<b style="color:var(--ok)">已自动应用优惠:买${d.tier.buy}送${d.tier.free},免 ${money(d.promoDisc)}</b>(原价 ${money(d.gross)})`;
-    }else hint.style.display="none";
+      {const emp=Math.round(((d.gross-d.promoDisc)-d.amt)*100)/100;
+      hint.innerHTML=`<b style="color:var(--ok)">已自动应用优惠:买${d.tier.buy}送${d.tier.free},免 ${money(d.promoDisc)}${emp>0.001?` · 员工9折 −${money(emp)}`:""}</b>(原价 ${money(d.gross)})`;}
+    }else{
+      const emp=Math.round((d.gross-d.amt)*100)/100;
+      if(emp>0.001){hint.style.display="block";
+        hint.innerHTML=`<b style="color:var(--ok)">员工9折 −${money(emp)}</b>(原价 ${money(d.gross)})`;}
+      else hint.style.display="none";
+    }
   }
 }
 document.getElementById("btnPriceEdit").addEventListener("click",()=>{
