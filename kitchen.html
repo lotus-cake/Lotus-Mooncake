@@ -471,7 +471,7 @@ const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,...PARAMS})[k
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 const NF=n=>(+n).toLocaleString("en-US");
 const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
-const APP_BUILD="b0819-6";
+const APP_BUILD="b0819-7";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -592,7 +592,7 @@ function calcStock(recsOverride){
       case"bakeyolk": S.raw.yolkraw=(S.raw.yolkraw||0)-g; S.raw.yolk=(S.raw.yolk||0)+Math.round(g*PRM("yolkBagG")*10)/10; break;
       case"fen":   if(r.remain!=null){S.fen[f]+=g;S.paste[f]=+r.remain;} else {S.paste[f]-=i; S.fen[f]+=g;} break;
       case"lava":  S.lava[CG(f)]+=g; break;
-      case"fill":  S.core[CG(f)]+=g*PRM("perMold"); if(r.remain!=null)S.lava[CG(f)]=+r.remain; else S.lava[CG(f)]-=(+r.used||0); break;
+      case"fill":  S.core[CG(f)]+=g*PRM("perMold")+(+r.extra||0); if(r.remain!=null)S.lava[CG(f)]=+r.remain; else S.lava[CG(f)]-=(+r.used||0); break;
       case"wrap1": S.fen[f]-=i; S.core[CG(f)]-=i; S.lxx[f]+=g; break;
       case"skin":  S.skin[f]+=g; break;
       case"wrap2": S.skin[f]-=i; S.lxx[f]-=i; S.wet[f]+=g; break;
@@ -1041,7 +1041,8 @@ function renderRecForm(keepNums){
         <div class="hintbox" id="fenHint"></div>`;
   }else if(curStage==="fill"){
     h+=`<div class="row"><div><label class="f">灌了几模 *</label><input type="number" id="rGood" min="0" inputmode="numeric"></div>
-        <div><label class="f">剩余流心液(克) *</label><input type="number" id="rRemain" min="0" inputmode="numeric"></div></div>
+        <div><label class="f">零头(颗,不满一模)</label><input type="number" id="rExtra" min="0" max="${PRM("perMold")-1}" inputmode="numeric" placeholder="0"></div></div>
+    <div class="row"><div><label class="f">剩余流心液(克) *</label><input type="number" id="rRemain" min="0" inputmode="numeric"></div></div>
         <div class="hintbox" id="fillHint"></div>`;
   }else if(curStage==="lava"||curStage==="skin"){
     h+=`<div class="row"><div><label class="f">配方份数(填了自动扣原料)</label><input type="number" id="rIn" min="0" inputmode="decimal"></div>
@@ -1097,7 +1098,8 @@ function renderRecForm(keepNums){
   if(flv)flv.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
     rFlavor=b.dataset.v;flv.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));hint();recipeHint();
     const fh=document.getElementById("fenHint")||document.getElementById("fillHint");
-    if(fh){const ev=new Event("input");const r1=document.getElementById("rRemain");if(r1)r1.dispatchEvent(ev);else if(document.getElementById("rGood"))document.getElementById("rGood").dispatchEvent(ev);}});
+    if(fh){const ev=new Event("input");const r1=document.getElementById("rRemain");if(r1)r1.dispatchEvent(ev);else if(document.getElementById("rGood"))document.getElementById("rGood").dispatchEvent(ev);}
+  const rx=document.getElementById("rExtra");if(rx)rx.addEventListener("input",()=>{const r1=document.getElementById("rRemain");if(r1)r1.dispatchEvent(new Event("input"));});});
   const rInEl=document.getElementById("rIn");
   if(rInEl&&["paste","lava","skin"].includes(curStage))rInEl.addEventListener("input",recipeHint);
   recipeHint();
@@ -1129,11 +1131,13 @@ function renderRecForm(keepNums){
       const rm=parseFloat((document.getElementById("rRemain")||{}).value);
       const md=parseFloat((document.getElementById("rGood")||{}).value)||0;
       let t=shareNote+`<div><b>现有</b>:${CORE_SHARE[rFlavor]?"共用":FN(rFlavor)}流心液 ${NF(have)} g,约够灌 <b>${Math.floor(have/std)} 模</b>(标准 ${std} g/模 = ${per}颗×${cg}g;模具共 ${PRM("molds")} 个)</div>`;
-      if(!isNaN(rm)&&md>0){const used=Math.round((have-rm)*10)/10;
-        if(used<0){t+=`<div style="color:var(--bronze)">剩余(${NF(rm)} g)比系统现有多 ${NF(-used)} g — 通常是「流心制作」漏记。保存会把液体直接校准到 ${NF(rm)} g,并 +${md*per} 颗冻芯。</div>`;hd.innerHTML=t;return;}
-        const avg=Math.round(used/md*10)/10, over=Math.round((used-md*std)*10)/10;
-        t+=`<div><b>本次</b>:灌 ${md} 模,用液 ${NF(used)} g(平均 <b>${avg} g/模</b>,标准 ${std} g/模)</div>`;
-        t+=`<div><b>结果</b>:得冻芯 <b>${NF(md*per)} 颗</b> · 液剩 ${NF(rm)} g</div>`;
+      const ex=Math.max(0,parseInt((document.getElementById("rExtra")||{}).value)||0);
+      const cores=md*per+ex;
+      if(!isNaN(rm)&&cores>0){const used=Math.round((have-rm)*10)/10;
+        if(used<0){t+=`<div style="color:var(--bronze)">剩余(${NF(rm)} g)比系统现有多 ${NF(-used)} g — 通常是「流心制作」漏记。保存会把液体直接校准到 ${NF(rm)} g,并 +${cores} 颗冻芯。</div>`;hd.innerHTML=t;return;}
+        const avgC=Math.round(used/cores*100)/100, over=Math.round((used-cores*cg)*10)/10;
+        t+=`<div><b>本次</b>:灌 ${md} 模${ex?` + 零头 ${ex} 颗`:""}(共 <b>${NF(cores)} 颗</b>),用液 ${NF(used)} g(平均 <b>${avgC} g/颗</b>,标准 ${cg} g/颗)</div>`;
+        t+=`<div><b>结果</b>:得冻芯 <b>${NF(cores)} 颗</b> · 液剩 ${NF(rm)} g</div>`;
         t+=over>0
           ?`<div style="color:var(--danger)">比标准多用 <b>${over} g</b> → 会记一笔「配方耗损」,等 Owner 审核</div>`
           :`<div style="color:var(--ok)">✓ 用量在标准内</div>`;
@@ -1213,13 +1217,16 @@ function renderRecForm(keepNums){
         const yl=Math.max(0,exp-good);if(yl>0){rec.yieldLoss=yl;rec.pendA=true;}}}
     else if(curStage==="fill"){
       const rm=parseFloat((document.getElementById("rRemain")||{}).value);
+      const ex=Math.max(0,parseInt((document.getElementById("rExtra")||{}).value)||0);
       if(isNaN(rm))return toast("请填剩余流心液克数");
-      if(good<=0)return toast("请填灌了几模");
-      const have=S.lava[rFlavor]||0;
+      if(good<=0&&ex<=0)return toast("请填灌了几模(或零头颗数)");
+      const have=S.lava[CG(rFlavor)]||0;
       const used=Math.round((have-rm)*10)/10;
+      const cores=good*PRM("perMold")+ex;
       rec.remain=rm;rec.used=used;rec.waste=0;
-      const std=good*PRM("perMold")*PRM("coreG");
-      rec.expOut=good*PRM("perMold");
+      if(ex>0)rec.extra=ex;
+      const std=cores*PRM("coreG");
+      rec.expOut=cores;
       const over=Math.round((used-std)*10)/10;
       if(over>0){rec.yieldLoss=over;rec.lossUnit="g";rec.pendA=true;}}
     else if(curStage==="lava"||curStage==="skin"){
@@ -1311,6 +1318,7 @@ function renderTodayRecs(){
     const UNIT={bakeyolk:"包",fill:"模",paste:"g",lava:"g",fen:"颗",skin:"颗",wrap1:"颗",wrap2:"颗",mold:"颗",bake:"颗",pack:"颗",boxup:"盒",sample:"颗",ship:"盒"};
     const num=r.stage==="adjust"?((r.delta>0?"+"+r.delta:r.delta)):
       r.stage==="rawin"||r.stage==="rawuse"?`${r.good} ${RAWU(r.raw)||""}`:
+      r.stage==="fill"&&r.extra?`${r.good} 模+${r.extra}颗`:
       `${r.good}${UNIT[r.stage]?" "+UNIT[r.stage]:""}`;
     return `<div class="wlog ${r.voided?"void":""}"><span>${showDate?`<span class="z">${(r.date||"").slice(5)}</span> `:""}${r.time||""} <b>${esc(r.staff||"?")}</b> ${what}${r.note?` <span class="z">${esc(r.note)}</span>`:""}</span>
       <span style="display:flex;gap:6px;align-items:center"><b>${num}${r.waste?` <span class="warnrow">操作损${r.waste}${r.reason?"("+esc(r.reason)+")":""}</span>`:(r.reason&&r.stage==="sample"?` <span class="z">${esc(r.reason)}</span>`:"")}${r.yieldLoss?` <span class="warnrow">${r.lossType==="op"?"操作损":"配方损"} ${r.yieldLoss}${r.lossUnit==="g"?" g":" 颗"}</span><span class="z">${r.lossType==="op"?"已转":(r.aprv?"已审✓":"待审")}</span>`:""}</b>
