@@ -725,7 +725,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-34";
+const APP_BUILD="b0819-35";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1791,6 +1791,42 @@ function saveEdit(o){
       });
     });
   });
+  // ===== 子单特例:付款随母单,改数量 = 与母单之间搬货,不退款不补款 =====
+  if(o.parentNo){
+    const mom=ORDERS[o.parentNo];
+    if(!mom||mom.status!=="有效")return toast("母单不存在或已失效,请联系客服处理");
+    const give={},take={};// give=归还母单,take=自母单调拨
+    PRODUCTS.forEach(p=>{const d=(patch.qty[p.k]||0)-((o.qty&&o.qty[p.k])||0);
+      if(d<0)give[p.k]=-d; else if(d>0)take[p.k]=d;});
+    for(const k in take){
+      if(((mom.qty&&mom.qty[k])||0)<take[k]){
+        const pn=(PRODUCTS.find(p=>p.k===k)||{}).n||k;
+        return toast(`母单 ${o.parentNo} 的「${pn}」只有 ${(mom.qty&&mom.qty[k])||0} 盒,不够调拨 ${take[k]} 盒`);
+      }
+    }
+    const moves=[];
+    Object.entries(give).forEach(([k,v])=>moves.push(`归还母单 ${(PRODUCTS.find(p=>p.k===k)||{}).n}×${v}`));
+    Object.entries(take).forEach(([k,v])=>moves.push(`自母单调拨 ${(PRODUCTS.find(p=>p.k===k)||{}).n}×${v}`));
+    if(moves.length)diffs.push(...moves,"付款随母单,金额不变动");
+    // 子单的钱字段一律不动:从补丁中剥离,防误写(Firebase 不接受 undefined)
+    ["amount","autoAmount","manualPrice","paid","pay","payMethod","payOther"].forEach(k=>delete patch[k]);
+    return askStaff("确认修改子单:"+o.no,staff=>{
+      patchOrder(o.no,patch,()=>{
+        logOp(o.no,staff,"修改订单",(diffs.length?diffs.join(";"):"无字段变化")+" · "+(window._eSrcV||""));
+        if(Object.keys(give).length||Object.keys(take).length){
+          const nq={...(mom.qty||{})};
+          Object.entries(give).forEach(([k,v])=>nq[k]=(nq[k]||0)+v);
+          Object.entries(take).forEach(([k,v])=>{nq[k]=(nq[k]||0)-v;if(!nq[k])delete nq[k];});
+          const bc=boxCounts(nq);
+          patchOrder(o.parentNo,{qty:nq,box6:bc.b6,box2:bc.b2,boxes:bc.total},()=>{
+            logOp(o.parentNo,staff,"子单调整",`${o.no} ${moves.join("、")},母单现 ${bc.total}盒`);
+          });
+        }
+        toast(o.no+" 已更新"+(moves.length?"(货量已与母单同步)":""));
+        openDetail(o.no);
+      });
+    });
+  }
   const wasPaid=o.pay==="已付";
   if(wasPaid && nb.total<(o.boxes||0)){
     const refAmt=(patch.amount!=null)?Math.max(0,Math.round((paidOf(o)-patch.amount)*100)/100):null;
