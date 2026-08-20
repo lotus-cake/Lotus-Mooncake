@@ -626,29 +626,41 @@ const DEFAULT_PRICES = {p6:88, p6cash:80, p2:28, bb2:28, emp:0.9,
 let PRICES = {...DEFAULT_PRICES};
 const money = v => (v==null||isNaN(v)) ? "" : "$"+(+v).toFixed(2).replace(/\.00$/,"");
 function calcDetail(qty,payMethod,channel){
-  const units=[];
+  const units=[],units6=[];
   PRODUCTS.forEach(p=>{
     const q=(qty&&qty[p.k])||0; if(!q)return;
     const unit = p.box===6 ? (payMethod==="现金"?PRICES.p6cash:PRICES.p6) : PRICES.p2;
-    for(let i=0;i<q;i++)units.push(unit);
+    for(let i=0;i<q;i++){units.push(unit);if(p.box===6)units6.push(unit);}
   });
-  const T=units.length;
+  const T=units.length,T6=units6.length;
   let gross=units.reduce((s,v)=>s+v,0);
+  // 促销为六粒盒专属:门槛按六粒盒数,赠品免最便宜的六粒盒;两粒不参与
   let tier=null;
   (PRICES.promos||[]).forEach(t=>{
-    if(t&&t.buy>0&&t.free>0&&T>=t.buy+t.free){
+    if(t&&t.buy>0&&t.free>0&&T6>=t.buy+t.free){
       if(!tier||t.buy+t.free>tier.buy+tier.free)tier=t;
     }
   });
   let promoDisc=0;
   if(tier){
-    units.sort((a,b)=>a-b);
-    promoDisc=units.slice(0,tier.free).reduce((s,v)=>s+v,0);
+    units6.sort((a,b)=>a-b);
+    promoDisc=units6.slice(0,tier.free).reduce((s,v)=>s+v,0);
   }
   let amt=gross-promoDisc;
   if(channel==="员工")amt*=(PRICES.emp||0.9);
   return {amt:Math.round(amt*100)/100, gross:Math.round(gross*100)/100,
-          promoDisc:Math.round(promoDisc*100)/100, tier};
+          promoDisc:Math.round(promoDisc*100)/100, tier, t6:T6};
+}
+function nextTierHint(d){
+  const T6=d.t6||0;if(!T6)return "";
+  let best=null;
+  (PRICES.promos||[]).forEach(t=>{
+    if(!t||!(t.buy>0&&t.free>0))return;
+    const need=t.buy+t.free-T6;
+    if(need>0&&need<=2&&(!best||t.buy+t.free<best.buy+best.free))best={...t,need};
+  });
+  if(!best)return "";
+  return `<br><b style="color:var(--bronze)">再加 ${best.need} 盒六粒即满「买${best.buy}送${best.free}」:共${best.buy+best.free}盒只收${best.buy}盒钱</b>`;
 }
 function calcAmount(qty,payMethod,channel){ return calcDetail(qty,payMethod,channel).amt; }
 function normPhone(s){return (s||"").replace(/\D/g,"");}
@@ -713,7 +725,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-33";
+const APP_BUILD="b0819-34";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1184,6 +1196,16 @@ document.getElementById("swBatch").addEventListener("click",function(){
   else if(fStoreVal==="MULTI"){fStoreVal=ROLE&&ROLE.type==="store"?ROLE.store:"";document.querySelectorAll("#fStore button").forEach(b=>b.classList.toggle("on",b.dataset.v===fStoreVal));}
   document.getElementById("qtyHint").style.display=fBatch?"block":"none";
 });
+function typeQty(k,val){
+  const n=Math.max(0,Math.min(999,parseInt(val)||0));
+  if(n)fQty[k]=n;else delete fQty[k];
+  renderQtyTable();
+}
+function typeEQty2(k,val,min){
+  const n=Math.max(min||0,Math.min(999,parseInt(val)||0));
+  if(n)eQty[k]=n;else delete eQty[k];
+  renderEQty();
+}
 function renderQtyTable(){
   const c=capState(),t=document.getElementById("qtyTable");
   t.innerHTML=PRODUCTS.map(p=>{
@@ -1192,7 +1214,7 @@ function renderQtyTable(){
       <td class="qname">${p.n}<span class="box-tag">${p.box}粒盒</span>${out?'<span class="soldout-tag">售罄</span>':""}</td>
       <td><div class="stepper">
         <button onclick="stepQty('${p.k}',-1)" ${v?"":"disabled"} style="${v?"":"opacity:.35"}">−</button>
-        <span class="qv">${v||0}</span>
+        <input class="qv qin" type="number" min="0" inputmode="numeric" value="${v||0}" onchange="typeQty('${p.k}',this.value)" style="width:52px;text-align:center;border:1px solid var(--line);border-radius:8px;padding:4px 2px">
         <button onclick="stepQty('${p.k}',1)" ${out?"disabled style='opacity:.35'":""}>+</button>
       </div></td></tr>`;
   }).join("");
@@ -1215,11 +1237,12 @@ function renderFAmount(){
     if(d.tier&&d.promoDisc>0){
       hint.style.display="block";
       {const emp=Math.round(((d.gross-d.promoDisc)-d.amt)*100)/100;
-      hint.innerHTML=`<b style="color:var(--ok)">已自动应用优惠:买${d.tier.buy}送${d.tier.free},免 ${money(d.promoDisc)}${emp>0.001?` · 员工9折 −${money(emp)}`:""}</b>(原价 ${money(d.gross)})`;}
+      hint.innerHTML=`<b style="color:var(--ok)">已自动应用优惠:买${d.tier.buy}送${d.tier.free},免 ${money(d.promoDisc)}(六粒盒)${emp>0.001?` · 员工9折 −${money(emp)}`:""}</b>(原价 ${money(d.gross)})`+nextTierHint(d);}
     }else{
       const emp=Math.round((d.gross-d.amt)*100)/100;
-      if(emp>0.001){hint.style.display="block";
-        hint.innerHTML=`<b style="color:var(--ok)">员工9折 −${money(emp)}</b>(原价 ${money(d.gross)})`;}
+      const nt=nextTierHint(d);
+      if(emp>0.001||nt){hint.style.display="block";
+        hint.innerHTML=(emp>0.001?`<b style="color:var(--ok)">员工9折 −${money(emp)}</b>(原价 ${money(d.gross)})`:"")+nt;}
       else hint.style.display="none";
     }
   }
@@ -1692,7 +1715,7 @@ function renderEQty(){
     return `<tr><td class="qname">${p.n}${min?`<span class="box-tag">已取${min}</span>`:""}</td>
       <td><div class="stepper">
         <button onclick="eStep('${p.k}',-1,${min})" ${v>min?"":"disabled style='opacity:.35'"}>−</button>
-        <span class="qv">${v}</span>
+        <input class="qv qin" type="number" min="${min}" inputmode="numeric" value="${v}" onchange="typeEQty2('${p.k}',this.value,${min})" style="width:52px;text-align:center;border:1px solid var(--line);border-radius:8px;padding:4px 2px">
         <button onclick="eStep('${p.k}',1,${min})">+</button>
       </div></td></tr>`;
   }).join("");
