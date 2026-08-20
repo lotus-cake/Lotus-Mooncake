@@ -712,7 +712,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-24";
+const APP_BUILD="b0819-25";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -3394,14 +3394,23 @@ function resizeImage(file,maxSide){
   });
 }
 async function callClaudeOCR(b64,mime){
-  const sys=`你是烘焙店订单录入助手。图片可能是【手写订单纸条】或【微信聊天截图】。微信订单常见格式为:姓名、电话、取货时间、取货门店、产品内容,可能分多行或多条消息。识别后只输出一个JSON对象,不要任何其他文字或markdown。
+  const sys=`你是烘焙店订单录入助手。图片可能是【手写订单纸条】、【微信聊天截图】或【门店中秋纸质收据】。微信订单常见格式为:姓名、电话、取货时间、取货门店、产品内容,可能分多行或多条消息。
+门店纸质收据是固定模板,字段语义如下,请严格按此理解:
+- 右上红色"收據編號"数字 → receiptNo
+- "客戶名稱"=name;"聯絡電話"=phone
+- 顶部"日期 Date"是【下单日期】,不是取货日期!取货日期只有在備註/项目里明确写了才填 pickupDate,否则 pickupDate=null
+- 项目行:产品名+單價+數量+金額;若某行写有 promo(促销),表示赠送盒数——qty 应填【付费+赠送的总盒数】(数量列最后一格通常就是含赠品总数)
+- "來訂 Deposit"=已收定金,"尚餘 Balance"=未收余额,"金額 Total"=总额:若 Balance>0 → pay="部分付" 且 paidAmt=Deposit;若 Balance=0或空且已写 Total/備註示已付 → pay="已付";此模板多为现金单,若無其他线索 payMethod="现金"(六粒盒现金价$80/盒可作单价佐证)
+- "備註 Remarks"=付款情况与特殊要求 → 并入 notes;"經手人 Handled by"若可读,写入 uncertain 提示核对经手人
+识别后只输出一个JSON对象,不要任何其他文字或markdown。
 JSON字段:
 name(姓名), phone(电话,尽量格式化为xxx-xxx-xxxx),
 store("CAM"=Cambie,"BBY"=Burnaby/本拿比,"ALD"=Alderbridge/Richmond/列治文,识别不出填null),
 pickupDate("YYYY-MM-DD",只写月日则年份为2026,识别不出填null),
 qty(对象,只含数量>0的产品): mix6=六粒混合/mix, js6=六粒金沙, js2=两粒金沙, mt2=两粒抹茶柚子, tr2=两粒黑松露, cp2=两粒陈皮红豆, mk2=两粒摩卡, wl2=两粒乌龙,
-pay("已付"/"未付"/"部分付"/"到店付",不确定填null),
-payMethod("Square"/"AlphaPay(微信&支付宝)"/"现金"/"EMT"/"SL WeChat"/"其它",不确定填null),
+pay("已付"/"未付"/"部分付"/"到店付",不确定填null), paidAmt(数字,部分付时的已收金额,没有填null),
+payMethod("现金"/"Credit Card"/"Square Online"/"EMT"/"微信"/"AlphaPay(微信&支付宝)"/"其它",不确定填null),
+receiptNo(纸质收据编号,没有填null),
 notes(其他备注文字), uncertain(数组,列出你不确定、需要人工核对的字段和原因,中文)。
 看不清或没写的字段一律填null,禁止猜测编造。`;
   const payload={model:"claude-sonnet-4-6",max_tokens:800,system:sys,
@@ -3434,6 +3443,8 @@ function applyOCR(r){
     document.getElementById("fPayM").value=r.payMethod;
     document.getElementById("fPayOtherWrap").style.display=r.payMethod==="其它"?"block":"none";}
   if(r.notes){document.getElementById("fNote").value=r.notes;hl(document.getElementById("fNote"));}
+  if(r.receiptNo){const f=document.getElementById("fRef");if(f&&!f.value){f.value="收据#"+r.receiptNo;hl(f);}}
+  if(r.pay==="部分付"&&r.paidAmt!=null){const fp=document.getElementById("fPaid");if(fp){fp.value=r.paidAmt;hl(fp);}}
   renderQtyTable();
   const miss=[];
   if(!r.name)miss.push("姓名");if(!r.store)miss.push("门店");if(!r.pickupDate)miss.push("取货日期");
