@@ -394,6 +394,10 @@ table.sum .z{color:#C9C6B4}
     <div id="opAprv"></div>
   </div>
 <div class="card">
+    <div class="note" style="margin:0 0 8px"><b>待退款 · Owner 处理</b>(EMT / 微信收款的取消单)</div>
+    <div id="opRefunds"></div>
+  </div>
+<div class="card">
     <div class="kv"><span>订单总数(含取消/改期)</span><b id="statAll">0</b></div>
     <div class="kv"><span>有效订单</span><b id="statLive">0</b></div>
     <div class="kv"><span>销售额(有效订单)</span><b id="statRev">—</b></div>
@@ -2143,7 +2147,7 @@ let calYM="2026-09", calSel=todayStr(), pnRange=3;
 if(todayStr()<"2026-09-01")calYM="2026-08";
 function planItems(d){return Object.values((PLAN[d]||{}).items||{});}
 function renderOwnerCenter(){
-  renderAlerts();renderOpToday();renderWalkLeft();renderAprv();
+  renderAlerts();renderOpToday();renderWalkLeft();renderAprv();renderOwnerRefunds();
   renderCal();renderCalEditor();renderPlanNeed();renderOpTg();renderOpProg();renderFin();renderSmart();renderPace();
 }
 /* --- 异常提醒 --- */
@@ -2190,6 +2194,8 @@ function renderAlerts(){
     }).length;
     if(od)a.push({t:`⚠ 等待付款超时 ${od} 张(取货在即未收款,见前台「待收款」页)`,fn:""});
     const ms=Object.values(ORDERS||{}).reduce((s,o)=>s+Object.values(o.reserves||{}).filter(r=>r.missed&&r.releasedAt&&Date.now()-r.releasedAt<3*864e5).length,0);
+    const rf=Object.values(ORDERS||{}).filter(o=>o.refundDue&&!o.refunded&&o.refundRoute==="owner").length;
+    if(rf)a.push({t:`待退款(Owner处理) ${rf} 张 — EMT/微信,见下方卡片`,fn:""});
     if(ms)a.push({t:`分批安排爽约(未到店) ${ms} 条(近3天,盒数已自动退回余额)`,fn:""});
   }
   if(pa)a.push({t:`配方耗损待审批 ${pa} 条(见下方审批卡)`,fn:""});
@@ -2241,6 +2247,25 @@ function renderWalkLeft(){
   el.innerHTML=h;
 }
 /* --- 配方耗损审批 --- */
+function renderOwnerRefunds(){
+  const el=document.getElementById("opRefunds");if(!el)return;
+  const list=Object.values(ORDERS||{}).filter(o=>o.refundDue&&!o.refunded&&o.refundRoute==="owner")
+    .sort((a,b)=>(b.cancelAt||"").localeCompare(a.cancelAt||""));
+  el.innerHTML=list.length?list.map(o=>`
+    <div class="kv" style="flex-wrap:wrap"><span><b>${o.no}</b> ${esc(o.name)} · 应退 <b>$${(+(o.paid||o.amount||0)).toFixed(0)}</b> · ${esc(o.payMethod||"")}${o.wxAcct?" "+esc(o.wxAcct):""}${o.backendNo?" · "+esc(o.backendNo):""}<br><span class="z">${esc(o.cancelAcct||"")}|${esc(o.cancelBy||"")} · ${esc(o.cancelSrc||"")} · ${o.cancelAt||""}</span></span>
+      <button class="btn small" onclick="ownerMarkRefund('${o.no}')">标记已退款</button></div>`).join("")
+  :'<div class="note">没有待 Owner 处理的退款</div>';
+}
+function ownerMarkRefund(no){
+  const o=ORDERS[no];if(!o)return;
+  const ref=prompt(`退款凭证号(${o.payMethod||""},应退 $${(+(o.paid||o.amount||0)).toFixed(0)}):`);
+  if(ref===null)return;
+  if(!ref.trim())return toast("需要凭证号");
+  const patch={refunded:{by:"Owner",at:todayStr()+" "+nowHM(),method:o.payMethod||"",ref:ref.trim(),amount:+(o.paid||o.amount||0)},refundDue:null,refundUrgent:null};
+  Object.assign(o,patch);
+  if(DB)DB.ref(DB_ROOT+"/orders/"+no).update(patch);
+  renderSettings();toast("已退款 ✓");
+}
 function aprvSentence(r){
   const fl=r.flavor?FN(r.flavor):"";
   const u=r.lossUnit==="g"?"g":"颗";
