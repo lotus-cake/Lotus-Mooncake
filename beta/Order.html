@@ -726,7 +726,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-36";
+const APP_BUILD="b0819-37";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -2018,8 +2018,24 @@ function settleDue(no,alsoPick){
 /* ---------------- 取消 / 改期(App内弹窗) ---------------- */
 function doCancel(no){
   const o=ORDERS[no]; if(!o)return;
+  // 母单取消/退款前置:必须先取消所有有效子单(盒数归还母单)
+  if(!o.parentNo){
+    const kids=Object.values(ORDERS).filter(c=>c.parentNo===o.no&&c.status==="有效");
+    if(kids.length){
+      const kb=kids.reduce((s,c)=>s+(c.boxes||0),0);
+      alert(`该母单已拆出 ${kids.length} 张有效子单(共 ${kb} 盒):\n${kids.map(c=>`· ${c.no} ${c.boxes}盒`).join("\n")}\n\n按规则:请先逐张取消子单(盒数将自动归还母单),再对母单进行取消/退款。`);
+      return;
+    }
+  }
+  // 子单取消前置:母单须有效(归还有去处);子单永不退款,钱在母单
+  if(o.parentNo){
+    const mom=ORDERS[o.parentNo];
+    if(!mom||mom.status!=="有效")return toast("母单不存在或已失效,子单盒数无处归还,请联系客服处理");
+  }
   openModal(mhead(`取消订单:${no}(${esc(o.name)})`)+`
-    <p style="font-size:14px;line-height:1.8">确认取消 ${o.boxes}盒?订单保留为「已取消」,库存额度自动释放。${paidOf(o)>0||o.pay==="已付"?"<br><b style='color:var(--danger)'>该订单已付款,取消后将自动生成待退款记录。</b>":""}</p>
+    <p style="font-size:14px;line-height:1.8">${o.parentNo
+      ?`确认取消子单 ${o.boxes}盒?<br><b style="color:var(--olive)">盒数将自动归还母单 ${o.parentNo};付款随母单,子单取消不产生退款。</b>`
+      :`确认取消 ${o.boxes}盒?订单保留为「已取消」,库存额度自动释放。${paidOf(o)>0||o.pay==="已付"?"<br><b style='color:var(--danger)'>该订单已付款,取消后将自动生成待退款记录。</b>":""}`}</p>
     <label class="f">取消来源 *</label>
     <select id="ccSrc"><option value="">—</option><option>客人电话取消</option><option>微信取消</option><option>客人到店取消</option><option>客服协助取消</option><option>其他</option></select>
     <input type="text" id="ccSrcTxt" placeholder="其他:请说明" style="display:none;margin-top:6px">
@@ -2043,26 +2059,29 @@ function doCancel(no){
     const proceed=()=>{
       const patch={status:"已取消",cancelSrc:srcV,cancelReason:reason||null,
         cancelBy:staff,cancelAcct:acctLabel(),cancelAt:todayStr()+" "+nowHM()};
-      if(paid){patch.refundDue=true;patch.refundRoute=promo?"cs":refundRoute(o);if(promo)patch.refundUrgent=true;}
+      // 子单永不生成退款:钱随母单;退款只在母单发生
+      if(paid&&!o.parentNo){patch.refundDue=true;patch.refundRoute=promo?"cs":refundRoute(o);if(promo)patch.refundUrgent=true;}
       closeModal();
       patchOrder(no,patch,()=>{
-        logOp(no,staff,"取消订单",`${o.boxes}盒 · ${srcV}${reason?" · "+reason:""}${paid?` · 待退款→${promo?"客服(优惠单·紧急确认)":({cs:"客服",owner:"Owner",store:"取货门店(现金)"}[patch.refundRoute])}`:""}`);
-        toast(no+" 已取消"+(paid?",退款已进入待退款":""));
-        // ④ 子单取消 → 询问是否把数量归还母单
-        const mom=o.parentNo&&ORDERS[o.parentNo];
-        if(mom&&mom.status==="有效"&&confirm(`把这 ${o.boxes} 盒归还到母单 ${o.parentNo} 吗?\n(客人还是要这些货、只是不按这张子单取了 → 归还;彻底不要了 → 取消)`)){
+        if(o.parentNo){
+          // 强制归还母单(母单有效性已在入口校验)
+          const mom=ORDERS[o.parentNo];
           const nq={...(mom.qty||{})};
           Object.entries(o.qty||{}).forEach(([k,v])=>nq[k]=(nq[k]||0)+v);
           const bc2=boxCounts(nq);
+          logOp(no,staff,"取消子单",`${o.boxes}盒 · ${srcV}${reason?" · "+reason:""} · 盒数归还母单,付款随母单不退款`);
           patchOrder(o.parentNo,{qty:nq,box6:bc2.b6,box2:bc2.b2,boxes:bc2.total},()=>{
             logOp(o.parentNo,staff,"子单归还",`${no} 取消,${o.boxes}盒归还母单,母单现 ${bc2.total}盒`);
             logOp(no,staff,"归还母单",`${o.boxes}盒已归还 ${o.parentNo}`);
-            toast(`已归还 ${o.boxes}盒 到 ${o.parentNo}`);
+            toast(`${no} 已取消,${o.boxes}盒已归还母单 ${o.parentNo}`);
           });
+        }else{
+          logOp(no,staff,"取消订单",`${o.boxes}盒 · ${srcV}${reason?" · "+reason:""}${paid?` · 待退款→${promo?"客服(优惠单·紧急确认)":({cs:"客服",owner:"Owner",store:"取货门店(现金)"}[patch.refundRoute])}`:""}`);
+          toast(no+" 已取消"+(paid?",退款已进入待退款":""));
         }
       });
     };
-    if(promo){
+    if(promo&&!o.parentNo){
       alert("此单涉及优惠政策,退款金额超出权限范围。\n已默认取消订单,请告知客人:退款将由客服负责处理。\n该单已推送到客服「待退款」紧急处理。");
       proceed();
     }else proceed();
