@@ -240,7 +240,7 @@ table.sum .z{color:#C9C6B4}
     </div>
     <label class="f">取货门店 *</label>
     <div class="seg store" id="fStore">
-      <button data-v="CAM">Cambie</button><button data-v="BBY">Burnaby</button><button data-v="ALD">Alderbridge</button>
+      <button data-v="CAM">Cambie</button><button data-v="BBY">Burnaby</button><button data-v="ALD">Alderbridge</button><button data-v="MULTI" id="fStoreMulti" style="display:none">多店取货</button>
     </div>
     <div id="fDateWrap">
       <label class="f">取货日期 *(9/4 – 9/30)</label>
@@ -261,9 +261,17 @@ table.sum .z{color:#C9C6B4}
   <div class="card">
     <div class="row">
       <div><label class="f">付款状态</label>
-        <select id="fPay"><option>未付</option><option>已付</option><option>部分付</option><option>到店付</option></select></div>
-      <div><label class="f">付款方式</label>
-        <select id="fPayM"><option value="">—</option><option>Square</option><option>AlphaPay(微信&支付宝)</option><option>现金</option><option>EMT</option><option>SL WeChat</option><option>其它</option></select></div>
+        <select id="fPay"><option>未付</option><option>等待付款中</option><option>部分付</option><option>已付</option></select></div>
+      <div id="fPayMWrap"><label class="f">付款方式</label>
+        <select id="fPayM"><option value="">—</option><option>Square Online</option><option>Credit Card</option><option>现金</option><option>EMT</option><option>微信</option><option>AlphaPay(微信&支付宝)</option><option>其它</option></select></div>
+    </div>
+    <div id="fUnpaidWrap" style="display:none">
+      <label class="f">未付安排</label>
+      <select id="fUnpaidPlan"><option>当天付现金</option><option>当天再付</option></select>
+    </div>
+    <div id="fWxWrap" style="display:none">
+      <label class="f">微信收款账户 *</label>
+      <select id="fWx"><option value="">—</option><option>Wx 1</option><option>Wx 2</option><option>Wx 3</option></select>
     </div>
     <div id="fPaidWrap" style="display:none">
       <label class="f">已收金额 $ *(部分付时填实际已收)</label>
@@ -275,8 +283,8 @@ table.sum .z{color:#C9C6B4}
     </div>
     <div class="row">
       <div><label class="f">渠道</label>
-        <select id="fChan"><option>微信</option><option>Square</option><option>门店</option><option>电话</option><option>员工</option><option>其他</option></select></div>
-      <div><label class="f">后台单号</label><input type="text" id="fRef" placeholder="SQ-xxxx / wx"></div>
+        <select id="fChan"><option>微信</option><option>Square Online</option><option>门店</option><option>电话</option><option>员工</option><option>其他</option></select></div>
+      <div id="fRefWrap"><label class="f" id="fRefLbl">收款凭证号</label><input type="text" id="fRef" placeholder="—"></div>
     </div>
     <label class="f">备注</label>
     <textarea id="fNote" placeholder="促销活动、特殊要求等"></textarea>
@@ -367,6 +375,13 @@ table.sum .z{color:#C9C6B4}
   <div id="batchList"></div>
   <div class="sect">已取完的大单</div>
   <div id="batchDoneList"></div>
+</div>
+
+<!-- ============ 待收款 ============ -->
+<div class="page" id="pg-pend">
+  <h2>待收款(等待付款中)</h2>
+  <div class="note" style="margin:-4px 0 8px">按取货日期排序;取货<b>前一天 17:00</b> 未收到款自动标红。收到钱点「标记已收款」。</div>
+  <div id="pendList"></div>
 </div>
 
 <!-- ============ 汇总 ============ -->
@@ -486,6 +501,7 @@ table.sum .z{color:#C9C6B4}
   <button data-p="orders"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h10"/></svg>订单</button>
   <button data-p="batch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="14" width="11" height="6" rx="1.5"/><path d="M17.5 15v5M15 17.5h5"/></svg>分批</button>
   <button data-p="store"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l1.5-5h15L21 9M3 9h18M3 9v11h18V9M9 20v-6h6v6"/></svg>门店</button>
+  <button data-p="pend" id="navPend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>待收款</button>
   <button data-p="sum"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>汇总</button>
   <button data-p="set"><span class="dot" id="setDot"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6A7 7 0 0 0 19 12z"/></svg>Owner</button>
 </nav>
@@ -549,7 +565,7 @@ const FLAVORS = [
   {k:"js",n:"金沙"},{k:"mt",n:"抹茶柚子"},{k:"tr",n:"黑松露"},
   {k:"cp",n:"陈皮红豆"},{k:"mk",n:"摩卡"},{k:"wl",n:"乌龙"},
 ];
-const STORE_NAME = {CAM:"Cambie", BBY:"Burnaby", ALD:"Alderbridge"};
+const STORE_NAME = {CAM:"Cambie", BBY:"Burnaby", ALD:"Alderbridge", MULTI:"多店取货"};
 const PAY_METHODS = ["Square","AlphaPay(微信&支付宝)","现金","EMT","SL WeChat","其它"];
 const REFUND_VIA_OWNER = ["EMT","SL WeChat"];
 const DEFAULT_PRICES = {p6:88, p6cash:80, p2:28, bb2:28, emp:0.9,
@@ -582,6 +598,11 @@ function calcDetail(qty,payMethod,channel){
           promoDisc:Math.round(promoDisc*100)/100, tier};
 }
 function calcAmount(qty,payMethod,channel){ return calcDetail(qty,payMethod,channel).amt; }
+function payDue(o){ // 等待付款中 且已过 取货前一天17:00
+  if(o.pay!=="等待付款中"||!o.pickupDate||o.status!=="有效")return false;
+  const d=new Date(o.pickupDate+"T17:00:00"); d.setDate(d.getDate()-1);
+  return Date.now()>=d.getTime();
+}
 function paidOf(o){ return o.paid!=null?o.paid:(o.pay==="已付"?(o.amount||0):0); }
 function dueAmt(o){ if(o.amount==null)return null; return Math.max(0,Math.round((o.amount-paidOf(o))*100)/100); }
 function walkinUnit(pk,pm){
@@ -632,7 +653,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-5";
+const APP_BUILD="b0819-6";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -761,7 +782,7 @@ function walkinCalc(store,date){
   WALKIN_PRODUCTS.forEach(p=>res[p.k]={recv:0,sold:0,trecv:0,tsold:0});
   Object.values(w.receipts||{}).forEach(r=>WALKIN_PRODUCTS.forEach(p=>{
     const v=(r.qty&&r.qty[p.k])||0; res[p.k].recv+=v; if(r.date===date)res[p.k].trecv+=v; }));
-  Object.values(w.sales||{}).forEach(s=>{ if(res[s.product]){res[s.product].sold++; if(s.date===date)res[s.product].tsold++;} });
+  Object.values(w.sales||{}).forEach(s=>{ const q=+s.qty||1; if(res[s.product]){res[s.product].sold+=q; if(s.date===date)res[s.product].tsold+=q;} });
   WALKIN_PRODUCTS.forEach(p=>res[p.k].remain=res[p.k].recv-res[p.k].sold);
   return res;
 }
@@ -852,13 +873,14 @@ function applyRole(){
   document.getElementById("roleTag").textContent=roleLabel(ROLE);
   const isOwner=ROLE.type==="owner",isStore=ROLE.type==="store";
   navBtn("sum").style.display=isStore?"none":"";
+  navBtn("pend").style.display=isStore?"none":"";
   navBtn("set").style.display="none"; // Owner 功能已移至独立 owner.html
   if(isStore){
     const st=ROLE.store;
-    fStoreVal=st;
+    fStoreVal=st; // #2: 三店可选,默认登录店
     document.querySelectorAll("#fStore button").forEach(b=>{
       b.classList.toggle("on",b.dataset.v===st);
-      b.style.display=b.dataset.v===st?"":"none";});
+      if(b.dataset.v!=="MULTI")b.style.display="";});
     qStoreVal=st;
     document.querySelectorAll("#qStore .chip").forEach(c=>{
       if(c.dataset.v!=="__dead")c.style.display="none";});
@@ -882,6 +904,10 @@ let fStoreVal="", fBatch=false;
 document.getElementById("swBatch").addEventListener("click",function(){
   fBatch=!fBatch; this.classList.toggle("on",fBatch);
   document.getElementById("fDateWrap").style.display=fBatch?"none":"block";
+  const mBtn=document.getElementById("fStoreMulti");
+  mBtn.style.display=fBatch?"":"none";
+  if(fBatch){fStoreVal="MULTI";document.querySelectorAll("#fStore button").forEach(b=>b.classList.toggle("on",b.dataset.v==="MULTI"));}
+  else if(fStoreVal==="MULTI"){fStoreVal=ROLE&&ROLE.type==="store"?ROLE.store:"";document.querySelectorAll("#fStore button").forEach(b=>b.classList.toggle("on",b.dataset.v===fStoreVal));}
   document.getElementById("qtyHint").style.display=fBatch?"block":"none";
 });
 function renderQtyTable(){
@@ -938,6 +964,22 @@ document.getElementById("fStore").addEventListener("click",e=>{
   fStoreVal=b.dataset.v;
   document.querySelectorAll("#fStore button").forEach(x=>x.classList.toggle("on",x===b));
 });
+const REF_HINT={"Square Online":["Square 订单号(必填)","SQ-xxxx"],"E转账占位":["",""],"微信":["转账单号(选填)","wx 转账单号"],"EMT":["转账 Reference(建议填)","EMT Ref"],"现金":["收据号(选填)","可留空"],"Credit Card":["收据号(选填)","可留空"],"AlphaPay(微信&支付宝)":["AlphaPay 单号(建议填)","AP-xxxx"],"其它":["凭证号(选填)","可留空"]};
+function payUIRefresh(){
+  const pay=document.getElementById("fPay").value;
+  const pm=document.getElementById("fPayM").value;
+  const showPayFields=(pay==="已付"||pay==="部分付");
+  document.getElementById("fPayMWrap").style.display=showPayFields?"":"none";
+  document.getElementById("fRefWrap").style.display=showPayFields?"":"none";
+  document.getElementById("fUnpaidWrap").style.display=pay==="未付"?"":"none";
+  document.getElementById("fWxWrap").style.display=(showPayFields&&pm==="微信")?"":"none";
+  const [lbl,ph]=REF_HINT[pm]||["收款凭证号","—"];
+  document.getElementById("fRefLbl").textContent=lbl||"收款凭证号";
+  document.getElementById("fRef").placeholder=ph||"—";
+  if(pm==="Square Online")document.getElementById("fChan").value="Square Online";
+}
+document.getElementById("fPay").addEventListener("change",()=>{payUIRefresh();renderFAmount();});
+document.getElementById("fPayM").addEventListener("change",payUIRefresh);
 document.getElementById("fPayM").addEventListener("change",function(){
   document.getElementById("fPayOtherWrap").style.display=this.value==="其它"?"block":"none";
   renderFAmount();
@@ -971,8 +1013,8 @@ function dupModal(matches,onAdd){
   document.getElementById("dupGo").onclick=()=>{closeModal();onAdd();};
 }
 function prepayGate(o,onOk){
-  const needs = !o.batch ? (o.pickupDate>=PREPAY_FROM && o.pay!=="已付")
-                         : (o.pay!=="已付");
+  const okPay=["已付","等待付款中"].includes(o.pay);
+  const needs = !o.batch ? (o.pickupDate>=PREPAY_FROM && !okPay) : (!okPay);
   if(!needs){ onOk(); return; }
   const why = o.batch?"分批大单(促销)需先付款":"9/24 及之后取货必须先付款";
   openModal(mhead("需要先收款")+`
@@ -999,6 +1041,14 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
   const phone=document.getElementById("fPhone").value.trim();
   const date=document.getElementById("fDate").value;
   const payM=document.getElementById("fPayM").value;
+  const payS=document.getElementById("fPay").value;
+  const unpaidPlan=payS==="未付"?document.getElementById("fUnpaidPlan").value:null;
+  const wxAcct=document.getElementById("fWx").value;
+  if((payS==="已付"||payS==="部分付")){
+    if(!payM)return toast("请选择付款方式");
+    if(payM==="微信"&&!wxAcct)return toast("微信收款必须选择 Wx 1 / Wx 2 / Wx 3");
+    if(payM==="Square Online"&&!document.getElementById("fRef").value.trim())return toast("Square Online 必须填写 Square 订单号");
+  }
   const payOther=document.getElementById("fPayOther").value.trim();
   const {b6,b2,total}=boxCounts(fQty);
   if(!name)return toast("请填客人姓名");
@@ -1012,8 +1062,21 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
   const s=soldTotals();
   if(CAPS.b6>0&&s.b6+b6>CAPS.b6)return toast(`六粒盒超出上限:仅剩 ${CAPS.b6-s.b6} 盒`);
   if(CAPS.b2>0&&s.b2+b2>CAPS.b2)return toast(`两粒盒超出上限:仅剩 ${CAPS.b2-s.b2} 盒`);
+  if(fStoreVal==="MULTI"&&!fBatch)return toast("「多店取货」只用于分批大单");
   const cand={name,phone,pickupDate:date,batch:fBatch,
     pay:document.getElementById("fPay").value, qty:{...fQty}};
+  // ===== #1 电话校验(填了查位数;没填要确认;重复号提醒)=====
+  {
+    const digits=phone.replace(/\D/g,"");
+    if(!digits){
+      if(!confirm("这张单没有留电话,取货有变联系不上客人——确认跳过电话?"))return;
+    }else{
+      const okLen=digits.length===10||(digits.length===11&&digits.startsWith("1"));
+      if(!okLen&&!confirm(`电话是 ${digits.length} 位数字,本地号码通常是 10 位——确认没填错吗?`))return;
+      const dup=Object.values(ORDERS).find(o=>o.status==="有效"&&(o.phone||"").replace(/\D/g,"")===digits);
+      if(dup&&!confirm(`这个电话已有订单:${dup.no}(${dup.name}${dup.batch?" · 分批大单":dup.pickupDate?" · "+fmtMD(dup.pickupDate)+"取":""})\n是同一位客人再下一单吗?`))return;
+    }
+  }
   const doSave=()=>prepayGate(cand,()=>{
     const payLbl=payM?(payM==="其它"?"其它:"+payOther:payM):"—";
     const autoD=calcDetail(fQty,payM,document.getElementById("fChan").value);
@@ -1051,13 +1114,14 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
       const staff=getStaff(); if(!staff)return;
       closeModal();
       nextOrderNo(no=>{
-        const o={no,name,phone,store:fStoreVal,qty:{...fQty},box6:b6,box2:b2,boxes:total,
+        const o={no,name,phone,store:fStoreVal,unpaidPlan:unpaidPlan||null,wxAcct:(payM==="微信"?wxAcct:null),qty:{...fQty},box6:b6,box2:b2,boxes:total,
           amount:amt,autoAmount:autoAmt,manualPrice:fAmtManual!=null,paid:paidV,
           pay:cand.pay,payMethod:payM,payOther:payM==="其它"?payOther:"",
           channel:document.getElementById("fChan").value,
           backendNo:document.getElementById("fRef").value.trim(),
           notes:note,
-          status:"有效",pickedUp:false,orderDate:todayStr(),createdAt:Date.now(),createdBy:staff};
+          status:"有效",pickedUp:false,orderDate:todayStr(),createdAt:Date.now(),createdBy:staff,
+          createdStore:ROLE&&ROLE.type==="store"?ROLE.store:null};
         if(fBatch){o.batch=true;o.pickups={};} else o.pickupDate=date;
         if(cand.exception)o.exception=cand.exception;
         saveOrder(o,()=>{
@@ -1089,7 +1153,7 @@ function orderCard(o,forPickup){
     return `<div class="ocard ${o.store} pkcard" onclick="openDetail('${o.no}')">
       <div class="pkinfo">
         <div class="l1"><span class="ono">${o.no}</span><span class="oname">${esc(o.name)}</span>
-          <span class="badge pay-${o.pay}">${o.pay}</span>${o.dueNote?`<span class="badge due">待收:${esc(o.dueNote)}</span>`:""}${o.exception?'<span class="badge exc">例外</span>':""}</div>
+          <span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}${o.dueNote?`<span class="badge due">待收:${esc(o.dueNote)}</span>`:""}${o.exception?'<span class="badge exc">例外</span>':""}</div>
         <div class="oitems">${items}(${o.boxes}盒${o.amount!=null?" · "+money(o.amount):""})</div>
         <div class="ometa">${esc(o.phone||"")} ${o.notes?" · "+esc(o.notes):""}</div>
       </div>
@@ -1137,7 +1201,7 @@ function renderOrders(){
   const date2=document.getElementById("qDate2").value;
   let list=Object.values(ORDERS);
   if(!qShowDead)list=list.filter(o=>o.status==="有效");
-  if(qStoreVal)list=list.filter(o=>o.store===qStoreVal);
+  if(qStoreVal)list=list.filter(o=>o.batch?true:(o.store===qStoreVal||o.createdStore===qStoreVal));
   if(date||date2)list=list.filter(o=>o.batch||((!date||o.pickupDate>=date)&&(!date2||o.pickupDate<=date2)));
   if(txt)list=list.filter(o=>(o.name||"").toLowerCase().includes(txt)||(o.phone||"").includes(txt)||(o.no||"").toLowerCase().includes(txt));
   list.sort((a,b)=>((a.batch?"9999":a.pickupDate)||"").localeCompare((b.batch?"9999":b.pickupDate)||"")||a.no.localeCompare(b.no));
@@ -1192,6 +1256,11 @@ function openDetail(no){
            <button class="btn ghost" onclick="closeModal();openSplit('${no}')">拆分订单</button>`}
       <button class="btn warn" onclick="closeModal();doCancel('${no}')">取消订单</button>
     </div>
+    ${o.parentNo&&ORDERS[o.parentNo]?`
+    <details style="margin:8px 0"><summary class="note" style="cursor:pointer">📜 原单 ${o.parentNo} 拆分前的操作记录(点开查看)</summary>
+      <div style="margin-top:6px">${Object.values(ORDERS[o.parentNo].history||{}).filter(h=>(h.ts||0)<=(o.splitAt||Infinity)).sort((a,b)=>(a.ts||0)-(b.ts||0)).map(h=>`<div class="wlog"><span>${new Date(h.ts).toLocaleString("zh",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})} <b>${esc(h.staff||"")}</b> ${esc(h.action||h.act||"")} ${esc(h.detail||"")}</span></div>`).join("")||'<div class="note">无</div>'}</div>
+    </details>`:""}
+    ${o.payNote?`<div class="kv"><span>付款归属</span><b>${esc(o.payNote)}</b></div>`:""}
     <div class="sect">操作记录</div>
     ${histHtml(o)}`);
 }
@@ -1221,7 +1290,7 @@ function openEdit(no){
     <input type="number" id="ePaid" min="0" step="0.01" value="${paidOf(o)}">
     <div class="row">
       <div><label class="f">付款状态</label>
-        <select id="ePay">${["未付","已付","部分付","到店付"].map(v=>`<option ${v===o.pay?"selected":""}>${v}</option>`).join("")}</select></div>
+        <select id="ePay">${["未付","等待付款中","部分付","已付"].map(v=>`<option ${v===o.pay?"selected":""}>${v}</option>`).join("")}</select></div>
       <div><label class="f">付款方式</label>
         <select id="ePayM"><option value="">—</option>${PAY_METHODS.map(v=>`<option ${v===o.payMethod?"selected":""}>${v}</option>`).join("")}</select></div>
     </div>
@@ -1572,10 +1641,90 @@ function doReschedule(no){
   });
 }
 
+/* ---------------- 待收款 ---------------- */
+function renderPend(){
+  const el=document.getElementById("pendList");if(!el)return;
+  const list=Object.values(ORDERS).filter(o=>o.status==="有效"&&o.pay==="等待付款中")
+    .sort((a,b)=>(a.pickupDate||"9999").localeCompare(b.pickupDate||"9999"));
+  el.innerHTML=list.length?list.map(o=>{
+    const due=payDue(o);
+    const ch=Object.values(o.chase||{}).sort((a,b)=>b.ts-a.ts);
+    return `<div class="ocard" style="${due?"border-left:4px solid #A63B2E":""}">
+      <div class="ohead"><b class="ono">${o.no}</b> <b>${esc(o.name)}</b>
+        <span class="badge">${o.batch?"分批大单":fmtMD(o.pickupDate)+" "+(STORE_NAME[o.store]||o.store)}</span>
+        ${due?'<span class="badge duepay">⚠ 逾期未付</span>':""}</div>
+      <div class="note" style="margin:2px 0 6px">${itemsText(o.qty)}(${o.boxes}盒 · ${money(o.amount)}) · ${esc(o.phone||"无电话")}
+        ${ch.length?`<br>最近催收:${esc(ch[0].t)}(${esc(ch[0].staff)} ${new Date(ch[0].ts).toLocaleDateString("zh",{month:"numeric",day:"numeric"})})`:""}</div>
+      <div class="row" style="gap:6px">
+        <button class="btn small" onclick="openMarkPaid('${o.no}')">标记已收款</button>
+        <button class="btn small ghost" onclick="openChase('${o.no}')">催收记录${ch.length?`(${ch.length})`:""}</button>
+        <button class="btn small ghost" onclick="openDetail('${o.no}')">详情</button>
+      </div></div>`;
+  }).join(""):'<div class="note">没有等待付款的订单 🎉</div>';
+}
+function openMarkPaid(no){
+  const o=ORDERS[no];if(!o)return;
+  openModal(mhead(`标记已收款:${no}(${esc(o.name)} · ${money(o.amount)})`)+`
+    <label class="f">付款方式 *</label>
+    <select id="mpM"><option value="">—</option><option>Square Online</option><option>Credit Card</option><option>现金</option><option>EMT</option><option>微信</option><option>AlphaPay(微信&支付宝)</option><option>其它</option></select>
+    <div id="mpWxWrap" style="display:none"><label class="f">微信收款账户 *</label>
+      <select id="mpWx"><option value="">—</option><option>Wx 1</option><option>Wx 2</option><option>Wx 3</option></select></div>
+    <label class="f" id="mpRefLbl">收款凭证号</label>
+    <input type="text" id="mpRef">
+    ${staffField()}
+    <button class="btn" style="margin-top:14px" id="mpGo">确认已收款 ${money(o.amount)}</button>`,true);
+  const mSel=document.getElementById("mpM");
+  mSel.addEventListener("change",()=>{
+    document.getElementById("mpWxWrap").style.display=mSel.value==="微信"?"":"none";
+    const [lbl,ph]=REF_HINT[mSel.value]||["收款凭证号","—"];
+    document.getElementById("mpRefLbl").textContent=lbl||"收款凭证号";
+    document.getElementById("mpRef").placeholder=ph||"—";
+  });
+  document.getElementById("mpGo").onclick=()=>{
+    const pm=mSel.value, wx=document.getElementById("mpWx").value, ref=document.getElementById("mpRef").value.trim();
+    if(!pm)return toast("请选择付款方式");
+    if(pm==="微信"&&!wx)return toast("微信收款必须选择 Wx 账户");
+    if(pm==="Square Online"&&!ref)return toast("Square Online 必须填写 Square 订单号");
+    const staff=getStaff();if(!staff)return;
+    patchOrder(no,{pay:"已付",payMethod:pm,wxAcct:pm==="微信"?wx:null,backendNo:ref,paid:o.amount,paidAt:Date.now(),
+      channel:pm==="Square Online"?"Square Online":o.channel},
+      ()=>{logOp(no,staff,"标记已收款",`${money(o.amount)} · ${pm}${wx?" "+wx:""}${ref?" · "+ref:""}`);
+        closeModal();toast("已收款 ✓");});
+  };
+}
+function openChase(no){
+  const o=ORDERS[no];if(!o)return;
+  const ch=Object.entries(o.chase||{}).sort((a,b)=>b[1].ts-a[1].ts);
+  openModal(mhead(`催收记录:${no}(${esc(o.name)})`)+`
+    <div style="max-height:30vh;overflow-y:auto;margin-bottom:8px">
+      ${ch.length?ch.map(([,c])=>`<div class="wlog"><span>${new Date(c.ts).toLocaleString("zh",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})} <b>${esc(c.staff)}</b> ${esc(c.t)}</span></div>`).join(""):'<div class="note">还没有催收记录</div>'}
+    </div>
+    <label class="f">新增一条(做了什么/客人说什么)</label>
+    <input type="text" id="chT" placeholder="如:已发信息催,客人说明天转">
+    ${staffField()}
+    <button class="btn" style="margin-top:12px" id="chGo">添加记录</button>`,true);
+  document.getElementById("chGo").onclick=()=>{
+    const t=document.getElementById("chT").value.trim();
+    if(!t)return toast("请填写内容");
+    const staff=getStaff();if(!staff)return;
+    const key="c"+Date.now();
+    if(DB)DB.ref(DB_ROOT+"/orders/"+no+"/chase/"+key).set({t,staff,ts:Date.now()});
+    else{(ORDERS[no].chase=ORDERS[no].chase||{})[key]={t,staff,ts:Date.now()};renderAll();}
+    logOp(no,staff,"催收",t);
+    closeModal();toast("已记录");
+  };
+}
+
 /* ---------------- 拆分订单 ---------------- */
 let sQty={};
 function openSplit(no){
   const o=ORDERS[no]; sQty={};
+  if(o.pay!=="已付"){
+    if(ROLE&&ROLE.type==="owner"){
+      if(!confirm(`该订单付款状态为「${o.pay}」,规则是付款后才能拆分。\nOwner 例外强行拆分?(会留痕)`))return;
+      o._ownerSplitExc=true;
+    }else return toast(`付款后才能拆分(当前:${o.pay})。收到钱先「标记已收款」,或请 Owner 处理`);
+  }
   openModal(mhead(`拆分订单:${no}`)+`
     <p class="note" style="margin:0 0 8px">把一部分盒数拆到<b>另一个取货日期</b>(可多次拆分,一次拆一个日期)。原订单保留剩余部分,付款信息共享。</p>
     <label class="f">拆出部分的取货日期</label>
@@ -1617,19 +1766,32 @@ function openSplit(no){
     Object.keys(sQty).forEach(k=>{remain[k]-=sQty[k]; if(!remain[k])delete remain[k];});
     const rb=boxCounts(remain), mb=boxCounts(sQty);
     closeModal();
-    nextOrderNo(newNo=>{
-      const child={...o,no:newNo,pickupDate:nd,store:ss,qty:{...sQty},
-        box6:mb.b6,box2:mb.b2,boxes:mb.total,status:"有效",pickedUp:false,
-        linkedNo:no,notes:(o.notes?o.notes+" · ":"")+`自${no}拆分`,createdAt:Date.now(),createdBy:staff};
-      delete child.pickups; delete child.history;
-      saveOrder(child,()=>patchOrder(no,{qty:remain,box6:rb.b6,box2:rb.b2,boxes:rb.total,
-        linkedNo:newNo,notes:(o.notes?o.notes+" · ":"")+`拆分出${newNo}`},
-        ()=>{
-          logOp(no,staff,"拆分订单",`拆出 ${itemsText(sQty)}(${mb.total}盒)→ ${newNo}(${fmtMD(nd)} ${ss}),原单剩 ${rb.total}盒`);
-          logOp(newNo,staff,"拆分生成",`自 ${no} 拆出`);
-          toast(`已拆分:${newNo}(${fmtMD(nd)} ${ss} ${mb.total}盒),原单剩 ${rb.total}盒`);
-        }));
-    });
+    // #6 家族字母子号:MC-0001-A/B/C…(不烧新单号)
+    const base=no.replace(/-[A-Z]$/,"");
+    let newNo=null;
+    for(const L of "ABCDEFGHIJKLMNOPQRSTUVWXYZ"){ if(!ORDERS[base+"-"+L]){ newNo=base+"-"+L; break; } }
+    if(!newNo)return toast("该单拆分次数已达上限(26)");
+    // #4a 两边按定价引擎重算金额
+    const wasManual=o.manualPrice||(o.autoAmount!=null&&o.amount!==o.autoAmount);
+    const childAuto=calcAmount(sQty,o.payMethod,o.channel);
+    const origAuto=calcAmount(remain,o.payMethod,o.channel);
+    const child={...o,no:newNo,pickupDate:nd,store:ss,qty:{...sQty},
+      box6:mb.b6,box2:mb.b2,boxes:mb.total,status:"有效",pickedUp:false,
+      amount:childAuto,autoAmount:childAuto,manualPrice:false,paid:0,
+      parentNo:base,payNote:"付款随原单 "+base,splitAt:Date.now(),
+      linkedNo:no,notes:(o.notes?o.notes+" · ":"")+`自${no}拆分`,createdAt:Date.now(),createdBy:staff};
+    if(o._ownerSplitExc){child.notes+=" · Owner例外拆分";delete o._ownerSplitExc;}
+    delete child.pickups; delete child.history; delete child.chase; delete child.reserves;
+    // #4b 先存子单,成功才改原单;任何失败大声报错且原单不动
+    saveOrder(child,()=>patchOrder(no,{qty:remain,box6:rb.b6,box2:rb.b2,boxes:rb.total,
+      amount:origAuto,autoAmount:origAuto,manualPrice:false,
+      linkedNo:newNo,notes:(o.notes?o.notes+" · ":"")+`拆分出${newNo}`},
+      ()=>{
+        logOp(no,staff,"拆分订单",`拆出 ${itemsText(sQty)}(${mb.total}盒)→ ${newNo}(${fmtMD(nd)} ${ss}),原单剩 ${rb.total}盒;两边金额已按标准价重算`);
+        logOp(newNo,staff,"拆分生成",`自 ${no} 拆出 · 付款随原单`);
+        toast(`已拆分:${newNo}(${fmtMD(nd)} ${ss} ${mb.total}盒 ${money(childAuto)}),原单剩 ${rb.total}盒 ${money(origAuto)}`);
+        if(wasManual)setTimeout(()=>alert(`⚠ 原单 ${base} 曾手动改价。拆分后两边已按标准价重算:\n原单 ${money(origAuto)} / 子单 ${money(childAuto)}\n请人工核对两边金额是否需要再调整。`),300);
+      }));
   };
 }
 
@@ -1637,16 +1799,36 @@ function openSplit(no){
 let bQty={};
 function openBatchPick(no){
   const o=ORDERS[no]; bQty={};
-  const rem=batchRemainQty(o);
-  if(!Object.keys(rem).length)return toast("该大单已全部取完");
+  const st0=batchStats(o);
+  if(st0.remain<=0)return toast("该大单已全部取完");
+  const today=todayStr();
+  const myStore=ROLE&&ROLE.type==="store"?ROLE.store:"";
+  const todaysRes=st0.resOpen.filter(r=>r.date<=today);
   openModal(mhead(`记取货:${no}(${esc(o.name)})`)+`
-    <p class="note" style="margin:0 0 8px">余额:${itemsText(rem)}(${boxCounts(rem).total}盒)</p>
+    ${todaysRes.length?`<div class="hintbox" style="margin-bottom:8px"><b>今天的预留:</b>${todaysRes.map(r=>`
+      <div class="kv"><span>${fmtMD(r.date)} ${r.boxes}盒 @${STORE_NAME[r.store]||r.store}(${itemsText(r.qty)})</span>
+        <span style="display:flex;gap:6px">
+          <button class="btn small" onclick="bpUseReserve('${no}','${r.id}')">按预留取</button>
+          <button class="btn small ghost" onclick="bpReleaseReserve('${no}','${r.id}')">释放</button>
+        </span></div>`).join("")}</div>`:""}
+    <p class="note" style="margin:0 0 8px">可取:${st0.avail}盒${st0.reserved?`(另有预留中 ${st0.reserved}盒)`:""}</p>
+    <label class="f">取货门店 *</label>
+    <div class="seg store" id="bpStoreSeg">
+      ${["CAM","BBY","ALD"].map(s=>`<button data-v="${s}" class="${s===myStore?"on":""}">${STORE_NAME[s]}</button>`).join("")}
+    </div>
     <label class="f">取货日期</label>
-    <input type="date" id="bpDate" value="${todayStr()>=DATE_MIN?todayStr():DATE_MIN}">
+    <input type="date" id="bpDate" value="${today>=DATE_MIN?today:DATE_MIN}">
     <label class="f">本次取走</label>
     <table class="qtbl" id="bpTable"></table>
     ${staffField()}
-    <button class="btn" style="margin-top:14px" id="bpGo">记录取货</button>`);
+    <button class="btn" style="margin-top:14px" id="bpGo">下一步:确认货源</button>`);
+  let bpStore=myStore, bpFromReserve=null;
+  document.getElementById("bpStoreSeg").addEventListener("click",e=>{
+    const b=e.target.closest("button");if(!b)return;bpStore=b.dataset.v;
+    document.querySelectorAll("#bpStoreSeg button").forEach(x=>x.classList.toggle("on",x===b));
+  });
+  const capOf=()=>st0.avail+(bpFromReserve?(+((o.reserves||{})[bpFromReserve]||{}).boxes||0):0);
+  const rem=batchRemainQty(o);
   const renderBp=()=>{
     document.getElementById("bpTable").innerHTML=PRODUCTS.filter(p=>rem[p.k]>0).map(p=>{
       const max=rem[p.k],v=bQty[p.k]||0;
@@ -1659,20 +1841,137 @@ function openBatchPick(no){
     }).join("");
   };
   window.bpStep=(k,d,max)=>{ bQty[k]=Math.max(0,Math.min(max||99,(bQty[k]||0)+d)); if(!bQty[k])delete bQty[k]; renderBp(); };
+  window.bpUseReserve=(ono,rid)=>{
+    const r=(ORDERS[ono].reserves||{})[rid];if(!r)return;
+    bpFromReserve=rid;bQty={...r.qty};bpStore=r.store;
+    document.querySelectorAll("#bpStoreSeg button").forEach(x=>x.classList.toggle("on",x.dataset.v===r.store));
+    renderBp();toast("已按预留填入,可微调后下一步");
+  };
+  window.bpReleaseReserve=(ono,rid)=>{
+    if(!confirm("释放这条预留?盒数将退回可取余额"))return;
+    patchReserve(ono,rid,{status:"released"},()=>{closeModal();toast("已释放");});
+  };
   renderBp();
   document.getElementById("bpGo").onclick=()=>{
     const t=boxCounts(bQty).total;
     if(t===0)return toast("请选择本次取走的数量");
+    if(!bpStore)return toast("请选择取货门店");
+    if(t>capOf())return toast(`超出可取余额(可取 ${capOf()} 盒,其余在预留中)`);
     const staff=getStaff(); if(!staff)return;
-    const d=document.getElementById("bpDate").value||todayStr();
-    closeModal();
-    addBatchPickup(no,{date:d,qty:{...bQty},boxes:t,ts:Date.now(),staff},()=>{
-      const after=boxCounts(batchRemainQty(ORDERS[no])).total;
-      if(after===0)patchOrder(no,{pickedUp:true},()=>{});
-      logOp(no,staff,"分批取货",`${fmtMD(d)} 取 ${itemsText(bQty)}(${t}盒),余 ${after}盒`);
-      toast(`${no} 已取 ${t}盒,剩 ${after}盒${after===0?",大单完成 ✓":""}`);
-    });
+    const d=document.getElementById("bpDate").value||today;
+    // ===== 现货问答 =====
+    const qtySnap={...bQty},fromRes=bpFromReserve;
+    openModal(mhead("这次给客人的货,是门店现货吗?")+`
+      <p class="note" style="margin:0 0 8px">${STORE_NAME[bpStore]} · ${itemsText(qtySnap)}(${t}盒)</p>
+      <button class="btn" style="width:100%;margin-bottom:8px" id="bpStockYes">是 — 从${STORE_NAME[bpStore]}现货扣,自动记现货流水</button>
+      <button class="btn ghost" style="width:100%" id="bpStockNo">否 — 货另有来源(需填说明)</button>
+      <div id="bpNoteWrap" style="display:none;margin-top:8px">
+        <label class="f">货从哪来 *</label>
+        <input type="text" id="bpSrcNote" placeholder="如:今早预排配送到的 / 厨房直送">
+        <button class="btn" style="margin-top:10px" id="bpNoGo">确认记录取货</button>
+      </div>`,true);
+    const finish=(useWalkin,srcNote)=>{
+      const rec={date:d,store:bpStore,qty:qtySnap,boxes:t,ts:Date.now(),staff,src:useWalkin?"现货":"其他"};
+      if(srcNote)rec.note=srcNote;
+      if(fromRes)rec.fromReserve=fromRes;
+      addBatchPickup(no,rec,()=>{
+        if(fromRes)patchReserve(no,fromRes,{status:"done"},()=>{});
+        if(useWalkin){
+          Object.entries(qtySnap).forEach(([k,v])=>{
+            addSale(bpStore,{product:k,qty:v,date:d,ts:Date.now(),src:"batch",orderNo:no,staff,price:0});
+          });
+        }
+        const after=boxCounts(batchRemainQty(ORDERS[no])).total;
+        if(after===0)patchOrder(no,{pickedUp:true},()=>{});
+        logOp(no,staff,"分批取货",`${fmtMD(d)} @${STORE_NAME[bpStore]} 取 ${itemsText(qtySnap)}(${t}盒) · 货源:${useWalkin?"门店现货":"其他("+srcNote+")"}${fromRes?" · 按预留":""},余 ${after}盒`);
+        closeModal();toast(`${no} 已取 ${t}盒 @${STORE_NAME[bpStore]},剩 ${after}盒${after===0?",大单完成 ✓":""}`);
+      });
+    };
+    document.getElementById("bpStockYes").onclick=()=>{
+      const wc=walkinCalc(bpStore,d);
+      const short=Object.entries(qtySnap).filter(([k,v])=>((wc[k]||{}).remain||0)<v)
+        .map(([k,v])=>`${(PRODUCTS.find(p=>p.k===k)||{}).n}:现货${(wc[k]||{}).remain||0} < 取${v}`);
+      if(short.length&&!confirm(`⚠ 现货不够扣:\n${short.join("\n")}\n货已给客人可继续,现货将变负数提醒补账。确认?`))return;
+      finish(true,"");
+    };
+    document.getElementById("bpStockNo").onclick=()=>{document.getElementById("bpNoteWrap").style.display="";};
+    document.getElementById("bpNoGo").onclick=()=>{
+      const nt=document.getElementById("bpSrcNote").value.trim();
+      if(!nt)return toast("请填写货的来源");
+      finish(false,nt);
+    };
   };
+}
+function patchReserve(no,rid,patch,cb){
+  if(DB)DB.ref(DB_ROOT+"/orders/"+no+"/reserves/"+rid).update(patch,err=>{if(err)toast("保存失败:"+err.message);else cb&&cb();});
+  else{Object.assign(((ORDERS[no].reserves=ORDERS[no].reserves||{})[rid]=ORDERS[no].reserves[rid]||{}),patch);renderAll();cb&&cb();}
+}
+function openReserve(no){
+  const o=ORDERS[no];const st=batchStats(o);
+  if(st.avail<=0)return toast("没有可预留的余额");
+  let rQty={},rStore="";
+  const tomorrow=(()=>{const d=new Date();d.setDate(d.getDate()+1);return d.toISOString().slice(0,10);})();
+  const rem=batchRemainQty(o);
+  openModal(mhead(`预留:${no}(${esc(o.name)})`)+`
+    <p class="note" style="margin:0 0 8px">提前一天以上登记。预留会<b>占用可取余额</b>(可取 ${st.avail}盒),当日 22:00 未取自动释放。</p>
+    <label class="f">预计取货日期 *</label>
+    <input type="date" id="rvDate" value="${tomorrow}" min="${tomorrow}">
+    <label class="f">取货门店 *</label>
+    <div class="seg store" id="rvStoreSeg">
+      ${["CAM","BBY","ALD"].map(s=>`<button data-v="${s}">${STORE_NAME[s]}</button>`).join("")}
+    </div>
+    <label class="f">预留数量</label>
+    <table class="qtbl" id="rvTable"></table>
+    ${staffField()}
+    <button class="btn" style="margin-top:14px" id="rvGo">登记预留</button>`);
+  document.getElementById("rvStoreSeg").addEventListener("click",e=>{
+    const b=e.target.closest("button");if(!b)return;rStore=b.dataset.v;
+    document.querySelectorAll("#rvStoreSeg button").forEach(x=>x.classList.toggle("on",x===b));
+  });
+  const renderRv=()=>{
+    document.getElementById("rvTable").innerHTML=PRODUCTS.filter(p=>rem[p.k]>0).map(p=>{
+      const max=rem[p.k],v=rQty[p.k]||0;
+      return `<tr><td class="qname">${p.n}<span class="box-tag">余${max}</span></td>
+        <td><div class="stepper">
+          <button onclick="rvStep('${p.k}',-1)" ${v?"":"disabled style='opacity:.35'"}>−</button>
+          <span class="qv">${v}</span>
+          <button onclick="rvStep('${p.k}',1,${max})" ${v>=max?"disabled style='opacity:.35'":""}>+</button>
+        </div></td></tr>`;
+    }).join("");
+  };
+  window.rvStep=(k,d,max)=>{rQty[k]=Math.max(0,Math.min(max||99,(rQty[k]||0)+d));if(!rQty[k])delete rQty[k];renderRv();};
+  renderRv();
+  document.getElementById("rvGo").onclick=()=>{
+    const t=boxCounts(rQty).total;
+    if(!t)return toast("请选择预留数量");
+    if(t>st.avail)return toast(`超出可取余额(${st.avail}盒)`);
+    if(!rStore)return toast("请选择门店");
+    const rd=document.getElementById("rvDate").value;
+    if(!rd||rd<=todayStr())return toast("预留须是明天及以后(今天取直接记取货)");
+    const staff=getStaff();if(!staff)return;
+    const rid="rv"+Date.now();
+    const rec={id:rid,date:rd,store:rStore,qty:{...rQty},boxes:t,by:staff,ts:Date.now(),status:"open"};
+    if(DB)DB.ref(DB_ROOT+"/orders/"+no+"/reserves/"+rid).set(rec,err=>{if(err)return toast("保存失败:"+err.message);});
+    else{(ORDERS[no].reserves=ORDERS[no].reserves||{})[rid]=rec;renderAll();}
+    logOp(no,staff,"预留",`${fmtMD(rd)} @${STORE_NAME[rStore]} ${itemsText(rQty)}(${t}盒)`);
+    closeModal();toast(`已预留 ${t}盒(${fmtMD(rd)} @${STORE_NAME[rStore]})`);
+  };
+}
+// #11 到期自动释放(当日22:00后/隔天;幂等,留爽约痕迹)
+const _relDone=new Set();
+function autoReleaseReserves(){
+  const today=todayStr(),h=new Date().getHours();
+  Object.values(ORDERS).forEach(o=>{
+    if(!o.batch||!o.reserves)return;
+    Object.entries(o.reserves).forEach(([rid,r])=>{
+      if(r.status!=="open")return;
+      const due=r.date<today||(r.date===today&&h>=22);
+      if(!due||_relDone.has(o.no+rid))return;
+      _relDone.add(o.no+rid);
+      patchReserve(o.no,rid,{status:"released",missed:true,releasedAt:Date.now()},()=>{});
+      logOp(o.no,"系统","预留爽约释放",`${fmtMD(r.date)} @${STORE_NAME[r.store]||r.store} ${r.boxes}盒 未取,已退回可取余额`);
+    });
+  });
 }
 
 /* ---------------- 门店页 ---------------- */
@@ -1855,26 +2154,43 @@ document.getElementById("bStore").addEventListener("click",e=>{
   document.querySelectorAll("#bStore .chip").forEach(x=>x.classList.toggle("on",x===b));
   renderBatchPage();
 });
+function batchStats(o){
+  const total=o.boxes||0;
+  const taken=Object.values(o.pickups||{}).reduce((s,r)=>s+(+r.boxes||0),0);
+  const remain=Math.max(0,total-taken);
+  const resOpen=Object.values(o.reserves||{}).filter(r=>r.status==="open");
+  const reserved=resOpen.reduce((s,r)=>s+(+r.boxes||0),0);
+  const avail=Math.max(0,remain-reserved);
+  const missed=Object.values(o.reserves||{}).filter(r=>r.missed).length;
+  return {total,taken,remain,reserved,avail,resOpen,missed};
+}
 function batchCard(o){
-  const rem=batchRemainQty(o), remB=boxCounts(rem).total;
-  const picked=Object.values(o.pickups||{}).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
-  const hist=picked.length?`<div class="ometa" style="margin-top:4px">已取:${picked.map(r=>`${fmtMD(r.date)} ${r.boxes}盒`).join(" / ")}</div>`:"";
+  const rem=batchRemainQty(o);
+  const st=batchStats(o);
+  const picked=Object.values(o.pickups||{}).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const last=picked[0];
+  const pct=st.total?Math.min(100,Math.round(st.taken/st.total*100)):0;
   return `<div class="ocard ${o.store} pkcard" onclick="openDetail('${o.no}')">
-    <div class="pkinfo">
+    <div class="pkinfo" style="flex:1;min-width:0">
       <div class="l1"><span class="ono">${o.no}</span><span class="oname">${esc(o.name)}</span>
-        <span class="badge ${o.store}">${STORE_NAME[o.store]}</span>
-        <span class="badge batch">${remB>0?`余 ${remB}盒`:"已取完 ✓"}</span>
-        <span class="badge pay-${o.pay}">${o.pay}</span></div>
-      <div class="oitems">${remB>0?"余:"+itemsText(rem):"总:"+itemsText(o.qty)+"("+o.boxes+"盒)"}</div>
-      <div class="ometa">${esc(o.phone||"")} ${o.notes?" · "+esc(o.notes):""}</div>${hist}
+        <span class="badge ${o.store}">${STORE_NAME[o.store]||o.store}</span>
+        <span class="badge pay-${o.pay}">${o.pay}</span>
+        ${st.missed>=2?`<span class="badge duepay">爽约 ${st.missed} 次</span>`:""}</div>
+      <div style="font-size:18px;font-weight:700;margin:4px 0 2px">共 ${st.total} 盒 · 已取 ${st.taken} · <span style="color:var(--bronze)">余 ${st.remain}</span></div>
+      ${st.reserved?`<div style="font-size:14px;margin:0 0 2px">可取 <b>${st.avail}</b> · 预留中 <b style="color:#A05A00">${st.reserved}</b>${st.resOpen.map(r=>`<span class="z">(${fmtMD(r.date)} ${r.boxes}盒 @${STORE_NAME[r.store]||r.store})</span>`).join("")}</div>`:""}
+      <div style="height:6px;border-radius:99px;background:#EEE8D8;overflow:hidden;margin:4px 0">
+        <div style="height:100%;width:${pct}%;background:var(--olive)"></div></div>
+      <div class="ometa">${st.remain>0?"余:"+itemsText(rem):""} · ${esc(o.phone||"无电话")}${last?` · 上次 ${fmtMD(last.date)} 取 ${last.boxes}盒${last.store?" @"+(STORE_NAME[last.store]||last.store):""}`:""}</div>
     </div>
-    ${remB>0?`<button class="pkbtn" onclick="event.stopPropagation();openBatchPick('${o.no}')">记取货</button>`:""}
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${st.remain>0?`<button class="pkbtn" onclick="event.stopPropagation();openBatchPick('${o.no}')">记取货</button>`:""}
+      ${st.avail>0?`<button class="btn small ghost" onclick="event.stopPropagation();openReserve('${o.no}')">预留</button>`:""}
+    </div>
   </div>`;
 }
 function renderBatchPage(){
   const el=document.getElementById("batchList"); if(!el)return;
-  let bl=batchOrders();
-  if(bStoreVal)bl=bl.filter(o=>o.store===bStoreVal);
+  let bl=batchOrders(); // #9: 门店码可见全部分批客人(不按门店过滤)
   const active=bl.filter(o=>boxCounts(batchRemainQty(o)).total>0)
     .sort((a,b)=>a.no.localeCompare(b.no));
   const done=bl.filter(o=>boxCounts(batchRemainQty(o)).total===0)
@@ -1900,8 +2216,10 @@ function planForStore(d,st){ // 当日该店应送:订单每产品 + 现货安�
   liveOrders().forEach(o=>{
     if(!o.batch&&o.pickupDate===d&&o.store===st)
       Object.entries(o.qty||{}).forEach(([k,v])=>ord[k]=(ord[k]||0)+v);
-    if(o.batch&&o.store===st)Object.values(o.pickups||{}).forEach(r=>{
-      if(r.date===d)Object.entries(r.qty||{}).forEach(([k,v])=>ord[k]=(ord[k]||0)+v);});
+    if(o.batch)Object.values(o.pickups||{}).forEach(r=>{
+      if(r.date===d&&(r.store||o.store)===st)Object.entries(r.qty||{}).forEach(([k,v])=>ord[k]=(ord[k]||0)+v);});
+    if(o.batch)Object.values(o.reserves||{}).forEach(r=>{
+      if(r.status==="open"&&r.date===d&&r.store===st)Object.entries(r.qty||{}).forEach(([k,v])=>ord[k]=(ord[k]||0)+v);});
   });
   const walk={...(((WPLAN||{})[d]||{})[st]||{})};
   return {ord,walk};
@@ -2597,6 +2915,8 @@ document.querySelector("nav").addEventListener("click",e=>{
   renderAll();
 });
 function renderAll(){
+  autoReleaseReserves();
+  renderPend();
   renderGauges();renderQtyTable();renderOrders();renderPickup();renderWalkin();renderBatchPage();renderSum();renderSettings();renderTodos();
 }
 const initDate=todayStr()>=DATE_MIN&&todayStr()<="2026-10-10"?todayStr():DATE_MIN;
