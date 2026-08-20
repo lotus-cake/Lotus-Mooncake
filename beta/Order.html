@@ -114,6 +114,7 @@ textarea{resize:vertical;min-height:54px}
 .badge.st-已改期{background:#EFEADB;color:var(--bronze)}
 .badge.pay-已付{background:#E7F0E4;color:var(--ok)}
 .badge.pay-未付,.badge.pay-部分付,.badge.pay-到店付{background:#FBE7D8;color:var(--bby-tx)}
+.pkcard .badge.pay-未付,.pkcard .badge.pay-部分付{font-size:15px;font-weight:800;padding:4px 10px;background:#A63B2E;color:#fff;border-radius:8px}
 .badge.batch{background:#F0E6D2;color:var(--bronze)}
 .badge.due{background:var(--danger);color:#fff}
 .badge.exc{background:#F5E2E2;color:var(--danger)}
@@ -415,13 +416,23 @@ table.sum .z{color:#C9C6B4}
 <!-- ============ 汇总 ============ -->
 <div class="page" id="pg-sum">
   <h2>门店配送汇总</h2>
+  <div class="filters" style="display:flex;align-items:center;gap:8px">
+    <input type="date" id="sumDate" style="flex:1">
+    <button class="btn small ghost" id="sumToday">回到今天</button>
+  </div>
+  <div class="card">
+    <div class="note" style="margin:0 0 8px"><b id="sumProdTitle">产品配送汇总</b> · 厨房按「产品总计」备货包装</div>
+    <div id="sumProd"></div>
+  </div>
+  <div class="card">
+    <div class="note" style="margin:0 0 8px"><b>门店当前现货</b>(可售余量 = 到货 − 已售,负数标红)</div>
+    <div id="sumWalk"></div>
+  </div>
   <div class="card" id="handoverCard">
-    <div class="note" style="margin:0 0 8px"><b>今日出货交接</b>(中央厨房 → 司机 → 门店)</div>
+    <div class="note" style="margin:0 0 8px"><b>出货交接</b>(中央厨房 → 司机 → 门店)</div>
     <div id="handoverBody"></div>
   </div>
   <div class="card" id="batchRemainCard" style="display:none"></div>
-  <div class="twrap"><table class="sum" id="sumTable"></table></div>
-  <p class="note">只统计「有效」订单;当日日期永远排在最前(金色行),之后是未来日期,已过日期沉底。分批大单的未取余额不计入具体日期,单独显示在上方。</p>
 </div>
 
 <!-- ============ 设置 ============ -->
@@ -2694,34 +2705,43 @@ function renderSum(){
   if(remB>0){bc.style.display="block";
     bc.innerHTML=`<b style="color:var(--bronze)">分批大单待取余额:${remB}盒</b>
       <div class="pksum" style="margin-top:8px">${PRODUCTS.filter(p=>rem[p.k]>0).map(p=>`<span class="pi">${p.n}<b>${rem[p.k]}</b></span>`).join("")}</div>
-      <div class="note">已售出但未排取货日期,不计入下方任何一天,配送与生产需另行预留。</div>`;
+      <div class="note">已售出但未排取货日期,不计入上方任何一天,生产与配送需另行预留。</div>`;
   } else bc.style.display="none";
 
-  const byDate={};
-  datedLive().forEach(o=>{(byDate[o.pickupDate]=byDate[o.pickupDate]||[]).push(o);});
-  batchOrders().forEach(o=>Object.values(o.pickups||{}).forEach(r=>{
-    (byDate[r.date]=byDate[r.date]||[]).push({boxes:r.boxes,store:o.store});
-  }));
-  const today=todayStr();
-  if(!byDate[today])byDate[today]=[];
-  const all=Object.keys(byDate).sort();
-  const dates=[today]
-    .concat(all.filter(d=>d>today))
-    .concat(all.filter(d=>d<today).reverse());
-  const t=document.getElementById("sumTable");
-  let h=`<tr><th>取货日</th><th>Cambie</th><th>Burnaby</th><th>Alderbridge</th><th>合计盒</th><th>金额</th></tr>`;
-  let tC=0,tB=0,tA=0,tM=0;
-  h+=dates.map(d=>{
-    let c=0,b=0,a=0;
-    byDate[d].forEach(o=>{if(o.store==="CAM")c+=o.boxes||0;else if(o.store==="BBY")b+=o.boxes||0;else if(o.store==="ALD")a+=o.boxes||0;});
-    const m=datedLive().filter(o=>o.pickupDate===d).reduce((s,o)=>s+(o.amount||0),0);
-    tC+=c;tB+=b;tA+=a;tM+=m;
-    const cls=d===today?' class="today"':(d<today?' class="past"':"");
-    return `<tr${cls}><td>${d===today?"今天 ":""}${fmtMD(d)}</td><td>${z(c)}</td><td>${z(b)}</td><td>${z(a)}</td><td><b>${c+b+a}</b></td><td>${m?money(m):'<span class="z">·</span>'}</td></tr>`;
+  const dEl=document.getElementById("sumDate");if(!dEl)return;
+  if(!dEl.value)dEl.value=todayStr();
+  const d=dEl.value,today=todayStr();
+  document.getElementById("sumProdTitle").textContent=`${fmtMD(d)}${d===today?"(今天)":""} 产品配送汇总`;
+
+  const STS=["CAM","BBY","ALD"];
+  const plans={};STS.forEach(st=>plans[st]=planForStore(d,st));
+  const rows=WALKIN_PRODUCTS.map(p=>{
+    const per=STS.map(st=>({st,n:(plans[st].ord[p.k]||0)+(plans[st].walk[p.k]||0),w:plans[st].walk[p.k]||0}));
+    const tot=per.reduce((s,x)=>s+x.n,0);
+    if(!tot)return "";
+    return `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+        <b style="font-size:16px">${p.n}</b><b style="font-size:20px">总计 ${tot} 盒</b></div>
+      ${per.map(x=>`<div class="kv" style="padding:2px 0"><span>${STORE_NAME[x.st]}</span><b>${x.n}${x.w?` <span class="z">(含现货${x.w})</span>`:""}</b></div>`).join("")}
+    </div>`;
   }).join("");
-  h+=`<tr class="tot"><td>合计</td><td>${tC}</td><td>${tB}</td><td>${tA}</td><td>${tC+tB+tA}</td><td>${money(tM)}</td></tr>`;
-  t.innerHTML=h;
+  document.getElementById("sumProd").innerHTML=rows||`<div class="note">${fmtMD(d)} 没有需要配送的产品</div>`;
+
+  // 门店现货汇总(当前实时,与所选日期无关)
+  document.getElementById("sumWalk").innerHTML=STS.map(st=>{
+    const wc=walkinCalc(st);
+    const lines=WALKIN_PRODUCTS.map(p=>{
+      const c=wc[p.k]||{};if(!c.recv&&!c.remain)return "";
+      const neg=(c.remain||0)<0;
+      return `<div class="kv" style="padding:2px 0"><span>${p.n}</span><b style="${neg?"color:var(--danger)":""}">${c.remain||0} 盒</b></div>`;
+    }).filter(Boolean).join("");
+    return `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px">
+      <b class="badge ${st}" style="font-size:14px">${STORE_NAME[st]}</b>
+      <div style="margin-top:6px">${lines||'<div class="note">暂无现货</div>'}</div></div>`;
+  }).join("");
 }
+document.addEventListener("change",e=>{if(e.target&&e.target.id==="sumDate")renderSum();});
+document.addEventListener("click",e=>{if(e.target&&e.target.id==="sumToday"){const x=document.getElementById("sumDate");if(x){x.value=todayStr();renderSum();}}});
 /* ---------------- Owner 待办 ---------------- */
 function renderTodos(){
   const el=document.getElementById("todoList"); if(!el)return;
