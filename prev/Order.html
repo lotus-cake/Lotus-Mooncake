@@ -420,17 +420,20 @@ table.sum .z{color:#C9C6B4}
     <input type="date" id="sumDate" style="flex:1">
     <button class="btn small ghost" id="sumToday">回到今天</button>
   </div>
-  <div class="card">
+  <div class="seg" id="sumModeSeg" style="margin:0 0 8px">
+    <button data-v="prod" class="on">按产品(厨房)</button><button data-v="store">按门店(装车)</button>
+  </div>
+  <div class="card" id="sumProdCard">
     <div class="note" style="margin:0 0 8px"><b id="sumProdTitle">产品配送汇总</b> · 厨房按「产品总计」备货包装</div>
     <div id="sumProd"></div>
+  </div>
+  <div class="card" id="sumStoreCard" style="display:none">
+    <div class="note" style="margin:0 0 8px"><b id="sumStoreTitle">门店装车单</b> · 一店一卡:装什么 → 记交接 → 门店点收</div>
+    <div id="sumStore"></div>
   </div>
   <div class="card">
     <div class="note" style="margin:0 0 8px"><b>门店当前现货</b>(可售余量 = 到货 − 已售,负数标红)</div>
     <div id="sumWalk"></div>
-  </div>
-  <div class="card" id="handoverCard">
-    <div class="note" style="margin:0 0 8px"><b>出货交接</b>(中央厨房 → 司机 → 门店)</div>
-    <div id="handoverBody"></div>
   </div>
   <div class="card" id="batchRemainCard" style="display:none"></div>
   <div class="card" id="trainCard" style="display:none;border:1px dashed var(--bronze)">
@@ -707,7 +710,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-17";
+const APP_BUILD="b0819-18";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -2786,9 +2789,39 @@ function renderSum(){
   if(!dEl.value)dEl.value=todayStr();
   const d=dEl.value,today=todayStr();
   document.getElementById("sumProdTitle").textContent=`${fmtMD(d)}${d===today?"(今天)":""} 产品配送汇总`;
+  const stEl=document.getElementById("sumStoreTitle");if(stEl)stEl.textContent=`${fmtMD(d)}${d===today?"(今天)":""} 门店装车单`;
+  document.getElementById("sumProdCard").style.display=sumMode==="prod"?"":"none";
+  document.getElementById("sumStoreCard").style.display=sumMode==="store"?"":"none";
 
   const STS=["CAM","BBY","ALD"];
   const plans={};STS.forEach(st=>plans[st]=planForStore(d,st));
+
+  // 按门店:装车单卡(应送明细 → 交接 → 点收,三点核对就地标红)
+  document.getElementById("sumStore").innerHTML=STS.map(st=>{
+    const {ord,walk}=plans[st];
+    const lines=WALKIN_PRODUCTS.map(p=>{
+      const n=(ord[p.k]||0)+(walk[p.k]||0);if(!n)return null;
+      return {n,txt:`<div class="kv" style="padding:2px 0"><span>${p.n}</span><b>${n}${walk[p.k]?` <span class="z">(订单${ord[p.k]||0}+现货${walk[p.k]})</span>`:""}</b></div>`};
+    }).filter(Boolean);
+    const need=lines.reduce((s,x)=>s+x.n,0);
+    const sh=shippedFor(d,st);
+    const shipTot=sumQ(sh["订单"])+sumQ(sh["现货"]);
+    if(!need&&!shipTot)return `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px"><b class="badge ${st}">${STORE_NAME[st]}</b><div class="note" style="margin-top:6px">这天不需要送货</div></div>`;
+    const ar=todayRecvRec(st,d);
+    const rc=recvFor(d,st);
+    const recvTot=ar?Object.values(ar.qty||{}).reduce((s,v)=>s+(+v||0),0):(rc.ob+rc.wb);
+    const shipTag=shipTot?`已交接 ${shipTot}盒${shipTot===need?" ✓":` <b style="color:var(--danger)">(应送${need})</b>`}`:`<span style="color:var(--bronze)">待交接(应送 ${need}盒)</span>`;
+    const recvTag=(ar||recvTot)?`点收 ${recvTot}盒${ar?` · ${esc(ar.status||"")}`:""}${shipTot&&recvTot<shipTot?` <b style="color:var(--danger)">差${shipTot-recvTot}盒</b>`:(shipTot&&recvTot>=shipTot?" ✓":"")}${ar&&ar.note?`<br><span class="z">${esc(ar.note)}</span>`:""}`
+      :(shipTot?`<span style="color:var(--bronze)">等门店点收</span>`:"");
+    return `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <b class="badge ${st}" style="font-size:14px">${STORE_NAME[st]}</b><b style="font-size:18px">本店合计 ${need} 盒</b></div>
+      <div style="margin:6px 0 4px">${lines.map(x=>x.txt).join("")||'<div class="note">仅补交接历史</div>'}</div>
+      <div class="kv" style="align-items:center;border-top:1px dashed var(--line);padding-top:6px">
+        <span class="note" style="margin:0">${shipTag}${recvTag?"<br>"+recvTag:""}</span>
+        <button class="btn small" onclick="openHandover('${st}')">${shipTot?"补交接":"记交接"}</button></div>
+    </div>`;
+  }).join("");
   const rows=WALKIN_PRODUCTS.map(p=>{
     const per=STS.map(st=>({st,n:(plans[st].ord[p.k]||0)+(plans[st].walk[p.k]||0),w:plans[st].walk[p.k]||0}));
     const tot=per.reduce((s,x)=>s+x.n,0);
@@ -2811,9 +2844,19 @@ function renderSum(){
     }).filter(Boolean).join("");
     return `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px">
       <b class="badge ${st}" style="font-size:14px">${STORE_NAME[st]}</b>
-      <div style="margin-top:6px">${lines||'<div class="note">暂无现货</div>'}</div></div>`;
+      <div style="margin-top:6px">${lines||(()=>{
+        const tp=planForStore(todayStr(),st);
+        const planned=WALKIN_PRODUCTS.reduce((s,p)=>s+(tp.walk[p.k]||0),0);
+        return planned?`<div class="note">今日安排 ${planned} 盒,待门店点收后计入</div>`:'<div class="note">暂无现货</div>';})()}</div></div>`;
   }).join("");
 }
+let sumMode="prod";
+document.addEventListener("click",e=>{
+  const b=e.target.closest("#sumModeSeg button");if(!b)return;
+  sumMode=b.dataset.v;
+  document.querySelectorAll("#sumModeSeg button").forEach(x=>x.classList.toggle("on",x===b));
+  renderSum();
+});
 document.addEventListener("change",e=>{if(e.target&&e.target.id==="sumDate")renderSum();});
 document.addEventListener("click",e=>{if(e.target&&e.target.id==="sumToday"){const x=document.getElementById("sumDate");if(x){x.value=todayStr();renderSum();}}});
 /* ---------------- Owner 待办 ---------------- */
