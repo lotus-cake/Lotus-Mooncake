@@ -617,9 +617,10 @@ const FLAVORS = [
   {k:"cp",n:"陈皮红豆"},{k:"mk",n:"摩卡"},{k:"wl",n:"乌龙"},
 ];
 const STORE_NAME = {CAM:"Cambie", BBY:"Burnaby", ALD:"Alderbridge", MULTI:"多店取货"};
-const PAY_METHODS = ["Square","AlphaPay(微信&支付宝)","现金","EMT","SL WeChat","其它"];
+const PAY_METHODS = ["Square Online","Credit Card","现金","EMT","微信","AlphaPay(微信&支付宝)","其它"];
+const LEGACY_PM = m=>m&&!PAY_METHODS.includes(m); // 老单历史值(Square/SL WeChat)兼容
 const WALK_PAY = ["Credit Card","现金","AlphaPay(微信&支付宝)","微信","EMT","其它"];
-const REFUND_VIA_OWNER = ["EMT","SL WeChat"];
+const REFUND_VIA_OWNER = ["EMT","SL WeChat","微信"];
 const DEFAULT_PRICES = {p6:88, p6cash:80, p2:28, bb2:28, emp:0.9,
   promos:[{buy:10,free:1},{buy:20,free:3},{buy:30,free:5}]};
 let PRICES = {...DEFAULT_PRICES};
@@ -712,7 +713,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-31";
+const APP_BUILD="b0819-32";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1643,7 +1644,7 @@ function openEdit(no){
       <div><label class="f">付款状态</label>
         <select id="ePay">${["未付","等待付款中","部分付","已付"].map(v=>`<option ${v===o.pay?"selected":""}>${v}</option>`).join("")}</select></div>
       <div><label class="f">付款方式</label>
-        <select id="ePayM"><option value="">—</option>${PAY_METHODS.map(v=>`<option ${v===o.payMethod?"selected":""}>${v}</option>`).join("")}</select></div>
+        <select id="ePayM"><option value="">—</option>${LEGACY_PM(o.payMethod)?`<option selected>${esc(o.payMethod)}</option>`:""}${PAY_METHODS.map(v=>`<option ${v===o.payMethod?"selected":""}>${v}</option>`).join("")}</select></div>
     </div>
     <div id="ePayOtherWrap" style="display:${o.payMethod==="其它"?"block":"none"}">
       <label class="f">其它付款方式说明 *</label>
@@ -1786,7 +1787,7 @@ function saveEdit(o){
       <p class="note" style="margin:6px 0 0">选后两项:订单变「部分付」并挂红色「待收差额」标签,门店知道只差这部分,不会当成整单未付。</p>
       <div id="incPmWrap" style="display:none">
         <label class="f">差额付款方式(选「现金」自动按现金价重算差额)</label>
-        <select id="incPm">${PAY_METHODS.map(m=>`<option ${m===o.payMethod?"selected":""}>${m}</option>`).join("")}</select>
+        <select id="incPm">${LEGACY_PM(o.payMethod)?`<option selected>${esc(o.payMethod)}</option>`:""}${PAY_METHODS.map(m=>`<option ${m===o.payMethod?"selected":""}>${m}</option>`).join("")}</select>
         <div id="incPmOtherWrap" style="display:none">
           <label class="f">其它说明 *</label><input type="text" id="incPmOther"></div>
       </div>
