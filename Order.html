@@ -269,20 +269,9 @@ table.sum .z{color:#C9C6B4}
       <label class="f">未付安排</label>
       <select id="fUnpaidPlan"><option>当天付现金</option><option>当天再付</option></select>
     </div>
-    <div id="fWxWrap" style="display:none;margin-left:10px;border-left:3px solid var(--line);padding-left:10px">
-      <label class="f">微信账号 *(渠道=微信时)</label>
-      <select id="fWx"><option value="">—</option><option>Wx 1</option><option>Wx 2</option><option>Wx 3</option></select>
-    </div>
-    <div id="fChStoreWrap" style="display:none;margin-left:10px;border-left:3px solid var(--line);padding-left:10px">
-      <label class="f">渠道门店</label>
-      <div class="seg store" id="fChStore">
-        <button data-v="CAM">Cambie</button><button data-v="BBY">Burnaby</button><button data-v="ALD">Alderbridge</button>
-      </div>
-    </div>
-    <div id="fChStaffWrap" style="display:none;margin-left:10px;border-left:3px solid var(--line);padding-left:10px">
-      <label class="f">员工名称 *(渠道=员工时)</label>
-      <input type="text" id="fChStaff" placeholder="哪位员工的单">
-    </div>
+    
+    
+    
     <div id="fPaidWrap" style="display:none">
       <label class="f">已收金额 $ *(部分付时填实际已收)</label>
       <input type="number" id="fPaid" min="0" step="0.01" inputmode="decimal">
@@ -293,8 +282,22 @@ table.sum .z{color:#C9C6B4}
     </div>
     <div class="row">
       <div><label class="f">渠道</label>
-        <select id="fChan"><option>微信</option><option value="Square Online" id="chanSO">Square Online</option><option>门店</option><option>电话</option><option>员工</option><option>客服</option><option>其他</option></select></div>
+        <select id="fChan"><option>微信</option><option value="Square Online" id="chanSO">Square Online</option><option>门店</option><option>电话</option><option>员工</option><option>其他</option></select></div>
       <div id="fRefWrap"><label class="f" id="fRefLbl">收款凭证号</label><input type="text" id="fRef" placeholder="—"></div>
+    </div>
+    <div id="fChStaffWrap" style="display:none;margin-left:10px;border-left:3px solid var(--line);padding-left:10px">
+      <label class="f">员工名称 *(渠道=员工时)</label>
+      <input type="text" id="fChStaff" placeholder="哪位员工的单">
+    </div>
+    <div id="fChStoreWrap" style="display:none;margin-left:10px;border-left:3px solid var(--line);padding-left:10px">
+      <label class="f">渠道门店</label>
+      <div class="seg store" id="fChStore">
+        <button data-v="CAM">Cambie</button><button data-v="BBY">Burnaby</button><button data-v="ALD">Alderbridge</button>
+      </div>
+    </div>
+    <div id="fWxWrap" style="display:none;margin-left:10px;border-left:3px solid var(--line);padding-left:10px">
+      <label class="f">微信账号 *(渠道=微信时)</label>
+      <select id="fWx"><option value="">—</option><option>Wx 1</option><option>Wx 2</option><option>Wx 3</option></select>
     </div>
     <label class="f">备注</label>
     <textarea id="fNote" placeholder="促销活动、特殊要求等"></textarea>
@@ -335,6 +338,14 @@ table.sum .z{color:#C9C6B4}
   </div>
 
   <div id="storePickup">
+    <div class="card" id="storeRefundCard" style="display:none;border-left:4px solid #A63B2E">
+      <div class="note" style="margin:0 0 6px"><b>待退款(现金 · 本店)</b></div>
+      <div id="storeRefundBody"></div>
+    </div>
+    <div class="card" id="arriveCard" style="display:none">
+      <div class="note" style="margin:0 0 6px"><b>今日到货确认</b>(客服安排 → 司机送达 → 你点收)</div>
+      <div id="arriveBody"></div>
+    </div>
     <div class="filters"><input type="date" id="pkDate" min="2026-09-01" max="2026-10-10"></div>
     <div class="chiprow" id="pkStore">
       <button class="chip on" data-v="CAM">Cambie</button>
@@ -393,8 +404,11 @@ table.sum .z{color:#C9C6B4}
 
 <!-- ============ 待收款 ============ -->
 <div class="page" id="pg-pend">
-  <h2>待收款(等待付款中)</h2>
-  <div class="note" style="margin:-4px 0 8px">按取货日期排序;取货<b>前一天 17:00</b> 未收到款自动标红。收到钱点「标记已收款」。</div>
+  <h2>待收款 / 待退款</h2>
+  <div class="seg" id="pendSeg" style="margin:0 0 8px">
+    <button data-v="in" class="on">待收款</button><button data-v="out">待退款</button>
+  </div>
+  <div class="note" id="pendHint" style="margin:-4px 0 8px">按取货日期排序;取货<b>前一天 17:00</b> 未收到款自动标红。</div>
   <div id="pendList"></div>
 </div>
 
@@ -857,15 +871,29 @@ function askStaff(title,cb){
     closeModal(); cb(s);
   };
 }
+function acctLabel(){return ROLE?(ROLE.type==="store"?STORE_NAME[ROLE.store]+"店":ROLE.type==="owner"?"Owner":"CS"):"?";}
+function fullPrice(o){const b6=+o.box6||0,b2=+o.box2||0;return b6*(PRICES.p6||0)+b2*(PRICES.p2||0);}
+function hasPromo(o){
+  if(o.batch)return true;
+  const fp=fullPrice(o);
+  return fp>0&&((+o.autoAmount||+o.amount||fp)<fp-0.01);
+}
+function refundRoute(o){
+  if(hasPromo(o))return "cs";
+  const pm=o.payMethod||"";
+  if(pm==="现金")return "store";
+  if(pm==="EMT"||pm==="微信")return "owner";
+  return "cs";
+}
 function logOp(no,staff,action,detail){
-  const e={ts:Date.now(),date:todayStr(),time:nowHM(),staff,action,detail:detail||""};
+  const e={ts:Date.now(),date:todayStr(),time:nowHM(),staff,acct:acctLabel(),action,detail:detail||""};
   if(DB) DB.ref(DB_ROOT+"/orders/"+no+"/history").push(e);
   else { const o=ORDERS[no]; if(!o)return; o.history=o.history||{}; o.history["h"+e.ts+Math.random()]=e; }
 }
 function histHtml(o){
   const items=Object.values(o.history||{}).sort((a,b)=>(b.ts||0)-(a.ts||0));
   if(!items.length)return `<p class="note">暂无操作记录</p>`;
-  return items.map(e=>`<div class="wlog"><span>${e.date||""} ${e.time||""} <b>${esc(e.staff||"?")}</b> ${esc(e.action)}${e.detail?" · "+esc(e.detail):""}</span></div>`).join("");
+  return items.map(e=>`<div class="wlog"><span>${e.date||""} ${e.time||""} <b>${e.acct?esc(e.acct)+"|":""}${esc(e.staff||"?")}</b> ${esc(e.action)}${e.detail?" · "+esc(e.detail):""}</span></div>`).join("");
 }
 
 /* ---------------- 登录与角色 ---------------- */
@@ -900,7 +928,7 @@ function applyRole(){
   if(chS){
     if(isStore){chS.value="门店";fChStoreVal=ROLE.store;
       document.querySelectorAll("#fChStore button").forEach(x=>{x.classList.toggle("on",x.dataset.v===ROLE.store);x.style.display=x.dataset.v===ROLE.store?"":"none";});}
-    else if(ROLE.type==="cs"){chS.value="客服";}
+    else if(ROLE.type==="cs"){chS.value="微信";}
     payUIRefresh();
   }
   navBtn("set").style.display="none"; // Owner 功能已移至独立 owner.html
@@ -1013,7 +1041,7 @@ function payUIRefresh(){
   // Square Online 双向绑定
   const so=document.getElementById("chanSO");
   if(pm==="Square Online"){document.getElementById("fChan").value="Square Online";so.disabled=false;}
-  else{so.disabled=true;if(ch==="Square Online")document.getElementById("fChan").value=ROLE&&ROLE.type==="store"?"门店":"客服";}
+  else{so.disabled=true;if(ch==="Square Online")document.getElementById("fChan").value=ROLE&&ROLE.type==="store"?"门店":"微信";}
 }
 document.getElementById("fChStore").addEventListener("click",e=>{
   const b=e.target.closest("button");if(!b)return;
@@ -1207,7 +1235,7 @@ function orderCard(o,forPickup){
   const link=o.linkedNo?` · 关联 ${o.linkedNo}`:"";
   const payLabel=o.payMethod?(o.payMethod==="其它"?("其它:"+esc(o.payOther||"")):esc(o.payMethod)):"";
   const foreign=(ROLE&&ROLE.type==="store"&&!o.batch&&o.store&&o.store!==ROLE.store)
-    ?`<div style="background:#F4E6C8;color:#7A5A12;font-size:12px;font-weight:700;padding:3px 8px;border-radius:8px;margin-bottom:4px">⚠ 此单在 ${STORE_NAME[o.store]||o.store} 取货</div>`:"";
+    ?`<div style="background:#F4E6C8;color:#7A5A12;font-size:12px;font-weight:700;padding:3px 8px;border-radius:8px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center"><span>⚠ 此单在 ${STORE_NAME[o.store]||o.store} 取货</span>${o.status==="有效"&&!o.pickedUp?`<button class="btn small" style="padding:2px 8px" onclick="event.stopPropagation();openCrossPick('${o.no}')">跨门店代取</button>`:""}</div>`:"";
   if(forPickup){
     return `<div class="ocard ${o.store} pkcard" onclick="openDetail('${o.no}')">
       <div class="pkinfo">
@@ -1687,26 +1715,45 @@ function settleDue(no,alsoPick){
 /* ---------------- 取消 / 改期(App内弹窗) ---------------- */
 function doCancel(no){
   const o=ORDERS[no]; if(!o)return;
-  needPin(()=>{
-    openModal(mhead("取消订单")+`
-      <p style="font-size:14px;line-height:1.8">确认取消 <b>${no}</b>(${esc(o.name)} · ${o.boxes}盒)?<br>
-      订单保留为「已取消」,库存额度自动释放。${o.pay==="已付"?"<br><b style='color:var(--danger)'>该订单已付款,取消后需处理退款。</b>":""}</p>
-      ${staffField()}
-      <div class="row" style="margin-top:12px">
-        <button class="btn ghost" onclick="closeModal()">返回</button>
-        <button class="btn warn" id="ccGo">确认取消</button>
-      </div>`,true);
-    document.getElementById("ccGo").onclick=()=>{
-      const staff=getStaff(); if(!staff)return;
+  openModal(mhead(`取消订单:${no}(${esc(o.name)})`)+`
+    <p style="font-size:14px;line-height:1.8">确认取消 ${o.boxes}盒?订单保留为「已取消」,库存额度自动释放。${paidOf(o)>0||o.pay==="已付"?"<br><b style='color:var(--danger)'>该订单已付款,取消后将自动生成待退款记录。</b>":""}</p>
+    <label class="f">取消来源 *</label>
+    <select id="ccSrc"><option value="">—</option><option>客人电话取消</option><option>微信取消</option><option>客人到店取消</option><option>客服协助取消</option><option>其他</option></select>
+    <input type="text" id="ccSrcTxt" placeholder="其他:请说明" style="display:none;margin-top:6px">
+    <label class="f">取消原因 / Notes(选填)</label>
+    <input type="text" id="ccReason" placeholder="如:客人行程改变">
+    ${staffField()}
+    <div class="row" style="margin-top:12px">
+      <button class="btn ghost" onclick="closeModal()">返回</button>
+      <button class="btn warn" id="ccGo">确认取消</button>
+    </div>`,true);
+  document.getElementById("ccSrc").addEventListener("change",function(){
+    document.getElementById("ccSrcTxt").style.display=this.value==="其他"?"":"none";});
+  document.getElementById("ccGo").onclick=()=>{
+    let srcV=document.getElementById("ccSrc").value;
+    if(!srcV)return toast("请选择取消来源");
+    if(srcV==="其他"){const t=document.getElementById("ccSrcTxt").value.trim();if(!t)return toast("请说明其他来源");srcV="其他:"+t;}
+    const reason=document.getElementById("ccReason").value.trim();
+    const staff=getStaff(); if(!staff)return;
+    const paid=paidOf(o)>0||o.pay==="已付";
+    const promo=paid&&hasPromo(o);
+    const proceed=()=>{
+      const patch={status:"已取消",cancelSrc:srcV,cancelReason:reason||null,
+        cancelBy:staff,cancelAcct:acctLabel(),cancelAt:todayStr()+" "+nowHM()};
+      if(paid){patch.refundDue=true;patch.refundRoute=promo?"cs":refundRoute(o);if(promo)patch.refundUrgent=true;}
       closeModal();
-      const fin=()=>patchOrder(no,{status:"已取消"},()=>{
-        logOp(no,staff,"取消订单",`${o.boxes}盒`+(o.pay==="已付"?" · 原已付款":""));
-        toast(no+" 已取消");
+      patchOrder(no,patch,()=>{
+        logOp(no,staff,"取消订单",`${o.boxes}盒 · ${srcV}${reason?" · "+reason:""}${paid?` · 待退款→${promo?"客服(优惠单·紧急确认)":({cs:"客服",owner:"Owner",store:"取货门店(现金)"}[patch.refundRoute])}`:""}`);
+        toast(no+" 已取消"+(paid?",退款已进入待退款":""));
       });
-      if(o.pay==="已付"||paidOf(o)>0) refundFlow(o,`订单 ${no} 全单取消(${o.boxes}盒${paidOf(o)>0?",应退 "+money(paidOf(o)):""})`,fin); else fin();
     };
-  });
+    if(promo){
+      alert("此单涉及优惠政策,退款金额超出权限范围。\n已默认取消订单,请告知客人:退款将由客服负责处理。\n该单已推送到客服「待退款」紧急处理。");
+      proceed();
+    }else proceed();
+  };
 }
+
 function doReschedule(no){
   const o=ORDERS[no]; if(!o||o.batch)return;
   {
@@ -1778,25 +1825,63 @@ function openAddNote(no){
 }
 function openMarkRefund(no){
   const o=ORDERS[no];if(!o)return;
-  openModal(mhead(`标记已退款:${no}(${esc(o.name)} · 应退 ${money(paidOf(o)||o.amount)})`)+`
+  if(o.refundUrgent&&ROLE&&ROLE.type==="store")return toast("优惠单退款需客服/Owner 核对处理");
+  const amt0=paidOf(o)||o.amount;
+  const canEdit=o.refundUrgent&&ROLE&&(ROLE.type==="cs"||ROLE.type==="owner");
+  openModal(mhead(`标记已退款:${no}(${esc(o.name)})`)+`
+    ${o.refundUrgent?'<p class="note" style="color:var(--danger);margin:0 0 8px"><b>优惠单</b>:请按优惠规则重算实际应退金额</p>':""}
+    <label class="f">退款金额 $</label>
+    <input type="number" id="rfAmt" step="0.01" value="${amt0}" ${canEdit?"":"readonly style='background:#F4F1E8'"}>
     <label class="f">退款方式 *</label>
-    <select id="rfM"><option value="">—</option><option>Square Online</option><option>Credit Card</option><option>现金</option><option>EMT</option><option>微信</option><option>AlphaPay(微信&支付宝)</option><option>其它</option></select>
-    <label class="f">退款凭证号 *</label>
+    <select id="rfM"><option value="">—</option>${["Square Online","Credit Card","现金","EMT","微信","AlphaPay(微信&支付宝)","其它"].map(v=>`<option ${v===o.payMethod?"selected":""}>${v}</option>`).join("")}</select>
+    <label class="f">退款凭证号(现金可留空)</label>
     <input type="text" id="rfRef" placeholder="退款单号 / Reference">
     ${staffField()}
     <button class="btn" style="margin-top:14px" id="rfDoneGo">确认已退款</button>`,true);
   document.getElementById("rfDoneGo").onclick=()=>{
     const m=document.getElementById("rfM").value,ref=document.getElementById("rfRef").value.trim();
+    const amt=parseFloat(document.getElementById("rfAmt").value)||amt0;
     if(!m)return toast("请选择退款方式");
-    if(!ref)return toast("请填写退款凭证号");
+    if(!ref&&m!=="现金")return toast("请填写退款凭证号(现金可空)");
     const staff=getStaff();if(!staff)return;
-    patchOrder(no,{refunded:{by:staff,at:todayStr()+" "+nowHM(),method:m,ref,amount:paidOf(o)||o.amount},refundDue:null},
-      ()=>{logOp(no,staff,"已退款",`${money(paidOf(o)||o.amount)} · ${m} · ${ref}`);closeModal();toast("已标记退款完成 ✓");});
+    patchOrder(no,{refunded:{by:staff,at:todayStr()+" "+nowHM(),method:m,ref:ref||"现金",amount:amt},refundDue:null,refundUrgent:null},
+      ()=>{logOp(no,staff,"已退款",`${money(amt)} · ${m}${ref?" · "+ref:""}`);closeModal();toast("已标记退款完成 ✓");renderPend();});
   };
 }
 
-/* ---------------- 待收款 ---------------- */
+/* ---------------- 待收款/待退款 ---------------- */
+let pendMode="in";
+document.addEventListener("click",e=>{
+  const b=e.target.closest("#pendSeg button");if(!b)return;
+  pendMode=b.dataset.v;
+  document.querySelectorAll("#pendSeg button").forEach(x=>x.classList.toggle("on",x===b));
+  renderPend();
+});
+function renderRefundList(){
+  const el=document.getElementById("pendList");if(!el)return;
+  document.getElementById("pendHint").innerHTML="取消的已付订单自动进入;<b>优惠单(红标)需先人工核对退款金额</b>。现金退款在取货门店页处理。";
+  const mine=Object.values(ORDERS).filter(o=>o.refundDue&&!o.refunded&&(ROLE.type==="owner"?true:o.refundRoute!=="owner"&&o.refundRoute!=="store"));
+  const list=mine.sort((a,b)=>(b.refundUrgent?1:0)-(a.refundUrgent?1:0)||(b.cancelAt||"").localeCompare(a.cancelAt||""));
+  el.innerHTML=list.length?list.map(o=>`
+    <div class="ocard" style="${o.refundUrgent?"border-left:4px solid #A63B2E":""}">
+      <div class="ohead"><b class="ono">${o.no}</b> <b>${esc(o.name)}</b>
+        ${o.refundUrgent?'<span class="badge duepay">优惠单·紧急确认</span>':""}
+        <span class="badge">${({cs:"客服处理",owner:"Owner处理",store:"门店现金"})[o.refundRoute]||""}</span></div>
+      <div class="note" style="margin:2px 0 6px">
+        应退 <b>${money(paidOf(o)||o.amount)}</b> · ${esc(o.payMethod||"—")}${o.wxAcct?" "+esc(o.wxAcct):""}${o.backendNo?" · 凭证 "+esc(o.backendNo):""}<br>
+        ${esc(fmtPhone(o.phone)||"无电话")} · ${o.boxes}盒 ${itemsText(o.qty)}<br>
+        取消:${esc(o.cancelAcct||"")}|${esc(o.cancelBy||"")} · ${esc(o.cancelSrc||"")}${o.cancelReason?" · "+esc(o.cancelReason):""} · ${o.cancelAt||""}
+      </div>
+      <div class="row" style="gap:6px">
+        <button class="btn small" onclick="openMarkRefund('${o.no}')">标记已退款</button>
+        <button class="btn small ghost" onclick="openDetail('${o.no}')">详情</button>
+      </div></div>`).join("")
+  :'<div class="note">没有待退款 🎉</div>';
+}
 function renderPend(){
+  if(pendMode==="out")return renderRefundList();
+  const hintEl=document.getElementById("pendHint");
+  if(hintEl)hintEl.innerHTML='按取货日期排序;取货<b>前一天 17:00</b> 未收到款自动标红。';
   const el=document.getElementById("pendList");if(!el)return;
   const list=Object.values(ORDERS).filter(o=>o.status==="有效"&&o.pay==="等待付款中")
     .sort((a,b)=>(a.pickupDate||"9999").localeCompare(b.pickupDate||"9999"));
@@ -2158,6 +2243,111 @@ function autoReleaseReserves(){
       logOp(o.no,"系统","安排爽约释放",`${fmtMD(r.date)} @${STORE_NAME[r.store]||r.store} ${r.boxes}盒 未取,已退回可取余额`);
     });
   });
+}
+
+/* ---------- 跨门店代取(#8-12) ---------- */
+function openCrossPick(no){
+  const o=ORDERS[no];if(!o)return;
+  const my=ROLE.store,orig=o.store;
+  const d=todayStr();
+  const wc=walkinCalc(my,d);
+  const shortRows=PRODUCTS.filter(p=>(o.qty||{})[p.k]>0).map(p=>{
+    const need=o.qty[p.k],have=(wc[p.k]||{}).remain||0;
+    return {n:p.n,k:p.k,need,have,ok:have>=need};
+  });
+  const anyShort=shortRows.some(r=>!r.ok);
+  openModal(mhead(`跨门店代取:${no}(${esc(o.name)})`)+`
+    <p class="note" style="margin:0 0 8px">原订单门店 <b>${STORE_NAME[orig]}</b> → 客人在 <b>${STORE_NAME[my]}</b> 取走。
+      规则:<b>${STORE_NAME[my]} 现货扣 ${o.boxes}盒</b>;${STORE_NAME[orig]} 原预留自动释放为可售现货。</p>
+    ${shortRows.map(r=>`<div class="kv"><span>${r.n} × ${r.need}</span><b class="${r.ok?"okrow":"warnrow"}">本店现货 ${r.have}${r.ok?" ✓":" ⚠不足"}</b></div>`).join("")}
+    ${anyShort?'<p class="note" style="color:var(--danger)">有产品现货不足——若货已给客人可继续,余量将为负提醒补账。</p>':""}
+    ${staffField()}
+    <button class="btn" style="margin-top:12px" id="cpGo">确认代取(扣本店现货)</button>`,true);
+  document.getElementById("cpGo").onclick=()=>{
+    const staff=getStaff();if(!staff)return;
+    if(anyShort&&!confirm("现货不足仍继续?余量将变负数。"))return;
+    // 本店扣现货
+    Object.entries(o.qty||{}).forEach(([k,v])=>{
+      if(v>0)addSale(my,{product:k,qty:v,date:d,ts:Date.now(),src:"crosspick",orderNo:no,origStore:orig,staff,price:0});
+    });
+    // 原店释放为可售现货
+    const rrec={date:d,qty:{...o.qty},auto:"crossrelease",note:`跨店代取释放:${no} 已在 ${STORE_NAME[my]} 取走`,staff};
+    if(DB)DB.ref(DB_ROOT+"/walkin/"+orig+"/receipts/x"+Date.now()).set(rrec);
+    else{WALKIN[orig]=WALKIN[orig]||{receipts:{},sales:{}};(WALKIN[orig].receipts=WALKIN[orig].receipts||{})["x"+Date.now()]=rrec;}
+    patchOrder(no,{pickedUp:true,crossPick:{store:my,by:staff,acct:acctLabel(),at:d+" "+nowHM()}},()=>{
+      logOp(no,staff,"跨门店代取",`原店 ${STORE_NAME[orig]} → 实取 ${STORE_NAME[my]} ${o.boxes}盒 · ${STORE_NAME[my]}现货−${o.boxes} · ${STORE_NAME[orig]}预留释放+${o.boxes}`);
+      const msg=`【跨门店取货通知】\n原订单门店:${STORE_NAME[orig]}\n实际取货门店:${STORE_NAME[my]}\n客人:${o.name}\n电话:${fmtPhone(o.phone)||"—"}\nOrder:${no}\n产品:${itemsText(o.qty)}(${o.boxes}盒)\n客人已于 ${STORE_NAME[my]} 完成取货。\n${STORE_NAME[my]} 已扣减现货 ${o.boxes}盒;${STORE_NAME[orig]} 该单原预留 ${o.boxes}盒已自动释放为门店现货。\n操作人:${STORE_NAME[my]}|${staff}`;
+      openModal(mhead("代取完成 · 发给客服群")+`
+        <textarea style="min-height:180px" id="cpMsg">${esc(msg)}</textarea>
+        <button class="btn" style="margin-top:10px" onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('cpMsg').value).catch(()=>{});toast('已复制');closeModal();">一键复制并关闭</button>`,true);
+    });
+  };
+}
+
+/* ---------- 今日到货确认(#2) ---------- */
+function todayRecvRec(st,d){
+  return Object.entries(RECV||{}).map(([k,r])=>({k,...r})).find(r=>r.store===st&&r.date===d&&r.kind==="arrive");
+}
+function renderStoreRefunds(){
+  const el=document.getElementById("storeRefundCard");if(!el)return;
+  if(!(ROLE&&ROLE.type==="store")){el.style.display="none";return;}
+  const list=Object.values(ORDERS).filter(o=>o.refundDue&&!o.refunded&&o.refundRoute==="store"&&o.store===ROLE.store);
+  if(!list.length){el.style.display="none";return;}
+  el.style.display="";
+  document.getElementById("storeRefundBody").innerHTML=list.map(o=>`
+    <div class="kv" style="flex-wrap:wrap"><span><b>${o.no}</b> ${esc(o.name)} ${esc(fmtPhone(o.phone)||"")} · 应退现金 <b>${money(paidOf(o)||o.amount)}</b><br>
+      <span class="z">取消:${esc(o.cancelSrc||"")} · ${o.cancelAt||""}</span></span>
+      <button class="btn small" onclick="openMarkRefund('${o.no}')">已退现金</button></div>`).join("");
+}
+function renderArrive(){
+  const el=document.getElementById("arriveCard");if(!el)return;
+  if(!(ROLE&&ROLE.type==="store")){el.style.display="none";return;}
+  const st=ROLE.store,d=todayStr();
+  const plan=planForStore(d,st);
+  const prods=WALKIN_PRODUCTS.filter(p=>((plan.ord[p.k]||0)+(plan.walk[p.k]||0))>0);
+  if(!prods.length){el.style.display="none";return;}
+  el.style.display="";
+  const done=todayRecvRec(st,d);
+  const body=document.getElementById("arriveBody");
+  if(done&&!window._arrEdit){
+    const sellable=WALKIN_PRODUCTS.filter(p=>((done.qty||{})[p.k]||0)>0||((plan.ord[p.k]||0)>0)).map(p=>{
+      const got=(done.qty||{})[p.k]||0,need=plan.ord[p.k]||0,sell=Math.max(0,got-need);
+      return `<div class="kv"><span>${p.n}</span><b>实收 ${got} − 订单 ${need} = 可售 ${sell}</b></div>`;}).join("");
+    body.innerHTML=`<div class="kv"><span>状态</span><b class="${done.status==="已收到,数量正确"?"okrow":"warnrow"}">${esc(done.status)} · ${esc(done.staff||"")}</b></div>
+      ${done.note?`<div class="note">${esc(done.note)}</div>`:""}
+      ${sellable}
+      <button class="btn small ghost" style="margin-top:6px" onclick="window._arrEdit=1;renderArrive()">修改点收</button>`;
+    return;
+  }
+  body.innerHTML=prods.map(p=>{
+    const exp=(plan.ord[p.k]||0)+(plan.walk[p.k]||0);
+    return `<div class="kv"><span>${p.n} <span class="z">应到 ${exp}(订单${plan.ord[p.k]||0}+现货${plan.walk[p.k]||0})</span></span>
+      <input type="number" class="arrIn" data-k="${p.k}" value="${(done&&done.qty&&done.qty[p.k])!=null?done.qty[p.k]:exp}" min="0" style="width:72px;text-align:center"></div>`;
+  }).join("")+`
+    <label class="f">收货状态 *</label>
+    <select id="arrStatus"><option>已收到,数量正确</option><option>已收到,但数量不符</option><option>部分收到</option><option>未收到</option><option>其他异常</option></select>
+    <label class="f">Notes(异常必填)</label>
+    <input type="text" id="arrNote" placeholder="少了什么/破损/其他">
+    ${staffField()}
+    <button class="btn" style="margin-top:10px" id="arrGo">确认收货 → 自动计算今日可售现货</button>`;
+  document.getElementById("arrGo").onclick=()=>{
+    const qty={};document.querySelectorAll(".arrIn").forEach(i=>{const v=+i.value||0;if(v>0)qty[i.dataset.k]=v;});
+    const status=document.getElementById("arrStatus").value;
+    const note=document.getElementById("arrNote").value.trim();
+    if(status!=="已收到,数量正确"&&!note)return toast("异常情况请填写 Notes");
+    const staff=getStaff();if(!staff)return;
+    const key=(done&&done.k)||("rv"+Date.now());
+    const rec={kind:"arrive",date:d,store:st,qty,status,note,staff,acct:acctLabel(),ts:Date.now()};
+    if(DB)DB.ref(DB_ROOT+"/prod/recv/"+key).set(rec);else RECV[key]=rec;
+    // 自动现货 = 实收 − 当日订单需求(替换当日 auto 收货)
+    const autoQty={};WALKIN_PRODUCTS.forEach(p=>{const v=Math.max(0,(qty[p.k]||0)-(plan.ord[p.k]||0));if(v>0)autoQty[p.k]=v;});
+    const w=WALKIN[st]||{},rk=Object.keys(w.receipts||{}).find(k=>(w.receipts[k]||{}).auto==="arrive"&&w.receipts[k].date===d);
+    const rrec={date:d,qty:autoQty,auto:"arrive",note:"到货确认自动入库",staff};
+    if(DB)DB.ref(DB_ROOT+"/walkin/"+st+"/receipts/"+(rk||"a"+Date.now())).set(rrec);
+    else{WALKIN[st]=WALKIN[st]||{receipts:{},sales:{}};(WALKIN[st].receipts=WALKIN[st].receipts||{})[rk||"a"+Date.now()]=rrec;}
+    logOp("SYS-"+st,staff,"今日到货确认",`${st} ${Object.entries(qty).map(([k,v])=>((PRODUCTS.find(p=>p.k===k)||{n:k}).n)+"×"+v).join(" ")} · ${status}${note?" · "+note:""}`);
+    window._arrEdit=0;toast("已确认收货,现货已自动入账");renderAll();
+  };
 }
 
 /* ---------------- 门店页 ---------------- */
@@ -3104,6 +3294,8 @@ document.querySelector("nav").addEventListener("click",e=>{
 function renderAll(){
   autoReleaseReserves();
   renderPend();
+  renderArrive();
+  renderStoreRefunds();
   renderGauges();renderQtyTable();renderOrders();renderPickup();renderWalkin();renderBatchPage();renderSum();renderSettings();renderTodos();
 }
 const initDate=todayStr()>=DATE_MIN&&todayStr()<="2026-10-10"?todayStr():DATE_MIN;
