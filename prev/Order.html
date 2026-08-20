@@ -704,7 +704,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-21";
+const APP_BUILD="b0819-22";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1742,10 +1742,15 @@ function settleDue(no,alsoPick){
   const o=ORDERS[no]; if(!o)return;
   const due0=dueAmt(o);
   const dueQ=o.dueQty||null, negA=o.dueNegAmt||0;
-  const byPm=pm=>dueQ?Math.max(0,Math.round((calcAmount(dueQ,pm,o.channel)-negA)*100)/100):due0;
+  const byPm=pm=>{
+    if(o.manualPrice)return due0; // 手动定价单不自动重算
+    if(dueQ)return Math.max(0,Math.round((calcAmount(dueQ,pm,o.channel)-negA)*100)/100);
+    // 整单未付/部分付:按当场付款方式重算全单(现金=现金价,其它=原价),扣已收
+    return Math.max(0,Math.round((calcAmount(o.qty||{},pm,o.channel)-paidOf(o))*100)/100);
+  };
   openModal(mhead(alsoPick?`取货并收差额:${no}(${esc(o.name)})`:`收清差额:${no}`)+`
     <p class="note" style="margin:0 0 8px"><b style="color:var(--danger)">待收:${esc(o.dueNote||("差额 "+money(due0)))}</b><br>
-    选付款方式后金额自动按该方式计价(现金享现金价),也可手动改。</p>
+    选付款方式后金额自动按该方式重算${o.manualPrice?"(此单为手动定价,不自动重算)":"——<b>现金=现金价,刷卡/转账=原价</b>"},也可手动改。</p>
     <label class="f">差额付款方式 *</label>
     <div class="seg" id="cdSeg" style="flex-direction:column">
       ${PAY_METHODS.map(m=>`<button data-v="${m}">${m}</button>`).join("")}
