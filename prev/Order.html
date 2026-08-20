@@ -433,6 +433,14 @@ table.sum .z{color:#C9C6B4}
     <div id="handoverBody"></div>
   </div>
   <div class="card" id="batchRemainCard" style="display:none"></div>
+  <div class="card" id="trainCard" style="display:none;border:1px dashed var(--bronze)">
+    <div class="note" style="margin:0 0 8px"><b>🧪 培训工具(仅练习账本可见,正式库自动消失)</b></div>
+    <div class="row">
+      <button class="btn small" id="btnSeedTrain">导入培训数据 C1–C10 + 今日送货安排</button>
+      <button class="btn small ghost" id="btnWipeTrain">清空培训数据</button>
+    </div>
+    <div class="note" style="margin-top:6px">导入后:订单页出现 10 位测试客人;今天/明天各店有「现货安排」→ 记交接、今日到货确认、三点核对全部可真机实操。</div>
+  </div>
 </div>
 
 <!-- ============ 设置 ============ -->
@@ -699,7 +707,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-16";
+const APP_BUILD="b0819-17";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -886,6 +894,55 @@ function cleanNotes(n){
   if(!n)return "";
   return n.split(" · ").filter(x=>!/^(自MC-[\w-]+拆分|拆分出MC-[\w-]+)$/.test(x.trim())).join(" · ");
 }
+/* ---------- 培训数据(test 账本专用) ---------- */
+const TRAIN_ORDERS=()=>{
+  const c=(no,name,phone,store,pd,qty,amount,pay,pm,extra)=>({no,name,phone,store,pickupDate:pd,qty,
+    box6:Object.entries(qty).filter(([k])=>k.endsWith("6")).reduce((s,[,v])=>s+v,0),
+    box2:Object.entries(qty).filter(([k])=>k.endsWith("2")||k==="bb2").reduce((s,[,v])=>s+v,0),
+    boxes:Object.values(qty).reduce((s,v)=>s+v,0),
+    amount,autoAmount:amount,pay,paid:pay==="已付"?amount:0,payMethod:pm||null,
+    status:"有效",createdAt:Date.now(),createdBy:"培训导入",orderDate:todayStr(),...(extra||{})});
+  return [
+    c("MC-T001","陈大文","6041110001","CAM","2026-09-05",{js6:2},160,"已付","现金",{channel:"门店",chStore:"CAM"}),
+    c("MC-T002","李小美","6041110002","CAM","2026-09-06",{mix6:1},88,"未付",null,{channel:"电话",unpaidPlan:"当天付现金"}),
+    c("MC-T003","王芳","6041110003","CAM","2026-09-07",{js2:2},56,"已付","现金",{channel:"门店",chStore:"CAM"}),
+    c("MC-T004","Kevin","6041110004","BBY","2026-09-08",{mix6:1},88,"已付","Credit Card",{channel:"电话",backendNo:"POS#TR888"}),
+    c("MC-T005","Susan Lin","6041110005","BBY","2026-09-09",{mk2:3},84,"已付","Square Online",{channel:"Square Online",backendNo:"SO-1234"}),
+    c("MC-T006","张三","6041110006","BBY","2026-09-10",{mix6:1},88,"已付","EMT",{channel:"微信",wxAcct:"Wx 1",backendNo:"EMT#E123"}),
+    c("MC-T007","Aiden","6479667168","ALD","2026-09-10",{js6:3},264,"已付","EMT",{channel:"微信",wxAcct:"Wx 2",backendNo:"EMT#E441"}),
+    c("MC-T008","赵敏","6041110008","ALD","2026-09-11",{mix6:2},176,"已付","EMT",{channel:"微信",wxAcct:"Wx 3",backendNo:"EMT#E556"}),
+    c("MC-T009","刘老板","6041110009","MULTI",null,{mix6:23},1760,"已付","AlphaPay(微信&支付宝)",{channel:"电话",batch:true,backendNo:"AP-777"}),
+    c("MC-T010","员工单Amber","6041110010","CAM","2026-09-12",{wl2:1},25,"已付","现金",{channel:"员工",chStaff:"Amber"})
+  ];
+};
+function seedTraining(){
+  if(DB_ROOT!=="test")return toast("只能在练习账本使用");
+  if(!confirm("导入 10 张培训订单 + 今日/明日各店现货安排到练习账本?"))return;
+  const list=TRAIN_ORDERS();
+  const wp={[todayStr()]:{CAM:{mix6:3,js6:2},BBY:{mix6:2,js6:2},ALD:{mix6:2,mk2:2}},
+            [tomorrowStr()]:{CAM:{mix6:2},BBY:{mix6:2},ALD:{mix6:2}}};
+  if(DB){
+    list.forEach(o=>DB.ref(DB_ROOT+"/orders/"+o.no).set(o));
+    Object.entries(wp).forEach(([d,v])=>DB.ref(DB_ROOT+"/prod/walkplan/"+d).set(v));
+  }else{
+    list.forEach(o=>ORDERS[o.no]=o);
+    Object.entries(wp).forEach(([d,v])=>WPLAN[d]=v);
+    renderAll();
+  }
+  toast("已导入:C1–C10 + 今明两天送货安排 ✓");
+}
+function wipeTraining(){
+  if(DB_ROOT!=="test")return toast("只能在练习账本使用");
+  if(!confirm("清空全部 MC-T 开头的培训订单和今明送货安排?"))return;
+  Object.keys(ORDERS).filter(k=>k.startsWith("MC-T")).forEach(k=>{
+    if(DB)DB.ref(DB_ROOT+"/orders/"+k).remove();delete ORDERS[k];});
+  [todayStr(),tomorrowStr()].forEach(d=>{if(DB)DB.ref(DB_ROOT+"/prod/walkplan/"+d).remove();delete WPLAN[d];});
+  renderAll();toast("培训数据已清空");
+}
+document.addEventListener("click",e=>{
+  if(e.target&&e.target.id==="btnSeedTrain")seedTraining();
+  if(e.target&&e.target.id==="btnWipeTrain")wipeTraining();
+});
 function acctLabel(){return ROLE?(ROLE.type==="store"?STORE_NAME[ROLE.store]+"店":ROLE.type==="owner"?"Owner":"CS"):"?";}
 function fullPrice(o){const b6=+o.box6||0,b2=+o.box2||0;return b6*(PRICES.p6||0)+b2*(PRICES.p2||0);}
 function hasPromo(o){
@@ -3333,6 +3390,7 @@ function renderAll(){
   renderPend();
   renderArrive();
   renderStoreRefunds();
+  {const tc=document.getElementById("trainCard");if(tc)tc.style.display=DB_ROOT==="test"?"":"none";}
   renderGauges();renderQtyTable();renderOrders();renderPickup();renderWalkin();renderBatchPage();renderSum();renderSettings();renderTodos();
 }
 const initDate=todayStr()>=DATE_MIN&&todayStr()<="2026-10-10"?todayStr():DATE_MIN;
