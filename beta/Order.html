@@ -712,7 +712,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-29";
+const APP_BUILD="b0819-30";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -782,8 +782,11 @@ function saveOrder(o,cb){
   else { ORDERS[o.no]=o; renderAll(); cb&&cb(); }
 }
 function patchOrder(no,patch,cb){
-  if(DB) DB.ref(DB_ROOT+"/orders/"+no).update(patch,err=>{if(err)toast("保存失败:"+err.message);else cb&&cb();});
-  else { Object.assign(ORDERS[no],patch); renderAll(); cb&&cb(); }
+  if(DB){
+    // 改动与后续日志同时入队:断网时一起排队、恢复后一起补传;真失败红字报错
+    DB.ref(DB_ROOT+"/orders/"+no).update(patch,err=>{if(err)toast("同步失败:"+err.message+",请检查网络后重试");});
+    cb&&cb();
+  } else { Object.assign(ORDERS[no],patch); renderAll(); cb&&cb(); }
 }
 function addTodo(text,type){
   const t={ts:Date.now(),type:type||"待办",text,done:false};
