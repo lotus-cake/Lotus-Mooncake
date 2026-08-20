@@ -406,6 +406,8 @@ table.sum .z{color:#C9C6B4}
   <div class="card">
     <div class="note" style="margin:0 0 8px"><b>目标倒推 · 智能分析</b>(扣掉管道里已有的半成品后,各工序还差多少)</div>
     <div id="opSmart"></div>
+    <div class="kv" style="margin-top:8px"><span><b>进度节奏</b>(生胚 vs 目标)</span><span>截止 <input type="date" id="paceDL" style="width:150px"></span></div>
+    <div id="opPace"></div>
   </div>
 <div class="card">
     <div class="note" style="margin:0 0 6px"><b>生产计划日历</b>(点日期编辑;厨房端只显示今明两天)</div>
@@ -2142,7 +2144,7 @@ if(todayStr()<"2026-09-01")calYM="2026-08";
 function planItems(d){return Object.values((PLAN[d]||{}).items||{});}
 function renderOwnerCenter(){
   renderAlerts();renderOpToday();renderWalkLeft();renderAprv();
-  renderCal();renderCalEditor();renderPlanNeed();renderOpTg();renderOpProg();renderFin();renderSmart();
+  renderCal();renderCalEditor();renderPlanNeed();renderOpTg();renderOpProg();renderFin();renderSmart();renderPace();
 }
 /* --- 异常提醒 --- */
 function renderAlerts(){
@@ -2341,6 +2343,8 @@ function renderCalEditor(){
         <input data-f="unit" type="text" value="${esc(it.unit||"")}" placeholder="单位" style="width:52px;text-align:center;display:none">
         <button class="vbtn" onclick="syncCal();calItems.splice(${i},1);renderCalEditor()">✕</button></div>`;
     }).join("")||'<div class="note">这天还没有安排</div>'}
+    <div id="calFeas"></div>
+    <div id="calPrep"></div>
     <label class="f">补充说明(自由文本,选填)</label>
     <textarea id="calNote" rows="2">${esc(p.text||"")}</textarea>
     <div class="row" style="margin-top:8px">
@@ -2359,6 +2363,57 @@ function renderCalEditor(){
       flSel.disabled=!!st.nf;};
     stSel.addEventListener("change",apply);apply();
   });
+  el.addEventListener("input",()=>refreshCalFeas());
+  el.addEventListener("change",()=>refreshCalFeas());
+  refreshCalFeas();
+}
+function refreshCalFeas(){
+  syncCal();
+  const S=prodStockNow(), rawS=rawStockNow();
+  const items=calItems.filter(x=>x.stage!=="custom"&&(+x.qty>0));
+  const feasOf=it=>{
+    const f=it.flavor,q=+it.qty||0;
+    const gpp=((YIELDS["paste_"+f]||{}).gpp)||PRM("fenG");
+    const need=[];
+    switch(it.stage){
+      case"paste": case"lava":{
+        const rc=RECIPES[(it.stage==="paste"?"paste_":"lava_")+f]||{};
+        const yk=+rc.yolk||0;
+        if(yk>0)need.push(["熟咸蛋黄",Math.round(yk*q),Math.round(rawS.yolk||0),"g","烤咸蛋黄"]);
+        break;}
+      case"fen":  need.push([FN(f)+"馅",Math.round(q*gpp),Math.round(S.paste[f]||0),"g","炒馅·"+FN(f)]);break;
+      case"fill": need.push(["流心液(共用)",Math.round(q*PRM("perMold")*PRM("coreG")),Math.round(S.lava[CG(f)]||0),"g","流心制作"]);break;
+      case"wrap1":need.push([FN(f)+"馅球",q,S.fen[f]||0,"颗","分馅·"+FN(f)]);
+                  need.push(["冻芯(共用)",q,S.core[CG(f)]||0,"颗","灌模"]);break;
+      case"wrap2":need.push([FN(f)+"流心馅",q,S.lxx[f]||0,"颗","包流心馅·"+FN(f)]);
+                  need.push([FN(f)+"皮坯",q,S.skin[f]||0,"颗","曲奇皮·"+FN(f)]);break;
+      case"mold": need.push([FN(f)+"湿胚",q,S.wet[f]||0,"颗","包制·"+FN(f)]);break;
+      default:return null;
+    }
+    const lack=need.filter(([,n,h])=>h<n);
+    if(!lack.length)return {ok:true};
+    const pre=p=>p.split("·")[0];
+    const sameDay=lack.every(([,,,,p])=>items.some(o=>o!==it&&(PROD_STAGES.find(s=>s.k===o.stage)||{}).n===pre(p)&&(["流心制作","灌模","烤咸蛋黄"].includes(pre(p))||o.flavor===f)));
+    return {ok:false,lack,sameDay};
+  };
+  const rows=items.map(it=>{
+    const fz=feasOf(it);if(!fz)return "";
+    const nm=(PROD_STAGES.find(s=>s.k===it.stage)||{}).n+((PROD_STAGES.find(s=>s.k===it.stage)||{}).nf?"":"·"+FN(it.flavor))+" "+it.qty;
+    if(fz.ok)return "";
+    return `<div class="wlog"><span>${nm}</span><b style="color:${fz.sameDay?"#7A6A2F":"var(--danger)"};font-size:12px;text-align:right">${fz.sameDay?"⏳ 同日先做:"+fz.lack.map(l=>l[4]).join("、"):fz.lack.map(([n,nd,hv,u,p])=>`⚠ ${n} 差${(nd-hv).toLocaleString()}${u}(先:${p})`).join("<br>")}</b></div>`;
+  }).filter(Boolean);
+  const okN=items.length-rows.length;
+  const fe=document.getElementById("calFeas");
+  if(fe)fe.innerHTML=items.length?`<div class="note" style="margin:6px 0 2px"><b>排产体检</b>(按当前半成品库存)</div>`
+    +(rows.join("")||"")+(okN?`<div class="note">✓ 其余 ${okN} 项备料充足</div>`:""):"";
+  // 前夜准备
+  const tips=[];
+  const has=st=>items.filter(i=>i.stage===st);
+  const by=has("bakeyolk");if(by.length)tips.push(`❄→🌡 前一晚解冻生咸蛋黄 ${by.reduce((s,i)=>s+(+i.qty||0),0)} 包`);
+  if(has("paste").length||has("lava").length||has("skin").length)tips.push("🧈 前一晚取 Butter 回温");
+  if(has("wrap1").length)tips.push("🧊 前一晚确认冻芯已入冻过夜");
+  const pe=document.getElementById("calPrep");
+  if(pe)pe.innerHTML=tips.length?`<div class="note" style="margin:6px 0 2px"><b>这天的前一晚要准备</b></div>`+tips.map(t=>`<div class="wlog"><span>${t}</span></div>`).join(""):"";
 }
 function syncCal(){
   document.querySelectorAll("#calEditor [data-ci]").forEach(row=>{
@@ -2382,7 +2437,7 @@ function savePlan(){
   const v=(items.length||text)?{items,text,by:"Owner",at:todayStr()+" "+nowHM()}:null;
   if(v)PLAN[calSel]=v;else delete PLAN[calSel];
   if(DB)DB.ref(DB_ROOT+"/prod/plan/"+calSel).set(v);
-  renderCal();renderPlanNeed();toast("已保存 "+fmtMD(calSel)+" 安排(厨房端今明两天可见)");
+  renderCal();renderPlanNeed();renderPace();toast("已保存 "+fmtMD(calSel)+" 安排(厨房端今明两天可见)");
 }
 /* --- 按计划算料 --- */
 function rawStockNow(){
@@ -2472,6 +2527,31 @@ document.getElementById("btnOpWp").addEventListener("click",()=>{
   };
 });
 /* --- 目标倒推智能分析 --- */
+function renderPace(){
+  const el=document.getElementById("opPace");if(!el)return;
+  const dl=PARAMS.deadline||"2026-09-20";
+  const di=document.getElementById("paceDL");
+  if(di&&di.value!==dl)di.value=dl;
+  if(di&&!di._wired){di._wired=1;di.addEventListener("change",()=>{
+    if(DB)DB.ref(DB_ROOT+"/prod/meta/params/deadline").set(di.value);
+    PARAMS.deadline=di.value;renderPace();});}
+  const days=Math.max(1,Math.ceil((new Date(dl+"T23:59")-Date.now())/864e5));
+  const doneBy={},recent={};
+  const d3=[0,1,2].map(i=>{const d=new Date();d.setDate(d.getDate()-i);return d.toISOString().slice(0,10);});
+  Object.values(PRODRECS||{}).forEach(r=>{
+    if(r.voided||r.stage!=="mold")return;
+    doneBy[r.flavor]=(doneBy[r.flavor]||0)+(+r.good||0);
+    if(d3.includes(r.date))recent[r.flavor]=(recent[r.flavor]||0)+(+r.good||0);
+  });
+  const rows=FLAVORS.filter(f=>(TARGETS[f.k]||0)>0).map(f=>{
+    const T=TARGETS[f.k],dn=doneBy[f.k]||0,rm=Math.max(0,T-dn);
+    if(!rm)return `<div class="wlog"><span>${f.n}</span><b class="okrow">✓ 已达标 ${dn}/${T}</b></div>`;
+    const needD=Math.ceil(rm/days),avg=Math.round((recent[f.k]||0)/3);
+    const bad=avg<needD;
+    return `<div class="wlog"><span>${f.n} ${dn.toLocaleString()}/${T.toLocaleString()} · 剩 ${rm.toLocaleString()}</span><b style="${bad?"color:var(--danger)":""}">${bad?"⚠ ":""}需 ${needD}/天(近3天 ${avg}/天)</b></div>`;
+  }).join("");
+  el.innerHTML=rows||'<div class="note">先在下方设定目标</div>';
+}
 function prodStockNow(){
   const S={paste:{},fen:{},lava:{},core:{},lxx:{},wet:{},skin:{},cumMold:{}};
   FLAVORS.forEach(f=>Object.keys(S).forEach(k=>S[k][f.k]=0));
