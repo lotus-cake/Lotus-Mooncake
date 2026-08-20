@@ -658,7 +658,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-6";
+const APP_BUILD="b0819-7";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -2244,7 +2244,7 @@ function aprvSentence(r){
   const u=r.lossUnit==="g"?"g":"颗";
   const loss=`<b style="color:var(--danger)">${r.yieldLoss} ${u}</b>`;
   switch(r.stage){
-    case "fill":  return `${fl}·灌模 ${r.good} 模,用液比标准多 ${loss}`;
+    case "fill":  return `${fl}·灌模 ${r.good} 模${r.extra?"+"+r.extra+"颗":""},用液比标准多 ${loss}`;
     case "fen":   return `${fl}·分馅 分出 ${r.good} 颗,比标准(${r.expOut} 颗)少 ${loss}`;
     case "paste": return `${fl}·炒馅 ${r.inQ} 份,完成 ${r.good} g,比标准(${r.expOut} g)少 ${loss}`;
     case "lava":  return `${fl}·流心制作 ${r.inQ} 份,得液 ${r.good} g,比标准(${r.expOut} g)少 ${loss}`;
@@ -2482,7 +2482,7 @@ function prodStockNow(){
       case"paste": S.paste[f]+=g; break;
       case"fen":   if(r.remain!=null){S.fen[f]+=g;S.paste[f]=+r.remain;}else{S.paste[f]-=i;S.fen[f]+=g;} break;
       case"lava":  S.lava[CG(f)]+=g; break;
-      case"fill":  S.core[CG(f)]+=g*PRM("perMold"); if(r.remain!=null)S.lava[CG(f)]=+r.remain; else S.lava[CG(f)]-=(+r.used||0); break;
+      case"fill":  S.core[CG(f)]+=g*PRM("perMold")+(+r.extra||0); if(r.remain!=null)S.lava[CG(f)]=+r.remain; else S.lava[CG(f)]-=(+r.used||0); break;
       case"wrap1": S.fen[f]-=i; S.core[CG(f)]-=i; S.lxx[f]+=g; break;
       case"skin":  S.skin[f]+=g; break;
       case"wrap2": S.skin[f]-=i; S.lxx[f]-=i; S.wet[f]+=g; break;
