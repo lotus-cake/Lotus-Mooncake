@@ -436,6 +436,13 @@ table.sum .z{color:#C9C6B4}
       <button class="btn small ghost" id="btnWipeTrain">清空培训数据</button>
       <button class="btn small ghost" id="btnResetToday">重置今日演练流水</button>
     </div>
+    <div class="kv" style="display:block;margin-top:8px">
+      <span>拍照识别 Key(练习账本)· 状态:<b id="trainKeySt">未配置</b></span>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <input type="password" id="trainKeyIn" placeholder="sk-ant-..." style="flex:1" autocomplete="off">
+        <button class="btn small" id="btnTrainKey">保存</button>
+      </div>
+    </div>
     <div class="note" style="margin-top:6px">导入后:订单页出现 10 位测试客人;今天/明天各店有「现货安排」→ 记交接、今日到货确认、三点核对全部可真机实操。</div>
   </div>
 </div>
@@ -705,7 +712,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-23";
+const APP_BUILD="b0819-24";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -973,6 +980,15 @@ document.addEventListener("click",e=>{
   if(e.target&&e.target.id==="btnSeedTrain")seedTraining();
   if(e.target&&e.target.id==="btnWipeTrain")wipeTraining();
   if(e.target&&e.target.id==="btnResetToday")resetTodayDrill();
+  if(e.target&&e.target.id==="btnTrainKey"){
+    if(DB_ROOT!=="test")return toast("只能在练习账本使用");
+    const v=document.getElementById("trainKeyIn").value.trim();
+    if(!v)return toast("请粘贴 Key");
+    AIKEY=v;document.getElementById("trainKeyIn").value="";
+    if(DB)DB.ref(DB_ROOT+"/meta/aiKey").set(v);
+    const st=document.getElementById("trainKeySt");if(st){st.textContent="已配置 ✓";st.style.color="var(--ok)";}
+    toast("识别 Key 已保存,录单页拍照按钮可用了");
+  }
 });
 function acctLabel(){return ROLE?(ROLE.type==="store"?STORE_NAME[ROLE.store]+"店":ROLE.type==="owner"?"Owner":"CS"):"?";}
 function fullPrice(o){const b6=+o.box6||0,b2=+o.box2||0;return b6*(PRICES.p6||0)+b2*(PRICES.p2||0);}
@@ -3444,7 +3460,8 @@ function renderAll(){
   renderPend();
   renderArrive();
   renderStoreRefunds();
-  {const tc=document.getElementById("trainCard");if(tc)tc.style.display=DB_ROOT==="test"?"":"none";}
+  {const tc=document.getElementById("trainCard");if(tc)tc.style.display=DB_ROOT==="test"?"":"none";
+   const st=document.getElementById("trainKeySt");if(st&&AIKEY){st.textContent="已配置 ✓";st.style.color="var(--ok)";}}
   renderGauges();renderQtyTable();renderOrders();renderPickup();renderWalkin();renderBatchPage();renderSum();renderSettings();renderTodos();
 }
 const initDate=todayStr()>=DATE_MIN&&todayStr()<="2026-10-10"?todayStr():DATE_MIN;
