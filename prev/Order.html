@@ -712,7 +712,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-30";
+const APP_BUILD="b0819-31";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1011,7 +1011,7 @@ const ZHEN={
 "改期":"Reschedule","取消订单":"Cancel Order","修改订单":"Edit Order","拆分订单":"Split Order","标记已收款":"Mark Paid",
 "确认取货":"Confirm Pickup","已取 ✓":"Picked ✓","未取":"Not picked","生命周期":"Lifecycle","备注记录":"Notes Log","操作记录":"Operation Log",
 "＋添加":"+ Add","确认":"Confirm","返回":"Back","关闭":"Close","保存":"Save","删除":"Delete",
-"改期来源 *":"Reschedule source *","取消来源 *":"Cancel source *","取消原因(选填)":"Reason (optional)",
+"改期来源 *":"Reschedule source *","修改来源 *":"Modification source *","请选择修改来源":"Select modification source","请说明其它来源":"Please specify Other","取消来源 *":"Cancel source *","取消原因(选填)":"Reason (optional)",
 "致电修改":"Phone call","联系客服修改":"Via CS","到店修改":"In store","客人电话":"Customer call","客人微信":"Customer WeChat","到店":"In store","客服协助":"CS assisted",
 "新取货日期":"New pickup date","确认改期":"Confirm reschedule","确认取消":"Confirm cancel",
 "操作人 Staff Name *":"Staff Name *","请输入你的名字":"Enter your name","请输入你的名字后再操作":"Please enter your name first",
@@ -1499,7 +1499,6 @@ function orderCard(o,forPickup){
       return `<div class="ometa" style="margin-top:2px">已拆分 ${kids.length} 张子单:`+kids.map(c=>`<br>&nbsp;&nbsp;${c.no.slice(-1)} · ${esc(c.name)} ${esc(fmtPhone(c.phone)||"")} · ${c.boxes}盒 ${c.pickupDate?fmtMD(c.pickupDate):""} · ${c.status!=="有效"?c.status:(c.pickedUp?"已取✓":"待取")}`).join("")+`</div>`;})()}
     ${dead?"":`<div class="oacts">
       <button class="primary" onclick="event.stopPropagation();openDetail('${o.no}')">详情</button>
-      ${o.batch?"":`<button onclick="event.stopPropagation();doReschedule('${o.no}')">改期</button>`}
       <button class="danger" onclick="event.stopPropagation();doCancel('${o.no}')">取消订单</button>
     </div>`}
   </div>`;
@@ -1594,8 +1593,7 @@ function openDetail(no){
     <div class="row" style="margin-top:10px${dead?";display:none":""}">
       ${o.batch
         ?(boxCounts(rem).total>0?`<button class="btn ghost" onclick="closeModal();openBatchPick('${no}')">记一笔取货</button>`:"")
-        :`<button class="btn ghost" onclick="closeModal();doReschedule('${no}')">改期</button>
-           <button class="btn ghost" onclick="closeModal();openSplit('${no}')">拆分订单</button>\
+        :`           <button class="btn ghost" onclick="closeModal();openSplit('${no}')">拆分订单</button>\
       <button class="btn warn" onclick="closeModal();doCancel('${no}')">取消订单</button>
     </div>`}
     ${o.parentNo&&ORDERS[o.parentNo]?`
@@ -1651,6 +1649,9 @@ function openEdit(no){
       <label class="f">其它付款方式说明 *</label>
       <input type="text" id="ePayOther" value="${esc(o.payOther||"")}">
     </div>
+    <label class="f">修改来源 *</label>
+    <select id="eSrc"><option value="">—</option><option>到店修改</option><option>致电修改</option><option>联系客服修改</option><option>其它</option></select>
+    <input type="text" id="eSrcTxt" placeholder="其它:请说明" style="display:none;margin-top:6px">
     <label class="f">备注</label>
     <textarea id="eNote">${esc(o.notes||"")}</textarea>
     <div style="height:12px"></div>
@@ -1672,6 +1673,8 @@ function openEdit(no){
     document.getElementById("eAmt").value=auto;
     toast("已按价目算出 "+money(auto));
   };
+  document.getElementById("eSrc").addEventListener("change",function(){
+    document.getElementById("eSrcTxt").style.display=this.value==="其它"?"":"none";});
   document.getElementById("eSave").onclick=()=>saveEdit(o);
 }
 function renderEQty(){
@@ -1698,6 +1701,10 @@ function eStep(k,d,min){ eQty[k]=Math.max(min||0,(eQty[k]||0)+d); if(!eQty[k])de
 function saveEdit(o){
   const name=document.getElementById("eName").value.trim();
   if(!name)return toast("姓名不能为空");
+  let eSrcV=document.getElementById("eSrc")?document.getElementById("eSrc").value:"";
+  if(!eSrcV)return toast("请选择修改来源");
+  if(eSrcV==="其它"){const t=document.getElementById("eSrcTxt").value.trim();if(!t)return toast("请说明其它来源");eSrcV="其它:"+t;}
+  window._eSrcV=eSrcV;
   const payM=document.getElementById("ePayM").value;
   const payOther=(document.getElementById("ePayOther")||{value:""}).value.trim();
   if(payM==="其它"&&!payOther)return toast("选「其它」付款方式需填写说明");
@@ -1748,7 +1755,7 @@ function saveEdit(o){
     if(cand.exception){patch.exception=cand.exception;diffs.push("例外放行:"+cand.exception.reason);}
     askStaff("确认修改:"+o.no,staff=>{
       patchOrder(o.no,patch,()=>{
-        logOp(o.no,staff,"修改订单",diffs.length?diffs.join(";"):"无字段变化");
+        logOp(o.no,staff,"修改订单",(diffs.length?diffs.join(";"):"无字段变化")+" · "+(window._eSrcV||""));
         toast(o.no+" 已更新");
         openDetail(o.no);
       });
@@ -1993,50 +2000,6 @@ function doCancel(no){
       proceed();
     }else proceed();
   };
-}
-
-function doReschedule(no){
-  const o=ORDERS[no]; if(!o||o.batch)return;
-  {
-    openModal(mhead(`改期:${no}(${esc(o.name)})`)+`
-      <label class="f">新取货日期</label>
-      <input type="date" id="rsDate" min="${DATE_MIN}" max="${DATE_MAX}" value="${o.pickupDate}">
-      <label class="f">新取货门店</label>
-      <div class="seg store" id="rsStore">
-        ${["CAM","BBY","ALD"].map(s=>`<button data-v="${s}" class="${s===o.store?"on":""}">${STORE_NAME[s]}</button>`).join("")}
-      </div>
-      <label class="f">改期来源 *</label>
-      <select id="rsSrc"><option value="">—</option><option>致电修改</option><option>联系客服修改</option><option>到店修改</option><option>其它</option></select>
-      <input type="text" id="rsSrcTxt" placeholder="其它:请说明" style="display:none;margin-top:6px">
-      ${staffField()}
-      <button class="btn" style="margin-top:14px" id="rsGo">确认改期</button>`,true);
-    document.getElementById("rsSrc").addEventListener("change",function(){
-      document.getElementById("rsSrcTxt").style.display=this.value==="其它"?"":"none";});
-    let ns=o.store;
-    document.getElementById("rsStore").addEventListener("click",e=>{
-      const b=e.target.closest("button"); if(!b)return; ns=b.dataset.v;
-      document.querySelectorAll("#rsStore button").forEach(x=>x.classList.toggle("on",x===b));
-    });
-    document.getElementById("rsGo").onclick=()=>{
-      const nd=document.getElementById("rsDate").value;
-      if(!nd||nd<DATE_MIN||nd>DATE_MAX)return toast("日期须在 9/4 – 9/30");
-      let srcV=document.getElementById("rsSrc").value;
-      if(!srcV)return toast("请选择改期来源");
-      if(srcV==="其它"){const t=document.getElementById("rsSrcTxt").value.trim();if(!t)return toast("请说明其它来源");srcV="其它:"+t;}
-      const staff=getStaff(); if(!staff)return;
-      closeModal();
-      nextOrderNo(newNo=>{
-        const n={...o,no:newNo,pickupDate:nd,store:ns,status:"有效",pickedUp:false,
-          linkedNo:no,notes:(o.notes?o.notes+" · ":"")+`由${no}改期`,createdAt:Date.now(),createdBy:staff};
-        delete n.pickups; delete n.history;
-        saveOrder(n,()=>patchOrder(no,{status:"已改期",linkedNo:newNo},()=>{
-          logOp(no,staff,"改期(原单)",`${ROLE&&ROLE.type==="store"?STORE_NAME[ROLE.store]+"·":""}${staff} 将取货 ${fmtMD(o.pickupDate)} ${o.store} → ${fmtMD(nd)} ${ns} · ${srcV},新单 ${newNo}`);
-          logOp(newNo,staff,"改期(新单)",`由 ${no} 改期而来`);
-          toast(`已改期:${no} → ${newNo}(${fmtMD(nd)} ${ns})`);
-        }));
-      });
-    };
-  }
 }
 
 function addNote(no,t,staff,kind){
