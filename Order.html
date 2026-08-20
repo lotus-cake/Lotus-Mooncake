@@ -712,7 +712,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-26";
+const APP_BUILD="b0819-27";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -3501,7 +3501,7 @@ JSON字段:
 name(姓名), phone(电话,尽量格式化为xxx-xxx-xxxx),
 store("CAM"=Cambie,"BBY"=Burnaby/本拿比,"ALD"=Alderbridge/Richmond/列治文,识别不出填null),
 pickupDate("YYYY-MM-DD",只写月日则年份为2026,识别不出填null),
-qty(对象,只含数量>0的产品): mix6=六粒混合/mix, js6=六粒金沙, js2=两粒金沙, mt2=两粒抹茶柚子, tr2=两粒黑松露, cp2=两粒陈皮红豆, mk2=两粒摩卡, wl2=两粒乌龙,
+qty(对象,只含数量>0的产品),注意商品别名: js6=六粒金沙(别名:经典/Classic/经典流心礼盒/金沙礼盒), mix6=六粒混合(别名:Mix/混合礼盒,每味各一), js2=两粒金沙, mt2=两粒抹茶柚子(别名:抹茶), tr2=两粒黑松露(别名:松露), cp2=两粒陈皮红豆, mk2=两粒摩卡(别名:咖啡), wl2=两粒乌龙; 单价$80=六粒盒现金价,可佐证是六粒装,
 pay("已付"/"未付"/"部分付"/"到店付",不确定填null), paidAmt(数字,部分付时的已收金额,没有填null),
 payMethod("现金"/"Credit Card"/"Square Online"/"EMT"/"微信"/"AlphaPay(微信&支付宝)"/"其它",不确定填null),
 receiptNo(纸质收据编号,没有填null),
