@@ -353,13 +353,6 @@ table.sum .z{color:#C9C6B4}
       <button class="chip" data-v="BBY">Burnaby</button>
       <button class="chip" data-v="ALD">Alderbridge</button>
     </div>
-    <div class="card" id="recvCard" style="display:none">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span class="note" style="margin:0"><b>今日收货确认</b>(中央厨房配送)</span>
-        <button class="btn small" id="btnRecv">确认收货</button>
-      </div>
-      <div id="recvBody" style="margin-top:6px"></div>
-    </div>
     <div class="card"><div class="note" style="margin:0 0 8px"><b>本店今日取货汇总</b></div>
       <div class="pksum" id="pkSummary"></div></div>
     <div class="pk-stats">
@@ -617,6 +610,7 @@ const FLAVORS = [
 ];
 const STORE_NAME = {CAM:"Cambie", BBY:"Burnaby", ALD:"Alderbridge", MULTI:"多店取货"};
 const PAY_METHODS = ["Square","AlphaPay(微信&支付宝)","现金","EMT","SL WeChat","其它"];
+const WALK_PAY = ["Credit Card","现金","AlphaPay(微信&支付宝)","微信","EMT","其它"];
 const REFUND_VIA_OWNER = ["EMT","SL WeChat"];
 const DEFAULT_PRICES = {p6:88, p6cash:80, p2:28, bb2:28, emp:0.9,
   promos:[{buy:10,free:1},{buy:20,free:3},{buy:30,free:5}]};
@@ -710,7 +704,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-19";
+const APP_BUILD="b0819-20";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -800,6 +794,7 @@ function addReceipt(store,rec){
          (WALKIN[store].receipts=WALKIN[store].receipts||{})["r"+Date.now()]=rec; renderWalkin(); }
 }
 function addSale(store,sale){
+  if(!sale.acct)sale.acct=acctLabel();
   if(DB) DB.ref(DB_ROOT+"/walkin/"+store+"/sales").push(sale);
   else { WALKIN[store]=WALKIN[store]||{receipts:{},sales:{}};
          (WALKIN[store].sales=WALKIN[store].sales||{})["s"+Date.now()]=sale; renderWalkin(); }
@@ -2464,46 +2459,9 @@ document.getElementById("pkStore").addEventListener("click",e=>{
   renderPickup();
 });
 document.getElementById("pkDate").addEventListener("input",renderPickup);
-document.getElementById("btnRecv").addEventListener("click",()=>{
-  const d=todayStr(),st=pkStoreVal;
-  const sh=shippedFor(d,st);
-  const gotO=sumQ(sh["订单"]),gotW=sumQ(sh["现货"]);
-  openModal(mhead(`收货确认:${STORE_NAME[st]}`)+`
-    <p class="note" style="margin:0 0 8px">清点司机送到的盒数后确认。厨房交接:订单 ${gotO}盒 · 现货 ${gotW}盒。</p>
-    <div class="row">
-      <div><label class="f">实收 订单货(盒) *</label><input type="number" id="rvO" min="0" value="${gotO}"></div>
-      <div><label class="f">实收 现货(盒) *</label><input type="number" id="rvW" min="0" value="${gotW}"></div>
-    </div>
-    ${staffField()}
-    <button class="btn" style="margin-top:14px" id="rvGo">确认收货</button>`,true);
-  document.getElementById("rvGo").onclick=()=>{
-    const staff=getStaff();if(!staff)return;
-    const ob=+document.getElementById("rvO").value||0;
-    const wb=+document.getElementById("rvW").value||0;
-    const rec={date:d,store:st,orderBoxes:ob,walkBoxes:wb,staff,time:nowHM(),ts:Date.now()};
-    if(DB)DB.ref(DB_ROOT+"/prod/recv").push(rec);
-    else RECV["rv"+Date.now()]=rec;
-    closeModal();renderPickup();renderSum();
-    const diff=(gotO+gotW)-(ob+wb);
-    toast(diff>0?`已确认收货(比交接少${diff}盒,汇总页已标红)`:"已确认收货 ✓");
-  };
-});
-function renderRecv(){
-  const el=document.getElementById("recvBody");if(!el)return;
-  const d=todayStr(),st=pkStoreVal;
-  const sh=shippedFor(d,st);
-  const gotO=sumQ(sh["订单"]),gotW=sumQ(sh["现货"]);
-  const rc=recvFor(d,st);
-  const card=document.getElementById("recvCard");
-  if(!gotO&&!gotW&&!rc.ob&&!rc.wb){card.style.display="none";return;}
-  card.style.display="block";
-  const shipTot=gotO+gotW,recvTot=rc.ob+rc.wb;
-  el.innerHTML=`<div class="kv"><span>厨房已交接</span><b>订单 ${gotO}盒 · 现货 ${gotW}盒</b></div>
-    <div class="kv"><span>本店已确认实收</span>
-      <b class="${recvTot&&recvTot<shipTot?"":""}" style="${recvTot&&recvTot<shipTot?"color:var(--danger)":""}">${recvTot?`订单 ${rc.ob}盒 · 现货 ${rc.wb}盒${recvTot<shipTot?" · 差"+(shipTot-recvTot)+"盒":" ✓"}`:"未确认"}</b></div>`;
-}
+
 function renderPickup(){
-  renderRecv();
+  
   const date=document.getElementById("pkDate").value;
   const list=datedLive().filter(o=>o.pickupDate===date&&o.store===pkStoreVal)
     .sort((a,b)=>(a.pickedUp===b.pickedUp?0:a.pickedUp?1:-1)||a.no.localeCompare(b.no));
@@ -2559,7 +2517,9 @@ function renderWalkin(){
   document.getElementById("wLog").innerHTML=
     (logs.length?logs.map(([,s])=>{
       const pn=(WALKIN_PRODUCTS.find(p=>p.k===s.product)||{}).n||s.product;
-      return `<div class="wlog"><span>${s.time||""} ${pn}${s.amt!=null?" "+money(s.amt):""}</span><b>${esc(s.pm)}${s.other?":"+esc(s.other):""}</b></div>`;
+      const who=(s.acct||s.staff)?` · ${esc(s.acct||"")}${s.acct&&s.staff?"|":""}${esc(s.staff||"")}`:"";
+      const srcTag=s.src==="batch"?"分批取走":s.src==="crosspick"?"跨店代取":esc(s.pm||"");
+      return `<div class="wlog"><span>${s.time||""} ${pn}${s.amt!=null&&s.amt>0?" "+money(s.amt):""}${who}</span><b>${srcTag}${s.other?":"+esc(s.other):""}</b></div>`;
     }).join("")+`<div class="wlog" style="border-bottom:none"><span><b>今日现货销售额</b></span><b style="color:var(--olive)">${money(dayRev)}</b></div>`
     :`<div class="note">今日暂无现货销售</div>`);
 }
@@ -2590,10 +2550,11 @@ function openSale(pk){
   openModal(mhead(`现货销售:${pn} ×1`)+`
     <label class="f">付款方式</label>
     <div class="seg" id="slSeg" style="flex-direction:column">
-      ${PAY_METHODS.map(m=>`<button data-v="${m}">${m}</button>`).join("")}
+      ${WALK_PAY.map(m=>`<button data-v="${m}">${m}</button>`).join("")}
     </div>
     <div id="slOtherWrap" style="display:none"><label class="f">其它说明 *</label>
       <input type="text" id="slOther"></div>
+    ${staffField()}
     <button class="btn" style="margin-top:12px" id="slGo">完成销售</button>`);
   let pm="";
   document.getElementById("slSeg").addEventListener("click",e=>{
@@ -2606,9 +2567,10 @@ function openSale(pk){
     let other="";
     if(pm==="其它"){other=document.getElementById("slOther").value.trim();
       if(!other)return toast("请填写其它说明");}
+    const staff=getStaff();if(!staff)return;
     const amt=walkinUnit(pk,pm);
     addSale(wStoreVal,{date:document.getElementById("wDate").value||todayStr(),
-      time:nowHM(),product:pk,pm,other,amt,ts:Date.now()});
+      time:nowHM(),product:pk,pm,other,amt,staff,ts:Date.now()});
     closeModal();toast(`${pn} 已售出 ${money(amt)}`);
   };
 }
