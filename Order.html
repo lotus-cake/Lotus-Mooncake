@@ -3317,5 +3317,20 @@ try{
   const t2=document.querySelector(".brand .t2");
   if(t2)t2.insertAdjacentHTML("beforeend",` <span id="appBuildTag" style="opacity:.55">· ${APP_BUILD}</span>`);
 });</script>
+<script>
+(function(){
+  let fired=false;
+  window.addEventListener("error",function(e){
+    if(fired)return;fired=true;
+    try{
+      var bar=document.createElement("div");
+      bar.style.cssText="position:fixed;top:0;left:0;right:0;z-index:99999;background:#A63B2E;color:#fff;font-size:13px;font-weight:700;padding:8px 12px;text-align:center";
+      bar.textContent="⚠ 系统页面异常("+APP_BUILD+")。请截图发工作群,并改用备用链接(网址前加 prev/)继续操作。";
+      document.body.appendChild(bar);
+      if(typeof DB!=="undefined"&&DB)DB.ref((typeof DB_ROOT!=="undefined"?DB_ROOT:"x")+"/errors").push({build:typeof APP_BUILD!=="undefined"?APP_BUILD:"?",msg:String(e.message||"").slice(0,300),src:String(e.filename||"").slice(-60),line:e.lineno||0,ua:navigator.userAgent.slice(0,80),ts:Date.now()});
+    }catch(_){}
+  });
+})();
+</script>
 </body>
 </html>
