@@ -208,7 +208,7 @@ table.sum .z{color:#C9C6B4}
       <div class="t2" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">L'OTUS CAKE BOUTIQUE</div>
     </div>
     <span id="connBadge" style="white-space:nowrap;flex:none;font-size:10px;padding:3px 8px;border-radius:99px;background:rgba(255,255,255,.15);color:#fff;margin-right:6px">连接中…</span>
-    <button id="btnLogout" title="退出登录" style="flex:none;white-space:nowrap;background:none;border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:8px;font-size:10px;padding:4px 7px;cursor:pointer">
+    <button class="btn small ghost" id="langBtn" style="margin-right:6px" onclick="setLang(LANG==='en'?'zh':'en')">EN</button><button id="btnLogout" title="退出登录" style="flex:none;white-space:nowrap;background:none;border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:8px;font-size:10px;padding:4px 7px;cursor:pointer">
       <span id="roleTag">—</span> 退出</button>
   </div>
   <div style="display:flex;align-items:center;gap:26px;justify-content:flex-start">
@@ -712,7 +712,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-25";
+const APP_BUILD="b0819-26";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -871,6 +871,7 @@ function openModal(html,center){
   m.classList.toggle("center",!!center);
   document.getElementById("mBox").innerHTML=html;
   m.style.display="flex";
+  if(typeof applyLang==="function")applyLang(document.getElementById("mBox"));
 }
 function closeModal(){ document.getElementById("mMask").style.display="none"; }
 document.getElementById("mMask").addEventListener("click",e=>{ if(e.target.id==="mMask") closeModal(); });
@@ -990,6 +991,99 @@ document.addEventListener("click",e=>{
     toast("识别 Key 已保存,录单页拍照按钮可用了");
   }
 });
+
+/* ---------------- 中/EN 显示层(数据不变,仅显示翻译) ---------------- */
+let LANG=localStorage.getItem("mcLang")||"zh";
+const ZHEN={
+"录单":"New Order","订单":"Orders","分批":"Bulk","门店":"Store","待收款":"Payments","汇总":"Summary",
+"当日取货":"Today's Pickups","现货销售":"Walk-in Sales","退出":"Logout",
+"客人姓名":"Customer Name","联系电话":"Phone","取货门店":"Pickup Store","取货日期":"Pickup Date",
+"下单渠道":"Order Channel","产品与数量":"Products & Qty","付款状态":"Payment Status","付款方式":"Payment Method",
+"收款凭证号":"Payment Ref #","已收金额 $":"Amount Received $","备注":"Notes","保存订单":"Save Order",
+"拍照识别":"Photo Scan","手动录入":"Manual Entry","其它说明 *":"Other - specify *",
+"未付":"Unpaid","已付":"Paid","部分付":"Partial","等待付款中":"Awaiting Payment","当天付现金":"Cash on pickup","当天再付":"Pay on pickup",
+"现金":"Cash","微信":"WeChat","电话":"Phone","员工":"Staff","其他":"Other","其它":"Other","客服":"CS",
+"有效":"Active","已取消":"Cancelled","已改期":"Rescheduled",
+"搜索 姓名/电话/单号":"Search name / phone / order #","从":"From","到":"To","只看本店":"My store only","搜其他门店":"Search other stores",
+"改期":"Reschedule","取消订单":"Cancel Order","修改订单":"Edit Order","拆分订单":"Split Order","标记已收款":"Mark Paid",
+"确认取货":"Confirm Pickup","已取 ✓":"Picked ✓","未取":"Not picked","生命周期":"Lifecycle","备注记录":"Notes Log","操作记录":"Operation Log",
+"＋添加":"+ Add","确认":"Confirm","返回":"Back","关闭":"Close","保存":"Save","删除":"Delete",
+"改期来源 *":"Reschedule source *","取消来源 *":"Cancel source *","取消原因(选填)":"Reason (optional)",
+"致电修改":"Phone call","联系客服修改":"Via CS","到店修改":"In store","客人电话":"Customer call","客人微信":"Customer WeChat","到店":"In store","客服协助":"CS assisted",
+"新取货日期":"New pickup date","确认改期":"Confirm reschedule","确认取消":"Confirm cancel",
+"操作人 Staff Name *":"Staff Name *","请输入你的名字":"Enter your name","请输入你的名字后再操作":"Please enter your name first",
+"请选择付款方式":"Select a payment method","请选择差额处理方式":"Choose how to settle","请填写其它说明":"Please specify Other",
+"请选择改期来源":"Select reschedule source","请选择取消来源":"Select cancel source",
+"Square Online 必须填写 Square 订单号":"Square Online requires the Square order #","Credit Card 必须填写收据号":"Credit Card requires a receipt #",
+"渠道是微信,必须选择 Wx 账号":"WeChat channel requires a Wx account","渠道是员工,必须填写员工名称":"Staff channel requires the staff name",
+"电话号码位数不对(应为10位),确定继续保存吗?":"Phone number is not 10 digits - save anyway?",
+"没有填电话,确定继续保存吗?":"No phone number - save anyway?",
+"取货日期在 9/24(含)之后的订单必须先付款(已付/等待付款中)":"Pickups on/after Sep 24 must be prepaid (Paid / Awaiting Payment)",
+"今日到货确认":"Today's Delivery Check-in","客服安排 → 司机送达 → 你点收":"CS plans → driver delivers → you confirm",
+"收货状态 *":"Receiving status *","已收到,数量正确":"Received - quantity correct","已收到,但数量不符":"Received - quantity mismatch","部分收到":"Partially received","未收到":"Not received","异常(说明写Notes)":"Issue (explain in Notes)",
+"异常情况请填写 Notes":"Please fill Notes for the issue","确认收货 → 自动计算今日可售现货":"Confirm - auto-calc today's walk-in stock",
+"录入今日到货":"Log today's delivery","确认入库":"Confirm stock-in","请输入到货数量":"Enter received quantity",
+"卖1盒":"Sell","完成销售":"Complete Sale","数量":"Quantity","合计":"Total","撤销最近一笔":"Undo last sale","今日现货销售额":"Today's walk-in revenue","今日暂无现货销售":"No walk-in sales today","还没有到货记录,点上方「录入今日到货」":"No delivery yet - tap Log today's delivery above",
+"待收款":"To Collect","待退款":"To Refund","标记已退款":"Mark Refunded","退款方式":"Refund method","退款凭证号":"Refund ref #","已退现金":"Cash refunded",
+"安排取货":"Schedule Pickup","现货取走":"Take from Stock","取货人姓名":"Pickup person","取货人电话":"Pickup phone","核销安排":"Redeem booking",
+"记交接":"Log Handover","补交接":"Add Handover","等门店点收":"Awaiting store check-in","待交接":"To hand over","已交接":"Handed over",
+"按产品(厨房)":"By Product (Kitchen)","按门店(装车)":"By Store (Loading)","产品配送汇总":"Product Delivery Summary","门店装车单":"Store Loading Sheets","本店合计":"Store total","回到今天":"Today",
+"门店当前现货":"Current Walk-in Stock","暂无现货":"No stock","分批大单待取余额":"Bulk orders - boxes remaining",
+"付款随母单":"Paid with parent","子单":"Sub-order","已拆分":"Split",
+"六粒混合":"Mix of 6","六粒金沙":"Classic 6 (Jinsha)","两粒金沙":"Jinsha 2","两粒抹茶柚子":"Matcha Yuzu 2","两粒黑松露":"Truffle 2","两粒陈皮红豆":"Tangerine Red Bean 2","两粒摩卡":"Mocha 2","两粒乌龙":"Oolong 2","两粒盲盒":"Mystery 2",
+"六粒盒":"6-box","两粒盒":"2-box","售":"sold",
+"识别中…":"Scanning...","识别完成,请核对":"Scan done - please verify","已自动填入(金色高亮),请逐项核对后再保存。":"Auto-filled (gold highlight). Verify each field before saving."
+};
+const ZHEN_RX=[
+[/^已拆分 (\d+) 张子单$/, "Split into $1 sub-orders"],
+[/^应到 (\d+)\(订单(\d+)\+现货(\d+)\)$/, "Expected $1 (orders $2 + stock $3)"],
+[/^共(\d+)盒 · 已取(\d+) · 余(\d+)$/, "$1 boxes · taken $2 · left $3"],
+[/^取货 (.+)$/, "Pickup $1"],
+[/^差(\d+)盒$/, "short $1"],
+[/^今日安排 (\d+) 盒,待门店点收后计入$/, "$1 boxes scheduled today - counted after check-in"],
+[/^([\d.]+) 盒$/, "$1 boxes"]
+];
+function TT(s){
+  if(LANG!=="en"||!s)return s;
+  const t=s.trim(); if(ZHEN[t]!==undefined)return s.replace(t,ZHEN[t]);
+  for(const [rx,rep] of ZHEN_RX){const m=t.match(rx);if(m)return s.replace(t,t.replace(rx,rep));}
+  return s;
+}
+const _langMap=new WeakMap();
+function applyLang(root){
+  root=root||document.body;
+  const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);
+  const nodes=[];while(w.nextNode())nodes.push(w.currentNode);
+  nodes.forEach(n=>{
+    const p=n.parentElement;if(!p)return;
+    const tag=p.tagName;if(tag==="SCRIPT"||tag==="STYLE"||tag==="TEXTAREA")return;
+    if(tag==="OPTION"){ // 选项:先固化 value,再翻译显示
+      if(LANG==="en"){
+        if(!p.hasAttribute("value"))p.setAttribute("value",p.textContent);
+        if(!_langMap.has(n))_langMap.set(n,n.nodeValue);
+        n.nodeValue=TT(n.nodeValue);
+      }else if(_langMap.has(n))n.nodeValue=_langMap.get(n);
+      return;
+    }
+    if(LANG==="en"){
+      const tr=TT(n.nodeValue);
+      if(tr!==n.nodeValue){if(!_langMap.has(n))_langMap.set(n,n.nodeValue);n.nodeValue=tr;}
+    }else if(_langMap.has(n))n.nodeValue=_langMap.get(n);
+  });
+  // placeholder / title
+  root.querySelectorAll("input[placeholder]").forEach(i=>{
+    if(LANG==="en"){if(!i.dataset._ph)i.dataset._ph=i.placeholder;i.placeholder=TT(i.placeholder);}
+    else if(i.dataset._ph){i.placeholder=i.dataset._ph;delete i.dataset._ph;}
+  });
+}
+function setLang(l){
+  LANG=l;localStorage.setItem("mcLang",l);
+  const b=document.getElementById("langBtn");if(b)b.textContent=l==="en"?"中":"EN";
+  renderAll();applyLang();
+}
+
+const _cf=window.confirm.bind(window),_al=window.alert.bind(window);
+window.confirm=m=>_cf(TT(m));window.alert=m=>_al(TT(m));
 function acctLabel(){return ROLE?(ROLE.type==="store"?STORE_NAME[ROLE.store]+"店":ROLE.type==="owner"?"Owner":"CS"):"?";}
 function fullPrice(o){const b6=+o.box6||0,b2=+o.box2||0;return b6*(PRICES.p6||0)+b2*(PRICES.p2||0);}
 function hasPromo(o){
@@ -3457,7 +3551,7 @@ function applyOCR(r){
 
 /* ---------------- 全局 ---------------- */
 function toast(msg){
-  const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");
+  const t=document.getElementById("toast");t.textContent=TT(msg);t.classList.add("show");
   clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),2600);
 }
 document.querySelector("nav").addEventListener("click",e=>{
@@ -3471,6 +3565,7 @@ function renderAll(){
   renderPend();
   renderArrive();
   renderStoreRefunds();
+  applyLang();
   {const tc=document.getElementById("trainCard");if(tc)tc.style.display=DB_ROOT==="test"?"":"none";
    const st=document.getElementById("trainKeySt");if(st&&AIKEY){st.textContent="已配置 ✓";st.style.color="var(--ok)";}}
   renderGauges();renderQtyTable();renderOrders();renderPickup();renderWalkin();renderBatchPage();renderSum();renderSettings();renderTodos();
