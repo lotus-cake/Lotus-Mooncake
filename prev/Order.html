@@ -347,7 +347,7 @@ table.sum .z{color:#C9C6B4}
       <div class="note" style="margin:0 0 6px"><b>今日到货确认</b>(客服安排 → 司机送达 → 你点收)</div>
       <div id="arriveBody"></div>
     </div>
-    <div class="filters"><input type="date" id="pkDate" min="2026-09-01" max="2026-10-10"></div>
+    <div class="filters"><input type="date" id="pkDate" min="2026-08-01" max="2026-10-10"></div>
     <div class="chiprow" id="pkStore">
       <button class="chip on" data-v="CAM">Cambie</button>
       <button class="chip" data-v="BBY">Burnaby</button>
@@ -915,7 +915,17 @@ const TRAIN_ORDERS=()=>{
     c("MC-T007","Aiden","6479667168","ALD","2026-09-10",{js6:3},264,"已付","EMT",{channel:"微信",wxAcct:"Wx 2",backendNo:"EMT#E441"}),
     c("MC-T008","赵敏","6041110008","ALD","2026-09-11",{mix6:2},176,"已付","EMT",{channel:"微信",wxAcct:"Wx 3",backendNo:"EMT#E556"}),
     c("MC-T009","刘老板","6041110009","MULTI",null,{mix6:23},1760,"已付","AlphaPay(微信&支付宝)",{channel:"电话",batch:true,backendNo:"AP-777"}),
-    c("MC-T010","员工单Amber","6041110010","CAM","2026-09-12",{wl2:1},25,"已付","现金",{channel:"员工",chStaff:"Amber"})
+    c("MC-T010","员工单Amber","6041110010","CAM","2026-09-12",{wl2:1},25,"已付","现金",{channel:"员工",chStaff:"Amber"}),
+    // —— 今天取货(装车/到货确认/取货核销全链用)——
+    c("MC-T101","今取·林太","6042220001","CAM",todayStr(),{mix6:1},88,"已付","EMT",{channel:"微信",wxAcct:"Wx 1",backendNo:"EMT#T101"}),
+    c("MC-T102","今取·Peter","6042220002","CAM",todayStr(),{js6:1},88,"已付","Credit Card",{channel:"电话",backendNo:"POS#T102"}),
+    c("MC-T103","今取·小敏","6042220003","CAM",todayStr(),{mk2:1},28,"未付",null,{channel:"电话",unpaidPlan:"当天付现金"}),
+    c("MC-T104","今取·Grace","6042220004","BBY",todayStr(),{mix6:1},88,"已付","EMT",{channel:"微信",wxAcct:"Wx 2",backendNo:"EMT#T104"}),
+    c("MC-T105","今取·老周","6042220005","BBY",todayStr(),{js2:2},56,"已付","现金",{channel:"门店",chStore:"BBY"}),
+    c("MC-T106","今取·Ken","6042220006","BBY",todayStr(),{js6:1},88,"未付",null,{channel:"电话",unpaidPlan:"当天再付"}),
+    c("MC-T107","今取·Amy","6042220007","ALD",todayStr(),{mix6:2},176,"已付","AlphaPay(微信&支付宝)",{channel:"电话",backendNo:"AP-T107"}),
+    c("MC-T108","今取·陈叔","6042220008","ALD",todayStr(),{wl2:1},28,"已付","现金",{channel:"门店",chStore:"ALD"}),
+    c("MC-T109","今取·Vivian","6042220009","ALD",todayStr(),{js6:1},88,"部分付","EMT",{channel:"微信",wxAcct:"Wx 3",backendNo:"EMT#T109",paid:40})
   ];
 };
 function seedTraining(){
@@ -932,7 +942,7 @@ function seedTraining(){
     Object.entries(wp).forEach(([d,v])=>WPLAN[d]=v);
     renderAll();
   }
-  toast("已导入:C1–C10 + 今明两天送货安排 ✓");
+  toast("已导入:C1–C10 + 今日取货9单 + 今明送货安排 ✓");
 }
 function wipeTraining(){
   if(DB_ROOT!=="test")return toast("只能在练习账本使用");
