@@ -678,6 +678,11 @@ function payDue(o){ // 等待付款中 且已过 取货前一天17:00
   return Date.now()>=d.getTime();
 }
 function sumQ2(q){return Object.values(q||{}).reduce((a,b)=>a+(+b||0),0);}
+function famTotalOf(o){
+  const ks=Object.values(ORDERS).filter(c=>c.parentNo===o.no&&c.status==="有效");
+  if(!ks.length)return o.amount;
+  return Math.round(((o.amount||0)+ks.reduce((s,c)=>s+(c.amount||0),0))*100)/100;
+}
 function paidOf(o){ return o.paid!=null?o.paid:(o.pay==="已付"?(o.amount||0):0); }
 function dueAmt(o){ if(o.amount==null)return null; return Math.max(0,Math.round((o.amount-paidOf(o))*100)/100); }
 function walkinUnit(pk,pm){
@@ -728,7 +733,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-49";
+const APP_BUILD="b0819-50";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1656,7 +1661,7 @@ function openDetail(no){
     <div class="kv"><span>盒数合计</span><b>${o.boxes} 盒</b></div>
     
     ${o.parentNo?`<div class="kv"><span>付款归属</span><b>付款随母单 ${o.parentNo}(金额/渠道见母单)</b></div><div style="display:none">`:""}
-    <div class="kv"><span>订单总额</span><b>${o.amount!=null?money(o.amount):"—"}${o.manualPrice?"(手动价)":""}</b></div>
+    <div class="kv"><span>订单总额</span><b>${(()=>{const ft=famTotalOf(o);return ft!=null?money(ft):"—";})()}${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?"(家族)":(o.manualPrice?"(手动价)":"")}</b></div>
     <div class="kv"><span>已收</span><b>${money(paidOf(o))||"$0"}</b></div>
     ${dueAmt(o)>0?`<div class="kv"><span style="color:var(--danger)">待收</span><b style="color:var(--danger)">${money(dueAmt(o))}</b></div>`:""}
     <div class="kv"><span>付款</span><b>${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay} · ${payLbl}</b></div>
@@ -1756,7 +1761,7 @@ function openEdit(no){
     <div class="tot-line"><span>盒数合计</span><b id="eTotal"></b></div>
     <label class="f">订单总额 $(改数量会自动重算;促销/折扣可手动填实收)</label>
     <div class="row">
-      ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?`<div class="kv" style="background:var(--cream);border-radius:8px;padding:8px 10px;width:100%"><span>家族总额(锁定,拆分/改货不影响)</span><b>${money(o.amount)}</b></div><input type="hidden" id="eAmt" value="${o.amount!=null?o.amount:""}">`:`<input type="number" id="eAmt" min="0" step="0.01" value="${o.amount!=null?o.amount:""}">
+      ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?`<div class="kv" style="background:var(--cream);border-radius:8px;padding:8px 10px;width:100%"><span>家族总额(锁定,拆分/改货不影响)</span><b>${money(famTotalOf(o))}</b></div><input type="hidden" id="eAmt" value="${o.amount!=null?o.amount:""}">`:`<input type="number" id="eAmt" min="0" step="0.01" value="${o.amount!=null?o.amount:""}">
       <button class="btn small ghost" id="eAmtAuto" style="white-space:nowrap">按价目自动算</button>`}
     </div>
     <label class="f">已收金额 $</label>
