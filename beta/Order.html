@@ -733,7 +733,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-51";
+const APP_BUILD="b0819-52";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1678,7 +1678,9 @@ function openDetail(no){
     ${(dead||(o.pickedUp&&ROLE&&ROLE.type==="store"))?"":`<button class="btn" onclick="openEdit('${no}')">修改订单</button>`}
     ${(dead||(o.pickedUp&&ROLE&&ROLE.type==="store"))?"":`<div class="row" style="margin-top:10px">
       ${o.batch
-        ?(boxCounts(rem).total>0?`<button class="btn ghost" onclick="closeModal();openBatchPick('${no}')">记一笔取货</button>`:"")
+        ?(boxCounts(rem).total>0?(()=>{const LG=Object.keys(o.pickups||{}).length||Object.keys(o.reserves||{}).length;
+          return `<button class="btn ghost" onclick="closeModal();${LG?`openWalkTake('${no}')`:`walkTakeChild('${no}')`}">现货取走</button>
+      <button class="btn" onclick="closeModal();${LG?`openBatchPick('${no}')`:`openSplit('${no}')`}">安排取货</button>`;})():"")
         :`<button class="btn ghost" onclick="closeModal();openSplit('${no}')">拆分订单</button>
       <button class="btn warn" onclick="closeModal();doCancel('${no}')">取消订单</button>`}
     </div>`}
