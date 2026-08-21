@@ -726,7 +726,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-40";
+const APP_BUILD="b0819-41";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1633,8 +1633,11 @@ function openDetail(no){
   const payLbl=(o.payMethod?(o.payMethod==="其它"?"其它:"+esc(o.payOther||""):esc(o.payMethod)):"—");
   const rem=o.batch?batchRemainQty(o):null;
   const kidsAll=Object.values(ORDERS).filter(c=>c.parentNo===o.no&&c.status==="有效");
+  const cell=(l,v,s)=>`<div style="background:var(--cream);border-radius:10px;padding:8px 10px"><div style="font-size:12px;color:var(--ink3)">${l}</div><div style="font-size:20px;font-weight:800">${v}</div>${s?`<div style="font-size:11.5px;color:var(--ink3)">${s}</div>`:""}</div>`;
   const dashHtml=(!o.batch&&kidsAll.length)?(()=>{const kb=kidsAll.reduce((s,c)=>s+(c.boxes||0),0),kp=kidsAll.filter(c=>c.pickedUp).reduce((s,c)=>s+(c.boxes||0),0);
-    return `<div class="kv" style="background:var(--cream);border-radius:8px;padding:8px 10px"><span>家族总览</span><b>子单在册 ${kb}盒(已取${kp}·待取${kb-kp}) · 母单自留 ${o.boxes}盒 · 合计 ${kb+o.boxes}盒</b></div>`;})():"";
+    return `<div style="margin:2px 0 8px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      ${cell("子单在册",kb+"盒","已取"+kp+" · 待取"+(kb-kp))}${cell("母单自留",o.boxes+"盒","")}
+    </div><div style="font-size:13px;margin-top:6px;text-align:center">${kb} + ${o.boxes} = ${kb+o.boxes}盒 <b style="color:var(--ok)">✓ 账平</b></div></div>`;})():"";
   openModal(mhead(`${no} 订单详情`)+dashHtml+`
     ${o.dueNote?`<div class="ai-banner" style="border-color:#E5C9C9;margin-bottom:10px">
       <b style="color:var(--danger)">待收:${esc(o.dueNote)}</b>
@@ -1653,7 +1656,9 @@ function openDetail(no){
     <div class="kv"><span>取货</span><b>${o.batch?"分批取货,日期灵活":fmtMD(o.pickupDate)+" · "+STORE_NAME[o.store]}</b></div>
     ${prodLines}
     <div class="kv"><span>盒数合计</span><b>${o.boxes} 盒</b></div>
-    ${o.batch?(()=>{const bs=batchStats(o);return `<div class="kv"><span>大单进度</span><b>共${bs.total} · 已取${bs.taken} · 已安排${bs.reserved} · 可取${bs.avail}</b></div>`;})():""}
+    ${o.batch?(()=>{const bs=batchStats(o);const c=(l,v)=>`<div style="background:var(--cream);border-radius:10px;padding:8px 10px"><div style="font-size:12px;color:var(--ink3)">${l}</div><div style="font-size:20px;font-weight:800">${v}</div></div>`;
+      return `<div style="margin:2px 0 8px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${c("已取",bs.taken)}${c("已安排",bs.reserved)}${c("可取余额",bs.avail)}${c("共",bs.total+"盒")}</div>
+      <div style="font-size:13px;margin-top:6px;text-align:center">${bs.taken} + ${bs.reserved} + ${bs.avail} = ${bs.total}盒 <b style="color:var(--ok)">✓ 账平</b></div></div>`;})():""}
     <div class="kv"><span>订单总额</span><b>${o.amount!=null?money(o.amount):"—"}${o.manualPrice?"(手动价)":""}</b></div>
     <div class="kv"><span>已收</span><b>${money(paidOf(o))||"$0"}</b></div>
     ${dueAmt(o)>0?`<div class="kv"><span style="color:var(--danger)">待收</span><b style="color:var(--danger)">${money(dueAmt(o))}</b></div>`:""}
