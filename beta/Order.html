@@ -726,7 +726,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-42";
+const APP_BUILD="b0819-43";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1633,11 +1633,7 @@ function openDetail(no){
   const payLbl=(o.payMethod?(o.payMethod==="其它"?"其它:"+esc(o.payOther||""):esc(o.payMethod)):"—");
   const rem=o.batch?batchRemainQty(o):null;
   const kidsAll=Object.values(ORDERS).filter(c=>c.parentNo===o.no&&c.status==="有效");
-  const cell=(l,v,s)=>`<div style="background:var(--cream);border-radius:10px;padding:8px 10px"><div style="font-size:12px;color:var(--ink3)">${l}</div><div style="font-size:20px;font-weight:800">${v}</div>${s?`<div style="font-size:11.5px;color:var(--ink3)">${s}</div>`:""}</div>`;
-  const dashHtml=(!o.batch&&kidsAll.length)?(()=>{const kb=kidsAll.reduce((s,c)=>s+(c.boxes||0),0),kp=kidsAll.filter(c=>c.pickedUp).reduce((s,c)=>s+(c.boxes||0),0);
-    return `<div style="margin:2px 0 8px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      ${cell("子单在册",kb+"盒","已取"+kp+" · 待取"+(kb-kp))}${cell("母单自留",o.boxes+"盒","")}
-    </div><div style="font-size:13px;margin-top:6px;text-align:center">${kb} + ${o.boxes} = ${kb+o.boxes}盒 <b style="color:var(--ok)">✓ 账平</b></div></div>`;})():"";
+  const dashHtml="";
   openModal(mhead(`${no} 订单详情`)+dashHtml+`
     ${o.dueNote?`<div class="ai-banner" style="border-color:#E5C9C9;margin-bottom:10px">
       <b style="color:var(--danger)">待收:${esc(o.dueNote)}</b>
@@ -1656,9 +1652,7 @@ function openDetail(no){
     <div class="kv"><span>取货</span><b>${o.batch?"分批取货,日期灵活":fmtMD(o.pickupDate)+" · "+STORE_NAME[o.store]}</b></div>
     ${prodLines}
     <div class="kv"><span>盒数合计</span><b>${o.boxes} 盒</b></div>
-    ${o.batch?(()=>{const bs=batchStats(o);const c=(l,v)=>`<div style="background:var(--cream);border-radius:10px;padding:8px 10px"><div style="font-size:12px;color:var(--ink3)">${l}</div><div style="font-size:20px;font-weight:800">${v}</div></div>`;
-      return `<div style="margin:2px 0 8px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${c("已取",bs.taken)}${c("已安排",bs.reserved)}${c("可取余额",bs.avail)}${c("共",bs.total+"盒")}</div>
-      <div style="font-size:13px;margin-top:6px;text-align:center">${bs.taken} + ${bs.reserved} + ${bs.avail} = ${bs.total}盒 <b style="color:var(--ok)">✓ 账平</b></div></div>`;})():""}
+    
     <div class="kv"><span>订单总额</span><b>${o.amount!=null?money(o.amount):"—"}${o.manualPrice?"(手动价)":""}</b></div>
     <div class="kv"><span>已收</span><b>${money(paidOf(o))||"$0"}</b></div>
     ${dueAmt(o)>0?`<div class="kv"><span style="color:var(--danger)">待收</span><b style="color:var(--danger)">${money(dueAmt(o))}</b></div>`:""}
@@ -3035,13 +3029,58 @@ function batchCard(o){
     </div>
   </div>`;
 }
+function familyKPI(o){
+  if(o.batch){const bs=batchStats(o);
+    return {total:bs.total,taken:bs.taken,waiting:bs.reserved,free:bs.avail,freeLbl:"未分配",ok:bs.taken+bs.reserved+bs.avail===bs.total};}
+  const kids=Object.values(ORDERS).filter(c=>c.parentNo===o.no&&c.status==="有效");
+  const kb=kids.reduce((s,c)=>s+(c.boxes||0),0),kp=kids.filter(c=>c.pickedUp).reduce((s,c)=>s+(c.boxes||0),0);
+  const own=o.boxes||0,ownTaken=o.pickedUp?own:0;
+  return {total:kb+own,taken:kp+ownTaken,waiting:(kb-kp)+(o.pickedUp?0:0),free:o.pickedUp?0:own,freeLbl:"母单自留",ok:true,kids};
+}
+function familyCard(o){
+  const k=familyKPI(o);
+  const cell=(l,v)=>`<div style="background:var(--cream);border-radius:10px;padding:7px 9px;text-align:center"><div style="font-size:11.5px;color:var(--ink3)">${l}</div><div style="font-size:19px;font-weight:800">${v}</div></div>`;
+  return `<div class="ocard" onclick="openFamily('${o.no}')">
+    <div class="l1"><span class="ono">${o.no}</span><span class="oname">${esc(o.name)}</span>
+      ${o.batch?'<span class="badge batch">分批</span>':'<span class="badge" style="background:#E4E9D5">家族</span>'}
+      <span class="badge pay-${o.pay}">${o.pay}</span></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0 4px">
+      ${cell("总数",k.total)}${cell("已取",k.taken)}${cell("待取",k.waiting)}${cell(k.freeLbl,k.free)}</div>
+    <div style="font-size:12.5px;text-align:center;color:var(--ink3)">${k.taken} + ${k.waiting} + ${k.free} = ${k.taken+k.waiting+k.free}盒 ${k.taken+k.waiting+k.free===k.total?'<b style="color:var(--ok)">✓ 账平</b>':'<b style="color:var(--danger)">✗ 请核对</b>'}</div>
+    <div class="ometa" style="margin-top:4px">${esc(fmtPhone(o.phone)||"")}</div>
+    <div class="row" style="margin-top:8px">
+      ${o.batch?`<button class="btn small ghost" onclick="event.stopPropagation();openWalkTake('${o.no}')">现货取走</button>`:""}
+      <button class="btn small" onclick="event.stopPropagation();${o.batch?`openBatchPick('${o.no}')`:`closeModal&&closeModal();openSplit('${o.no}')`}">安排取货</button>
+    </div></div>`;
+}
+window.openFamily=(no)=>{
+  const o=ORDERS[no];if(!o)return;
+  if(o.batch){openDetail(no);return;} // 分批老引擎:详情即操作(取货记录/作废都在)
+  const kids=Object.values(ORDERS).filter(c=>c.parentNo===no).sort((a,b)=>a.no.localeCompare(b.no));
+  const legCard=c=>`<div class="ocard" onclick="closeModal();openDetail('${c.no}')">
+    <div class="l1"><span class="ono">${c.no}</span><span class="oname">${esc(c.name)}</span>
+      <span class="badge ${c.store}">${STORE_NAME[c.store]||c.store}</span>
+      <span class="badge">${c.status!=="有效"?c.status:(c.pickedUp?"已取✓":"待取")}</span></div>
+    <div class="oitems">${itemsText(c.qty)}(${c.boxes}盒) · ${c.pickupDate?fmtMD(c.pickupDate):"—"}</div>
+    <div class="ometa">${esc(fmtPhone(c.phone)||"")}</div></div>`;
+  const own=`<div class="ocard" onclick="closeModal();openDetail('${o.no}')">
+    <div class="l1"><span class="ono">${o.no}</span><span class="oname">母单自留</span>
+      <span class="badge ${o.store}">${STORE_NAME[o.store]||o.store}</span>
+      <span class="badge">${o.pickedUp?"已取✓":"待取"}</span></div>
+    <div class="oitems">${itemsText(o.qty)}(${o.boxes}盒) · ${o.pickupDate?fmtMD(o.pickupDate):"—"}</div></div>`;
+  openModal(mhead(`家族操作:${no}(${esc(o.name)})`)+`
+    <p class="note" style="margin:0 0 8px">逐单操作:点卡片进详情核销/修改;「安排取货」= 拆一张新子单。</p>
+    ${own}${kids.map(legCard).join("")}
+    <div class="row" style="margin-top:10px">
+      <button class="btn" onclick="closeModal();openSplit('${no}')">安排取货(拆新子单)</button>
+    </div>`);
+};
 function renderBatchPage(){
   const el=document.getElementById("batchList"); if(!el)return;
-  let bl=batchOrders(); // #9: 门店码可见全部分批客人(不按门店过滤)
-  const active=bl.filter(o=>boxCounts(batchRemainQty(o)).total>0)
-    .sort((a,b)=>a.no.localeCompare(b.no));
-  const done=bl.filter(o=>boxCounts(batchRemainQty(o)).total===0)
-    .sort((a,b)=>a.no.localeCompare(b.no));
+  let bl=batchOrders().concat(Object.values(ORDERS).filter(o=>!o.batch&&o.status==="有效"&&Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效"))); // 家族=分批∪有子单的母单
+  const isDone=o=>o.batch?boxCounts(batchRemainQty(o)).total===0:(()=>{const k=familyKPI(o);return k.total>0&&k.taken===k.total;})();
+  const active=bl.filter(o=>!isDone(o)).sort((a,b)=>a.no.localeCompare(b.no));
+  const done=bl.filter(isDone).sort((a,b)=>a.no.localeCompare(b.no));
   const rem={};
   active.forEach(o=>{const r=batchRemainQty(o);PRODUCTS.forEach(p=>{if(r[p.k])rem[p.k]=(rem[p.k]||0)+r[p.k];});});
   const remB=boxCounts(rem).total;
@@ -3050,10 +3089,10 @@ function renderBatchPage(){
     sum.innerHTML=`<b style="color:var(--bronze)">${bStoreVal?STORE_NAME[bStoreVal]:"全店"}待取余额:${remB}盒</b>
       <div class="pksum" style="margin-top:8px">${PRODUCTS.filter(p=>rem[p.k]>0).map(p=>`<span class="pi">${p.n}<b>${rem[p.k]}</b></span>`).join("")}</div>`;
   } else sum.style.display="none";
-  el.innerHTML=active.length?active.map(batchCard).join("")
-    :`<div class="empty"><span class="moon">🌕</span>暂无待取的分批大单</div>`;
+  el.innerHTML=active.length?active.map(familyCard).join("")
+    :`<div class="empty"><span class="moon">🌕</span>暂无进行中的家族订单</div>`;
   document.getElementById("batchDoneList").innerHTML=
-    done.length?done.map(batchCard).join(""):`<div class="note">暂无</div>`;
+    done.length?done.map(familyCard).join(""):`<div class="note">暂无</div>`;
 }
 
 /* ---------------- 汇总页(门店配送,当日置顶) ---------------- */
