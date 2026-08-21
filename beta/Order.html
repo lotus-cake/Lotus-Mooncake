@@ -728,7 +728,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-46";
+const APP_BUILD="b0819-47";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -923,7 +923,11 @@ function openModal(html,center){
   m.style.display="flex";
   if(typeof applyLang==="function")applyLang(document.getElementById("mBox"));
 }
-function closeModal(){ document.getElementById("mMask").style.display="none"; }
+function closeModal(skipRet){
+  document.getElementById("mMask").style.display="none";
+  if(!skipRet&&window._retTo){const t=window._retTo;window._retTo=null;
+    if(ORDERS[t])setTimeout(()=>openDetail(t),60);}
+}
 document.getElementById("mMask").addEventListener("click",e=>{ if(e.target.id==="mMask") closeModal(); });
 function mhead(t){ return `<div class="mhead"><b>${t}</b><button class="mclose" onclick="closeModal()">✕</button></div>`; }
 
@@ -1687,7 +1691,7 @@ function openDetail(no){
       ${!o.refunded?`<button class="btn small" style="margin:4px 0" onclick="closeModal();openMarkRefund('${o.no}')">标记已退款</button>`:""}`:""}`:""}
     ${(()=>{const kids=Object.values(ORDERS).filter(c=>c.parentNo===o.no).sort((a,b)=>a.no.localeCompare(b.no));
       if(!kids.length)return "";
-      return `<div class="sect">关联子单(取货请到具体子单核销)</div>`+kids.map(c=>`<div class="kv"><span>${c.no} · ${esc(c.name)} ${esc(fmtPhone(c.phone)||"")} · ${c.boxes}盒 ${c.pickupDate?fmtMD(c.pickupDate):""}</span><span style="display:flex;gap:4px;align-items:center;flex-wrap:wrap"><b>${c.status!=="有效"?"Cancel":(c.pickedUp?"已取✓":"待取")}</b><button class="btn small ghost" onclick="closeModal();openDetail('${c.no}')">查看</button>${c.status==="有效"&&!(c.pickedUp&&ROLE&&ROLE.type==="store")?`<button class="btn small ghost" onclick="closeModal();openEdit('${c.no}')">修改</button><button class="btn small ghost" style="color:var(--danger)" onclick="closeModal();doCancel('${c.no}')">取消</button>`:""}</span></div>`).join("");})()}
+      return `<div class="sect">关联子单(取货请到具体子单核销)</div>`+kids.map(c=>`<div class="kv"><span>${c.no} · ${esc(c.name)} ${esc(fmtPhone(c.phone)||"")} · ${c.boxes}盒 ${c.pickupDate?fmtMD(c.pickupDate):""}</span><span style="display:flex;gap:4px;align-items:center;flex-wrap:wrap"><b>${c.status!=="有效"?"Cancel":(c.pickedUp?"已取✓":"待取")}</b><button class="btn small ghost" onclick="closeModal();openDetail('${c.no}')">查看</button>${c.status==="有效"&&!(c.pickedUp&&ROLE&&ROLE.type==="store")?`<button class="btn small ghost" onclick="window._retTo='${o.no}';closeModal(true);openEdit('${c.no}')">修改</button><button class="btn small ghost" style="color:var(--danger)" onclick="window._retTo='${o.no}';closeModal(true);doCancel('${c.no}')">取消</button>`:""}</span></div>`).join("");})()}
     ${o.payNote?`<div class="kv"><span>付款归属</span><b>${esc(o.payNote)}</b></div>`:""}
     <div class="sect">备注记录 <button class="btn small ghost" style="margin-left:6px" onclick="closeModal();openAddNote('${o.no}')">＋添加</button></div>
     ${(()=>{const ns=noteStream(o);return ns.length?ns.map(e=>`<div class="wlog"><span>${new Date(e.ts).toLocaleString("zh",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})} <b>${esc(e.staff||"")}</b>${e.store?`(${STORE_NAME[e.store]||e.store})`:""}${e.kind&&e.kind!=="备注"?` [${e.kind}]`:""} ${esc(e.t)}</span></div>`).join(""):'<div class="note">暂无备注</div>';})()}
@@ -1940,7 +1944,7 @@ function saveEdit(o){
           });
         }
         toast(o.no+" 已更新"+(moves.length?"(货量已与母单同步)":""));
-        openDetail(o.parentNo||o.no);
+        window._retTo=null;openDetail(o.parentNo||o.no);
       });
     });
   }
@@ -2188,7 +2192,7 @@ function doCancel(no){
             logOp(o.parentNo,staff,"子单归还",`${no} 取消,${o.boxes}盒归还母单,母单现 ${(m2&&m2.boxes)||"?"}盒`);
             logOp(no,staff,"归还母单",`${o.boxes}盒已归还 ${o.parentNo}`);
             toast(`${no} 已取消,${o.boxes}盒已归还母单 ${o.parentNo}`);
-            setTimeout(()=>openDetail(o.parentNo),80);
+            window._retTo=null;setTimeout(()=>openDetail(o.parentNo),80);
           });
         }else{
           logOp(no,staff,"取消订单",`${o.boxes}盒 · ${srcV}${reason?" · "+reason:""}${paid?` · 待退款→${promo?"客服(优惠单·紧急确认)":({cs:"客服",owner:"Owner",store:"取货门店(现金)"}[patch.refundRoute])}`:""}`);
