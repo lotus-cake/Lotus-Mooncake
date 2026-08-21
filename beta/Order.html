@@ -1532,7 +1532,7 @@ function orderCard(o,forPickup){
     return `<div class="ocard ${o.store} pkcard ${o.pickedUp?"fin":""}" onclick="openDetail('${o.no}')">
       <div class="pkinfo">
         <div class="l1"><span class="ono">${o.no}</span><span class="oname">${esc(o.name)}</span>
-          <span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>${o.parentNo?`<span class="badge" style="background:#E4E9D5">子单·属 ${o.parentNo}</span>`:""}${(o.parentNo&&ORDERS[o.parentNo]&&ORDERS[o.parentNo].pay!=="已付")?'<span class="badge" style="background:var(--danger);color:#fff">母单未付·取货锁定</span>':""}${o.status!=="有效"&&(paidOf(o)>0||o.pay==="已付")?(o.refunded?'<span class="badge" style="background:#DCE8D8;color:#3F6B3F">已退款✓</span>':'<span class="badge duepay">待退款</span>'):""}${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}${o.dueNote?`<span class="badge due">待收:${esc(o.dueNote)}</span>`:""}${o.exception?'<span class="badge exc">例外</span>':""}</div>
+          ${o.parentNo?"":`<span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>`}${o.parentNo?`<span class="badge" style="background:#E4E9D5">子单·属 ${o.parentNo}</span>`:""}${(o.parentNo&&ORDERS[o.parentNo]&&ORDERS[o.parentNo].pay!=="已付")?'<span class="badge" style="background:var(--danger);color:#fff">母单未付·取货锁定</span>':""}${!o.parentNo&&o.status!=="有效"&&(paidOf(o)>0||o.pay==="已付")?(o.refunded?'<span class="badge" style="background:#DCE8D8;color:#3F6B3F">已退款✓</span>':'<span class="badge duepay">待退款</span>'):""}${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}${o.dueNote?`<span class="badge due">待收:${esc(o.dueNote)}</span>`:""}${o.exception?'<span class="badge exc">例外</span>':""}</div>
         <div class="oitems">${items}(${o.boxes}盒${o.parentNo?' · <span class="z">付款随母单</span>':(o.amount!=null?" · "+money(o.amount):"")})</div>
         <div class="ometa">${esc(fmtPhone(o.phone)||"")} ${cleanNotes(o.notes)?" · "+esc(cleanNotes(o.notes)):""}</div>
       </div>
@@ -1549,7 +1549,7 @@ function orderCard(o,forPickup){
       <span class="ono">${o.no}</span><span class="oname">${esc(o.name)}</span>
       <span class="badge ${o.store}">${STORE_NAME[o.store]||o.store}</span>
       <span class="badge st-${o.status}">${o.status==="已取消"?"Cancel":o.status}</span>
-      <span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>${o.parentNo?`<span class="badge" style="background:#E4E9D5">子单·属 ${o.parentNo}</span>`:""}${(o.parentNo&&ORDERS[o.parentNo]&&ORDERS[o.parentNo].pay!=="已付")?'<span class="badge" style="background:var(--danger);color:#fff">母单未付·取货锁定</span>':""}${o.status!=="有效"&&(paidOf(o)>0||o.pay==="已付")?(o.refunded?'<span class="badge" style="background:#DCE8D8;color:#3F6B3F">已退款✓</span>':'<span class="badge duepay">待退款</span>'):""}${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}
+      ${o.parentNo?"":`<span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>`}${o.parentNo?`<span class="badge" style="background:#E4E9D5">子单·属 ${o.parentNo}</span>`:""}${(o.parentNo&&ORDERS[o.parentNo]&&ORDERS[o.parentNo].pay!=="已付")?'<span class="badge" style="background:var(--danger);color:#fff">母单未付·取货锁定</span>':""}${!o.parentNo&&o.status!=="有效"&&(paidOf(o)>0||o.pay==="已付")?(o.refunded?'<span class="badge" style="background:#DCE8D8;color:#3F6B3F">已退款✓</span>':'<span class="badge duepay">待退款</span>'):""}${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}
       ${o.dueNote?`<span class="badge due">待收:${esc(o.dueNote)}</span>`:""}
       ${bat}${o.exception?'<span class="badge exc">例外</span>':""}
       ${o.pickedUp?'<span class="badge st-有效">已取</span>':""}
@@ -1560,7 +1560,7 @@ function orderCard(o,forPickup){
       <div class="kv"><span>创建</span><b>${esc(o.createdBy||"?")} · ${o.orderDate||""}</b></div>
       ${(()=>{const h=Object.values(o.history||{}).find(x=>(x.action||"").includes("取消")||(x.action||"").includes("改期(原单)"));
         return h?`<div class="kv"><span>${(h.action||"").includes("取消")?"取消":"改期"}</span><b>${esc(h.staff||"?")} · ${h.date||""} ${h.time||""}</b></div>`:"";})()}
-      ${paidOf(o)>0||o.pay==="已付"?`<div class="kv"><span>退款状态</span><b style="color:${o.refunded?"var(--ok)":"var(--danger)"}">${o.refunded?`已退款 ✓ ${money(o.refunded.amount)} · ${esc(o.refunded.method)} · ${esc(o.refunded.ref)}(${esc(o.refunded.by)} ${o.refunded.at})`:"待退款"}</b></div>
+      ${!o.parentNo&&(paidOf(o)>0||o.pay==="已付")?`<div class="kv"><span>退款状态</span><b style="color:${o.refunded?"var(--ok)":"var(--danger)"}">${o.refunded?`已退款 ✓ ${money(o.refunded.amount)} · ${esc(o.refunded.method)} · ${esc(o.refunded.ref)}(${esc(o.refunded.by)} ${o.refunded.at})`:"待退款"}</b></div>
       ${!o.refunded?`<button class="btn small" style="margin:4px 0" onclick="closeModal();openMarkRefund('${o.no}')">标记已退款</button>`:""}`:""}`:""}
     ${(()=>{const kids=Object.values(ORDERS).filter(c=>c.parentNo===o.no).sort((a,b)=>a.no.localeCompare(b.no));
       if(!kids.length)return "";
@@ -1648,7 +1648,7 @@ function openDetail(no){
     <div class="l1" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
       <span class="badge ${o.store}">${STORE_NAME[o.store]}</span>
       <span class="badge st-${o.status}">${o.status==="已取消"?"Cancel":o.status}</span>
-      <span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>${o.parentNo?`<span class="badge" style="background:#E4E9D5">子单·属 ${o.parentNo}</span>`:""}${(o.parentNo&&ORDERS[o.parentNo]&&ORDERS[o.parentNo].pay!=="已付")?'<span class="badge" style="background:var(--danger);color:#fff">母单未付·取货锁定</span>':""}${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}
+      ${o.parentNo?"":`<span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>`}${o.parentNo?`<span class="badge" style="background:#E4E9D5">子单·属 ${o.parentNo}</span>`:""}${(o.parentNo&&ORDERS[o.parentNo]&&ORDERS[o.parentNo].pay!=="已付")?'<span class="badge" style="background:var(--danger);color:#fff">母单未付·取货锁定</span>':""}${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}
       ${o.batch?'<span class="badge batch">分批大单</span>':""}
       ${o.manualPrice?'<span class="badge batch">手动价</span>':""}
       ${o.exception?'<span class="badge exc">例外:'+esc(o.exception.reason)+'</span>':""}
@@ -1659,12 +1659,13 @@ function openDetail(no){
     ${prodLines}
     <div class="kv"><span>盒数合计</span><b>${o.boxes} 盒</b></div>
     
+    ${o.parentNo?`<div class="kv"><span>付款归属</span><b>付款随母单 ${o.parentNo}(金额/渠道见母单)</b></div><div style="display:none">`:""}
     <div class="kv"><span>订单总额</span><b>${o.amount!=null?money(o.amount):"—"}${o.manualPrice?"(手动价)":""}</b></div>
     <div class="kv"><span>已收</span><b>${money(paidOf(o))||"$0"}</b></div>
     ${dueAmt(o)>0?`<div class="kv"><span style="color:var(--danger)">待收</span><b style="color:var(--danger)">${money(dueAmt(o))}</b></div>`:""}
     <div class="kv"><span>付款</span><b>${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay} · ${payLbl}</b></div>
     <div class="kv"><span>渠道</span><b>${esc(o.channel||"—")}${o.wxAcct?" · "+esc(o.wxAcct):""}${o.chStore?" · "+(STORE_NAME[o.chStore]||o.chStore):""}${o.chStaff?" · "+esc(o.chStaff):""}</b></div>
-    <div class="kv"><span>渠道 / 单号</span><b>${esc(o.channel||"—")}${o.backendNo?" · "+esc(o.backendNo):""}</b></div>
+    <div class="kv"><span>渠道 / 单号</span><b>${esc(o.channel||"—")}${o.backendNo?" · "+esc(o.backendNo):""}</b></div>${o.parentNo?`</div>`:""}
     ${o.linkedNo?`<div class="kv"><span>关联订单</span><b>${o.linkedNo}</b></div>`:""}
     ${o.refundNote?`<div class="kv"><span>退款记录</span><b>${esc(o.refundNote)}</b></div>`:""}
     ${cleanNotes(o.notes)?`<div class="kv"><span>备注</span><b style="text-align:right;max-width:65%">${esc(cleanNotes(o.notes))}</b></div>`:""}
@@ -1687,7 +1688,7 @@ function openDetail(no){
       <div class="kv"><span>创建</span><b>${esc(o.createdBy||"?")} · ${o.orderDate||""}</b></div>
       ${(()=>{const h=Object.values(o.history||{}).find(x=>(x.action||"").includes("取消")||(x.action||"").includes("改期(原单)"));
         return h?`<div class="kv"><span>${(h.action||"").includes("取消")?"取消":"改期"}</span><b>${esc(h.staff||"?")} · ${h.date||""} ${h.time||""}</b></div>`:"";})()}
-      ${paidOf(o)>0||o.pay==="已付"?`<div class="kv"><span>退款状态</span><b style="color:${o.refunded?"var(--ok)":"var(--danger)"}">${o.refunded?`已退款 ✓ ${money(o.refunded.amount)} · ${esc(o.refunded.method)} · ${esc(o.refunded.ref)}(${esc(o.refunded.by)} ${o.refunded.at})`:"待退款"}</b></div>
+      ${!o.parentNo&&(paidOf(o)>0||o.pay==="已付")?`<div class="kv"><span>退款状态</span><b style="color:${o.refunded?"var(--ok)":"var(--danger)"}">${o.refunded?`已退款 ✓ ${money(o.refunded.amount)} · ${esc(o.refunded.method)} · ${esc(o.refunded.ref)}(${esc(o.refunded.by)} ${o.refunded.at})`:"待退款"}</b></div>
       ${!o.refunded?`<button class="btn small" style="margin:4px 0" onclick="closeModal();openMarkRefund('${o.no}')">标记已退款</button>`:""}`:""}`:""}
     ${(()=>{const kids=Object.values(ORDERS).filter(c=>c.parentNo===o.no).sort((a,b)=>a.no.localeCompare(b.no));
       if(!kids.length)return "";
@@ -3066,7 +3067,7 @@ function batchCard(o){
     <div class="pkinfo" style="flex:1;min-width:0">
       <div class="l1"><span class="ono">${o.no}</span><span class="oname">${esc(o.name)}</span>
         <span class="badge ${o.store}">${STORE_NAME[o.store]||o.store}</span>
-        <span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>${o.parentNo?`<span class="badge" style="background:#E4E9D5">子单·属 ${o.parentNo}</span>`:""}${(o.parentNo&&ORDERS[o.parentNo]&&ORDERS[o.parentNo].pay!=="已付")?'<span class="badge" style="background:var(--danger);color:#fff">母单未付·取货锁定</span>':""}${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}
+        ${o.parentNo?"":`<span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>`}${o.parentNo?`<span class="badge" style="background:#E4E9D5">子单·属 ${o.parentNo}</span>`:""}${(o.parentNo&&ORDERS[o.parentNo]&&ORDERS[o.parentNo].pay!=="已付")?'<span class="badge" style="background:var(--danger);color:#fff">母单未付·取货锁定</span>':""}${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}
         ${st.missed>=2?`<span class="badge duepay">爽约 ${st.missed} 次</span>`:""}</div>
       <div style="font-size:17px;font-weight:700;margin:4px 0 2px">共 ${st.total} 盒 · 已取 ${st.taken} · 已安排 ${st.reserved} · <span style="color:var(--bronze)">可取 ${st.avail}</span></div>
       ${st.reserved?`<div style="font-size:14px;margin:0 0 2px">可取 <b>${st.avail}</b> · 已安排 <b style="color:#A05A00">${st.reserved}</b>${st.resOpen.map(r=>`<span class="z">(${fmtMD(r.date)} ${r.boxes}盒 @${STORE_NAME[r.store]||r.store}${r.picker?" · "+esc(r.picker):""})</span>`).join("")}</div>`:""}
