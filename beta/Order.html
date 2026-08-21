@@ -728,7 +728,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-44";
+const APP_BUILD="b0819-45";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -3082,7 +3082,10 @@ function familyKPI(o){
   const kids=Object.values(ORDERS).filter(c=>c.parentNo===o.no&&c.status==="有效");
   const kb=kids.reduce((s,c)=>s+(c.boxes||0),0),kp=kids.filter(c=>c.pickedUp).reduce((s,c)=>s+(c.boxes||0),0);
   const own=o.boxes||0,ownTaken=o.pickedUp?own:0;
-  return {total:kb+own,taken:kp+ownTaken,waiting:(kb-kp)+(o.pickedUp?0:0),free:o.pickedUp?0:own,freeLbl:"未分配",ok:true,kids};
+  const ownOpen=o.pickedUp?0:own;
+  // 有取货日期=已分配的腿(待取);无日期才是未分配
+  const ownWait=o.pickupDate?ownOpen:0, ownFree=o.pickupDate?0:ownOpen;
+  return {total:kb+own,taken:kp+ownTaken,waiting:(kb-kp)+ownWait,free:ownFree,freeLbl:"未分配",ok:true,kids};
 }
 function familyCard(o){
   const k=familyKPI(o);
