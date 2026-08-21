@@ -402,7 +402,7 @@ table.sum .z{color:#C9C6B4}
   <div class="seg" id="pendSeg" style="margin:0 0 8px">
     <button data-v="in" class="on">待收款</button><button data-v="out">待退款</button>
   </div>
-  <div class="note" id="pendHint" style="margin:-4px 0 8px">按取货日期排序;取货<b>前一天 17:00</b> 未收到款自动标红。</div>
+  <div class="note" id="pendHint" style="margin:-4px 0 8px">按取货日期排序;取货<b>前一天 17:00</b> 未收到款自动标红。</div><div id="pendUrgent"></div>
   <div id="pendList"></div>
 </div>
 
@@ -726,7 +726,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-37";
+const APP_BUILD="b0819-38";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1049,7 +1049,7 @@ const ZHEN={
 "付款随母单":"Paid with parent","子单":"Sub-order","已拆分":"Split",
 "六粒混合":"Mix of 6","六粒金沙":"Classic 6 (Jinsha)","两粒金沙":"Jinsha 2","两粒抹茶柚子":"Matcha Yuzu 2","两粒黑松露":"Truffle 2","两粒陈皮红豆":"Tangerine Red Bean 2","两粒摩卡":"Mocha 2","两粒乌龙":"Oolong 2","两粒盲盒":"Mystery 2",
 "六粒盒":"6-box","两粒盒":"2-box","售":"sold",
-"识别中…":"Scanning...","保存中…":"Saving...","保存超时,请检查网络(左上角圆点需为绿色)后重试":"Save timed out - check network (top-left dot must be green) and retry","识别完成,请核对":"Scan done - please verify","已自动填入(金色高亮),请逐项核对后再保存。":"Auto-filled (gold highlight). Verify each field before saving."
+"识别中…":"Scanning...","撤销已取":"Undo pickup","该订单已完成取货,信息已锁定;需更正请联系客服":"Picked up - locked. Contact CS to amend","收起家族,只看命中的子单 ↑":"Collapse family ↑","保存中…":"Saving...","保存超时,请检查网络(左上角圆点需为绿色)后重试":"Save timed out - check network (top-left dot must be green) and retry","识别完成,请核对":"Scan done - please verify","已自动填入(金色高亮),请逐项核对后再保存。":"Auto-filled (gold highlight). Verify each field before saving."
 };
 const ZHEN_RX=[
 [/^已拆分 (\d+) 张子单$/, "Split into $1 sub-orders"],
@@ -1505,7 +1505,7 @@ function orderCard(o,forPickup){
   let bat="";
   if(o.batch){
     const rem=boxCounts(batchRemainQty(o)).total;
-    bat=`<span class="badge batch">分批 余${rem}盒</span>`;
+    {const bs=batchStats(o);bat=`<span class="badge batch">分批 已取${bs.taken}·已安排${bs.reserved}·可取${bs.avail}</span>`;}
   }
   return `<div class="ocard ${o.store} ${dead?"dead":""}" onclick="openDetail('${o.no}')">${foreign}
     <div class="l1">
@@ -1527,7 +1527,9 @@ function orderCard(o,forPickup){
       ${!o.refunded?`<button class="btn small" style="margin:4px 0" onclick="closeModal();openMarkRefund('${o.no}')">标记已退款</button>`:""}`:""}`:""}
     ${(()=>{const kids=Object.values(ORDERS).filter(c=>c.parentNo===o.no).sort((a,b)=>a.no.localeCompare(b.no));
       if(!kids.length)return "";
-      return `<div class="ometa" style="margin-top:2px">已拆分 ${kids.length} 张子单:`+kids.map(c=>`<br>&nbsp;&nbsp;${c.no.slice(-1)} · ${esc(c.name)} ${esc(fmtPhone(c.phone)||"")} · ${c.boxes}盒 ${c.pickupDate?fmtMD(c.pickupDate):""} · ${c.status!=="有效"?c.status:(c.pickedUp?"已取✓":"待取")}`).join("")+`</div>`;})()}
+      const ks=kids.filter(c=>c.status==="有效");
+      const kb=ks.reduce((s,c)=>s+(c.boxes||0),0),kp=ks.filter(c=>c.pickedUp).reduce((s,c)=>s+(c.boxes||0),0);
+      return `<div class="ometa" style="margin-top:2px"><b>子单在册 ${kb}盒(已取${kp}·待取${kb-kp}) · 母单自留 ${o.boxes}盒 · 合计 ${kb+o.boxes}盒</b></div><div class="ometa" style="margin-top:2px">已拆分 ${kids.length} 张子单:`+kids.map(c=>`<br>&nbsp;&nbsp;${c.no.slice(-1)} · ${esc(c.name)} ${esc(fmtPhone(c.phone)||"")} · ${c.boxes}盒 ${c.pickupDate?fmtMD(c.pickupDate):""} · ${c.status!=="有效"?c.status:(c.pickedUp?"已取✓":"待取")}`).join("")+`</div>`;})()}
     ${dead?"":`<div class="oacts">
       <button class="primary" onclick="event.stopPropagation();openDetail('${o.no}')">详情</button>
       <button class="danger" onclick="event.stopPropagation();doCancel('${o.no}')">取消订单</button>
@@ -1565,18 +1567,27 @@ function renderOrders(){
     list.forEach(o=>{
       if(!o.parentNo){ // 可能是母单:找孩子
         Object.values(ORDERS).forEach(c=>{if(c.parentNo===o.no&&!inSet.has(c.no)&&(qShowDead||c.status==="有效")){inSet.add(c.no);extra.push(c);}});
-      }else if(ORDERS[o.parentNo]&&!inSet.has(o.parentNo)&&(qShowDead||ORDERS[o.parentNo].status==="有效")){
-        inSet.add(o.parentNo);extra.push(ORDERS[o.parentNo]);
+      }else if(ORDERS[o.parentNo]){
+        const mom=ORDERS[o.parentNo];
+        if(!inSet.has(mom.no)&&(qShowDead||mom.status==="有效")){inSet.add(mom.no);extra.push(mom);}
+        Object.values(ORDERS).forEach(sib=>{if(sib.parentNo===mom.no&&!inSet.has(sib.no)&&(qShowDead||sib.status==="有效")){inSet.add(sib.no);extra.push(sib);}});
       }
     });
-    list=list.concat(extra);
+    const direct=new Set(list.map(o=>o.no));
+    const onlyChildHit=list.length&&list.every(o=>o.parentNo);
+    window._famCollapsed=onlyChildHit&&!window._famExpand&&extra.length>0;
+    if(!onlyChildHit)window._famExpand=false;
+    window._famHidden=window._famCollapsed?extra.length:0;
+    if(!window._famCollapsed)list=list.concat(extra);
   }
   list.sort((a,b)=>((a.batch?"9999":a.pickupDate)||"").localeCompare((b.batch?"9999":b.pickupDate)||"")||a.no.localeCompare(b.no));
   const crossBtn=(ROLE&&ROLE.type==="store"&&txt&&!qCross)
     ?`<div style="text-align:center;margin-top:10px"><button class="btn small ghost" onclick="qCross=true;renderOrders()">没找到?搜其他门店 →</button></div>`:"";
   const crossTip=(qCross&&ROLE&&ROLE.type==="store")?`<div class="note" style="margin:0 0 8px">🔎 正在搜<b>全部门店</b> — 他店订单会标注归属 <button class="btn small ghost" onclick="qCross=false;renderOrders()">只看本店</button></div>`:"";
+  const famStrip=window._famCollapsed?`<div style="text-align:center;margin:6px 0"><button class="btn small ghost" onclick="window._famExpand=true;renderOrders()">查看所属母单及其他子单(${window._famHidden}) ↓</button></div>`
+    :(window._famExpand?`<div style="text-align:center;margin:6px 0"><button class="btn small ghost" onclick="window._famExpand=false;renderOrders()">收起家族,只看命中的子单 ↑</button></div>`:"");
   document.getElementById("orderList").innerHTML=crossTip+
-    (list.length?list.map(o=>orderCard(o,false)).join(""):`<div class="empty"><span class="moon">🌕</span>没有符合条件的订单</div>`)+crossBtn;
+    (list.length?list.map(o=>orderCard(o,false)).join(""):`<div class="empty"><span class="moon">🌕</span>没有符合条件的订单</div>`)+famStrip+crossBtn;
 }
 
 /* ---------------- 订单详情 / 修改 ---------------- */
@@ -1620,13 +1631,15 @@ function openDetail(no){
     ${cleanNotes(o.notes)?`<div class="kv"><span>备注</span><b style="text-align:right;max-width:65%">${esc(cleanNotes(o.notes))}</b></div>`:""}
     ${o.batch?`<div class="sect">取货记录</div>${pkList||'<p class="note">还没有取货记录</p>'}`:""}
     <div style="height:12px"></div>
-    ${dead?"":`<button class="btn" onclick="openEdit('${no}')">修改订单</button>`}
-    <div class="row" style="margin-top:10px${dead?";display:none":""}">
+    ${(o.pickedUp&&ROLE&&ROLE.type==="store")?`<p class="note" style="margin:0;color:var(--danger)">已完成取货,信息锁定;需更正请联系客服</p>`:""}
+    ${(o.pickedUp&&!o.batch&&ROLE&&(ROLE.type==="cs"||ROLE.type==="owner"))?`<button class="btn ghost" onclick="undoPicked('${no}')">撤销已取</button>`:""}
+    ${(dead||(o.pickedUp&&ROLE&&ROLE.type==="store"))?"":`<button class="btn" onclick="openEdit('${no}')">修改订单</button>`}
+    ${(dead||(o.pickedUp&&ROLE&&ROLE.type==="store"))?"":`<div class="row" style="margin-top:10px">
       ${o.batch
         ?(boxCounts(rem).total>0?`<button class="btn ghost" onclick="closeModal();openBatchPick('${no}')">记一笔取货</button>`:"")
         :`           <button class="btn ghost" onclick="closeModal();openSplit('${no}')">拆分订单</button>\
       <button class="btn warn" onclick="closeModal();doCancel('${no}')">取消订单</button>
-    </div>`}
+    </div>`}`}
     ${o.parentNo&&ORDERS[o.parentNo]?`
     <details style="margin:8px 0"><summary class="note" style="cursor:pointer">📜 原单 ${o.parentNo} 拆分前的操作记录(点开查看)</summary>
       <div style="margin-top:6px">${Object.values(ORDERS[o.parentNo].history||{}).filter(h=>(h.ts||0)<=(o.splitAt||Infinity)).sort((a,b)=>(a.ts||0)-(b.ts||0)).map(h=>`<div class="wlog"><span>${new Date(h.ts).toLocaleString("zh",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})} <b>${esc(h.staff||"")}</b> ${esc(h.action||h.act||"")} ${esc(h.detail||"")}</span></div>`).join("")||'<div class="note">无</div>'}</div>
@@ -1646,6 +1659,24 @@ function openDetail(no){
     <div class="sect">操作记录</div>
     ${histHtml(o)}`);
 }
+window.undoPicked=(no)=>{
+  const o=ORDERS[no];if(!o)return;
+  if(!(ROLE&&(ROLE.type==="cs"||ROLE.type==="owner")))return toast("撤销已取需客服/Owner 权限");
+  if(o.batch)return toast("分批大单请在分批页处理具体取货记录");
+  openModal(mhead(`撤销已取:${no}`)+`
+    <p class="note" style="margin:0 0 8px">订单将回到「待取」状态,原取货记录保留在日志中。</p>
+    <label class="f">撤销原因 *</label>
+    <input type="text" id="upReason" placeholder="例:店员误点确认取货">
+    ${staffField()}
+    <button class="btn warn" style="margin-top:12px" id="upGo">确认撤销</button>`,true);
+  document.getElementById("upGo").onclick=()=>{
+    const r=document.getElementById("upReason").value.trim();
+    if(!r)return toast("请填写撤销原因");
+    const staff=getStaff();if(!staff)return;
+    closeModal();
+    patchOrder(no,{pickedUp:false},()=>{logOp(no,staff,"撤销已取",r);toast(no+" 已撤销取货,回到待取");});
+  };
+};
 function openEdit(no){
   const o=ORDERS[no]; if(!o||o.status!=="有效")return;
   eNo=no; eQty={...(o.qty||{})}; eStore=o.store;
@@ -1730,6 +1761,7 @@ function eStep(k,d,min){ eQty[k]=Math.max(min||0,(eQty[k]||0)+d); if(!eQty[k])de
 }
 
 function saveEdit(o){
+  if(o.pickedUp&&ROLE&&ROLE.type==="store")return toast("该订单已完成取货,信息已锁定;需更正请联系客服");
   const name=document.getElementById("eName").value.trim();
   if(!name)return toast("姓名不能为空");
   let eSrcV=document.getElementById("eSrc")?document.getElementById("eSrc").value:"";
@@ -1831,7 +1863,7 @@ function saveEdit(o){
   const wasPaid=o.pay==="已付";
   if(wasPaid && nb.total<(o.boxes||0)){
     const refAmt=(patch.amount!=null)?Math.max(0,Math.round((paidOf(o)-patch.amount)*100)/100):null;
-    if(refAmt!=null&&refAmt>0)patch.paid=patch.amount;
+    if(refAmt!=null&&refAmt>0){patch.paid=patch.amount;patch.refundAmt=refAmt;}
     refundFlow(o,`订单 ${o.no} 由 ${o.boxes}盒 改为 ${nb.total}盒(减 ${o.boxes-nb.total}盒)`+(refAmt!=null&&refAmt>0?`,应退 ${money(refAmt)}`:""),apply);
   } else if(wasPaid && nb.total>(o.boxes||0)){
     const inc=nb.total-(o.boxes||0);
@@ -2018,6 +2050,7 @@ function settleDue(no,alsoPick){
 /* ---------------- 取消 / 改期(App内弹窗) ---------------- */
 function doCancel(no){
   const o=ORDERS[no]; if(!o)return;
+  if(o.pickedUp&&ROLE&&ROLE.type==="store")return toast("该订单已完成取货,信息已锁定;需更正请联系客服");
   // 母单取消/退款前置:必须先取消所有有效子单(盒数归还母单)
   if(!o.parentNo){
     const kids=Object.values(ORDERS).filter(c=>c.parentNo===o.no&&c.status==="有效");
@@ -2060,7 +2093,7 @@ function doCancel(no){
       const patch={status:"已取消",cancelSrc:srcV,cancelReason:reason||null,
         cancelBy:staff,cancelAcct:acctLabel(),cancelAt:todayStr()+" "+nowHM()};
       // 子单永不生成退款:钱随母单;退款只在母单发生
-      if(paid&&!o.parentNo){patch.refundDue=true;patch.refundRoute=promo?"cs":refundRoute(o);if(promo)patch.refundUrgent=true;}
+      if(paid&&!o.parentNo){patch.refundDue=true;patch.refundAmt=paidOf(o)||o.amount;patch.refundRoute=promo?"cs":refundRoute(o);if(promo)patch.refundUrgent=true;}
       closeModal();
       patchOrder(no,patch,()=>{
         if(o.parentNo){
@@ -2116,8 +2149,8 @@ function openAddNote(no){
 function openMarkRefund(no){
   const o=ORDERS[no];if(!o)return;
   if(o.refundUrgent&&ROLE&&ROLE.type==="store")return toast("优惠单退款需客服/Owner 核对处理");
-  const amt0=paidOf(o)||o.amount;
-  const canEdit=o.refundUrgent&&ROLE&&(ROLE.type==="cs"||ROLE.type==="owner");
+  const amt0=(o.refundAmt!=null?o.refundAmt:(paidOf(o)||o.amount));
+  const canEdit=ROLE&&(ROLE.type==="cs"||ROLE.type==="owner");
   openModal(mhead(`标记已退款:${no}(${esc(o.name)})`)+`
     ${o.refundUrgent?'<p class="note" style="color:var(--danger);margin:0 0 8px"><b>优惠单</b>:请按优惠规则重算实际应退金额</p>':""}
     <label class="f">退款金额 $</label>
@@ -2150,6 +2183,13 @@ document.addEventListener("click",e=>{
 function renderRefundList(){
   const el=document.getElementById("pendList");if(!el)return;
   document.getElementById("pendHint").innerHTML="取消的已付订单自动进入;<b>优惠单(红标)需先人工核对退款金额</b>。现金退款在取货门店页处理。";
+  {const ug=Object.values(ORDERS).map(o=>({o,u:urgentPay(o)})).filter(x=>x.u).sort((a,b)=>a.u.days-b.u.days);
+   const el=document.getElementById("pendUrgent");
+   if(el)el.innerHTML=ug.length?`<div class="note" style="margin:0 0 6px"><b style="color:var(--danger)">临近取货未付(${ug.length})— 优先催付</b></div>`+ug.map(({o,u})=>`
+     <div class="ocard" style="border:1.5px solid var(--danger)" onclick="openDetail('${o.no}')">
+       <div class="ohead"><b>${o.no}</b><span class="badge" style="background:var(--danger);color:#fff">${u.days===0?"今天":u.days+"天后"}取货 · ${o.pay}</span></div>
+       <div class="ometa">${esc(o.name)} ${esc(fmtPhone(o.phone)||"")} · ${fmtMD(u.d)} · 应收 ${money((o.amount||0)-paidOf(o))}</div>
+     </div>`).join(""):"";}
   const mine=Object.values(ORDERS).filter(o=>o.refundDue&&!o.refunded&&(ROLE.type==="owner"?true:o.refundRoute!=="owner"&&o.refundRoute!=="store"));
   const list=mine.sort((a,b)=>(b.refundUrgent?1:0)-(a.refundUrgent?1:0)||(b.cancelAt||"").localeCompare(a.cancelAt||""));
   el.innerHTML=list.length?list.map(o=>`
@@ -2168,7 +2208,38 @@ function renderRefundList(){
       </div></div>`).join("")
   :'<div class="note">没有待退款 🎉</div>';
 }
+function familyEarliestPickup(o){
+  let d=o.batch?null:(o.pickupDate||null);
+  Object.values(ORDERS).forEach(c=>{if(c.parentNo===o.no&&c.status==="有效"&&c.pickupDate&&(!d||c.pickupDate<d))d=c.pickupDate;});
+  if(o.batch)Object.values(o.reserves||{}).forEach(r=>{if(r.status==="open"&&r.date&&(!d||r.date<d))d=r.date;});
+  return d;
+}
+function urgentPay(o){
+  if(o.status!=="有效"||o.pay==="已付"||o.parentNo)return null;
+  const d=familyEarliestPickup(o);if(!d)return null;
+  const days=Math.round((new Date(d+"T12:00")-new Date(todayStr()+"T12:00"))/86400000);
+  return (days<=3&&days>=0)?{d,days}:null;
+}
+function familyEarliestPickup(o){
+  let d=o.batch?null:(o.pickupDate||null);
+  Object.values(ORDERS).forEach(c=>{if(c.parentNo===o.no&&c.status==="有效"&&c.pickupDate&&(!d||c.pickupDate<d))d=c.pickupDate;});
+  if(o.batch)Object.values(o.reserves||{}).forEach(r=>{if(r.status==="open"&&r.date&&(!d||r.date<d))d=r.date;});
+  return d;
+}
+function urgentPay(o){
+  if(o.status!=="有效"||o.pay==="已付"||o.parentNo)return null;
+  const d=familyEarliestPickup(o);if(!d)return null;
+  const days=Math.round((new Date(d+"T12:00")-new Date(todayStr()+"T12:00"))/86400000);
+  return (days<=3&&days>=0)?{d,days}:null;
+}
 function renderPend(){
+  {const ug=Object.values(ORDERS).map(o=>({o,u:urgentPay(o)})).filter(x=>x.u).sort((a,b)=>a.u.days-b.u.days);
+   const el=document.getElementById("pendUrgent");
+   if(el)el.innerHTML=ug.length?`<div class="note" style="margin:0 0 6px"><b style="color:var(--danger)">临近取货未付(${ug.length})— 优先催付</b></div>`+ug.map(({o,u})=>`
+     <div class="ocard" style="border:1.5px solid var(--danger)" onclick="openDetail('${o.no}')">
+       <div class="ohead"><b>${o.no}</b><span class="badge" style="background:var(--danger);color:#fff">${u.days===0?"今天":u.days+"天后"}取货 · ${o.pay}</span></div>
+       <div class="ometa">${esc(o.name)} ${esc(fmtPhone(o.phone)||"")} · ${fmtMD(u.d)} · 应收 ${money(Math.max(0,(o.amount||0)-paidOf(o)))}</div>
+     </div>`).join(""):"";}
   if(pendMode==="out")return renderRefundList();
   const hintEl=document.getElementById("pendHint");
   if(hintEl)hintEl.innerHTML='按取货日期排序;取货<b>前一天 17:00</b> 未收到款自动标红。';
@@ -2841,7 +2912,7 @@ function batchCard(o){
         <span class="badge ${o.store}">${STORE_NAME[o.store]||o.store}</span>
         <span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>${o.parentNo?`<span class="badge" style="background:#E4E9D5">子单·属 ${o.parentNo}</span>`:""}${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}
         ${st.missed>=2?`<span class="badge duepay">爽约 ${st.missed} 次</span>`:""}</div>
-      <div style="font-size:18px;font-weight:700;margin:4px 0 2px">共 ${st.total} 盒 · 已取 ${st.taken} · <span style="color:var(--bronze)">余 ${st.remain}</span></div>
+      <div style="font-size:17px;font-weight:700;margin:4px 0 2px">共 ${st.total} 盒 · 已取 ${st.taken} · 已安排 ${st.reserved} · <span style="color:var(--bronze)">可取 ${st.avail}</span></div>
       ${st.reserved?`<div style="font-size:14px;margin:0 0 2px">可取 <b>${st.avail}</b> · 已安排 <b style="color:#A05A00">${st.reserved}</b>${st.resOpen.map(r=>`<span class="z">(${fmtMD(r.date)} ${r.boxes}盒 @${STORE_NAME[r.store]||r.store}${r.picker?" · "+esc(r.picker):""})</span>`).join("")}</div>`:""}
       <div style="height:6px;border-radius:99px;background:#EEE8D8;overflow:hidden;margin:4px 0">
         <div style="height:100%;width:${pct}%;background:var(--olive)"></div></div>
