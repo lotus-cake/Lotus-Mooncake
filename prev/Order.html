@@ -726,7 +726,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-38";
+const APP_BUILD="b0819-39";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1763,6 +1763,20 @@ function eStep(k,d,min){ eQty[k]=Math.max(min||0,(eQty[k]||0)+d); if(!eQty[k])de
 function saveEdit(o){
   if(o.pickedUp&&ROLE&&ROLE.type==="store")return toast("该订单已完成取货,信息已锁定;需更正请联系客服");
   const name=document.getElementById("eName").value.trim();
+  // —— 改取货门店的装车闸(所有角色一致;分批单无固定店不涉) ——
+  const newStoreV=(typeof eStore!=="undefined"&&eStore)||o.store;
+  if(!o.batch&&newStoreV&&newStoreV!==o.store){
+    const d=(document.getElementById("eDate")&&document.getElementById("eDate").value)||o.pickupDate;
+    const shippedOld=(sumQ2(shippedFor(d,o.store)["订单"])+sumQ2(shippedFor(d,o.store)["现货"]))>0;
+    if(shippedOld)return toast(`原定 ${STORE_NAME[o.store]} 当日已装车交接,不能再改门店;客人到店请用「跨店代取」`);
+    const shippedNew=(sumQ2(shippedFor(d,newStoreV)["订单"])+sumQ2(shippedFor(d,newStoreV)["现货"]))>0;
+    if(shippedNew){
+      const wc=walkinCalc(newStoreV,d),lack=[];
+      PRODUCTS.forEach(p=>{const need=(eQty[p.k]||0);if(need>((wc[p.k]&&wc[p.k].remain)||0))lack.push(`${p.n}×${need-((wc[p.k]&&wc[p.k].remain)||0)}`);});
+      if(lack.length)return toast(`${STORE_NAME[newStoreV]} 当日车已装、现货不足(缺 ${lack.join("、")}),无法改店;可用「跨店代取」`);
+      window._storeChangeConsume={store:newStoreV,date:d,qty:{...eQty}};
+    }else window._storeChangeConsume=null;
+  }else window._storeChangeConsume=null;
   if(!name)return toast("姓名不能为空");
   let eSrcV=document.getElementById("eSrc")?document.getElementById("eSrc").value:"";
   if(!eSrcV)return toast("请选择修改来源");
@@ -1819,6 +1833,12 @@ function saveEdit(o){
     askStaff("确认修改:"+o.no,staff=>{
       patchOrder(o.no,patch,()=>{
         logOp(o.no,staff,"修改订单",(diffs.length?diffs.join(";"):"无字段变化")+" · "+(window._eSrcV||""));
+        if(window._storeChangeConsume){
+          const sc=window._storeChangeConsume;window._storeChangeConsume=null;
+          Object.entries(sc.qty).forEach(([k,v])=>{if(v>0)addSale(sc.store,{date:sc.date,time:nowHM(),product:k,qty:v,pm:"改店占用",amt:0,staff,src:"storechange",orderNo:o.no,ts:Date.now()});});
+          logOp(o.no,staff,"改店占用现货",`${STORE_NAME[sc.store]} 现货 −${Object.values(sc.qty).reduce((a,b)=>a+(+b||0),0)}盒(该店当日车已装,货从现货出)`);
+          toast(`已改店并占用 ${STORE_NAME[sc.store]} 现货`);
+        }
         toast(o.no+" 已更新");
         openDetail(o.no);
       });
@@ -1846,6 +1866,12 @@ function saveEdit(o){
     return askStaff("确认修改子单:"+o.no,staff=>{
       patchOrder(o.no,patch,()=>{
         logOp(o.no,staff,"修改订单",(diffs.length?diffs.join(";"):"无字段变化")+" · "+(window._eSrcV||""));
+        if(window._storeChangeConsume){
+          const sc=window._storeChangeConsume;window._storeChangeConsume=null;
+          Object.entries(sc.qty).forEach(([k,v])=>{if(v>0)addSale(sc.store,{date:sc.date,time:nowHM(),product:k,qty:v,pm:"改店占用",amt:0,staff,src:"storechange",orderNo:o.no,ts:Date.now()});});
+          logOp(o.no,staff,"改店占用现货",`${STORE_NAME[sc.store]} 现货 −${Object.values(sc.qty).reduce((a,b)=>a+(+b||0),0)}盒(该店当日车已装,货从现货出)`);
+          toast(`已改店并占用 ${STORE_NAME[sc.store]} 现货`);
+        }
         if(Object.keys(give).length||Object.keys(take).length){
           const nq={...(mom.qty||{})};
           Object.entries(give).forEach(([k,v])=>nq[k]=(nq[k]||0)+v);
