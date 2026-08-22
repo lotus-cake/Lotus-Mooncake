@@ -266,7 +266,7 @@ table.sum .z{color:#C9C6B4}
       <div><label class="f">付款状态</label>
         <select id="fPay"><option>未付</option><option>等待付款中</option><option>部分付</option><option>已付</option></select></div>
       <div id="fPayMWrap"><label class="f">付款方式</label>
-        <select id="fPayM"><option value="">—</option><option>Square Online</option><option>Credit Card</option><option>现金</option><option>EMT</option><option>微信</option><option>AlphaPay(微信&支付宝)</option><option>其它</option></select></div>
+        <select id="fPayM"><option value="">—</option><option>Square Online</option><option>Credit Card</option><option>现金</option><option>EMT</option><option>SL</option><option>AlphaPay(微信&支付宝)</option><option>其它</option></select></div>
     </div>
     <div id="fUnpaidWrap" style="display:none;margin-left:10px;border-left:3px solid var(--line);padding-left:10px">
       <label class="f">未付安排</label>
@@ -626,8 +626,7 @@ const STORE_NAME = {CAM:"Cambie", BBY:"Burnaby", ALD:"Alderbridge", MULTI:"多�
 const PAY_METHODS = ["Square Online","Credit Card","现金","EMT","SL","AlphaPay(微信&支付宝)","其它"];
 const pmDisp=m=>m==="微信"?"SL":m;
 const LEGACY_PM = m=>m&&!PAY_METHODS.includes(m); // 老单历史值(Square/SL WeChat)兼容
-const WALK_PAY = ["Credit Card","现金","AlphaPay(微信&支付宝)","微信","EMT","其它"];
-const REFUND_VIA_OWNER = ["EMT","SL WeChat","微信"];
+const WALK_PAY = ["Credit Card","现金","AlphaPay(微信&支付宝)","SL","EMT","其它"];
 const DEFAULT_PRICES = {p6:88, p6cash:80, p2:28, bb2:28, emp:0.9,
   promos:[{buy:10,free:1},{buy:20,free:3},{buy:30,free:5}]};
 let PRICES = {...DEFAULT_PRICES};
@@ -738,7 +737,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-54";
+const APP_BUILD="b0819-55";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1092,7 +1091,7 @@ const ZHEN={
 "付款随母单":"Paid with parent","子单":"Sub-order","已拆分":"Split",
 "六粒混合":"Mix of 6","六粒金沙":"Classic 6 (Jinsha)","两粒金沙":"Jinsha 2","两粒抹茶柚子":"Matcha Yuzu 2","两粒黑松露":"Truffle 2","两粒陈皮红豆":"Tangerine Red Bean 2","两粒摩卡":"Mocha 2","两粒乌龙":"Oolong 2","两粒盲盒":"Mystery 2",
 "六粒盒":"6-box","两粒盒":"2-box","售":"sold",
-"识别中…":"Scanning...","撤销已取":"Undo pickup","该订单已完成取货,信息已锁定;需更正请联系客服":"Picked up - locked. Contact CS to amend","收起家族,只看命中的子单 ↑":"Collapse family ↑","保存中…":"Saving...","保存超时,请检查网络(左上角圆点需为绿色)后重试":"Save timed out - check network (top-left dot must be green) and retry","识别完成,请核对":"Scan done - please verify","已自动填入(金色高亮),请逐项核对后再保存。":"Auto-filled (gold highlight). Verify each field before saving."
+"识别中…":"Scanning...","当场已退现金":"Cash refunded on spot","转 Owner 备现金":"To Owner (prepare cash)","已确认退款(终端/平台已原路退)":"Refund confirmed at terminal","推送客服协助退款":"Send to CS for refund","尾款安排":"Balance plan","取货时付":"Pay at pickup","客服跟进":"CS follow-up","撤销已取":"Undo pickup","该订单已完成取货,信息已锁定;需更正请联系客服":"Picked up - locked. Contact CS to amend","收起家族,只看命中的子单 ↑":"Collapse family ↑","保存中…":"Saving...","保存超时,请检查网络(左上角圆点需为绿色)后重试":"Save timed out - check network (top-left dot must be green) and retry","识别完成,请核对":"Scan done - please verify","已自动填入(金色高亮),请逐项核对后再保存。":"Auto-filled (gold highlight). Verify each field before saving."
 };
 const ZHEN_RX=[
 [/^已拆分 (\d+) 张子单$/, "Split into $1 sub-orders"],
@@ -2020,8 +2019,15 @@ function saveEdit(o){
   const wasPaid=o.pay==="已付";
   if(wasPaid && nb.total<(o.boxes||0)){
     const refAmt=(patch.amount!=null)?Math.max(0,Math.round((paidOf(o)-patch.amount)*100)/100):null;
-    if(refAmt!=null&&refAmt>0){patch.paid=patch.amount;patch.refundAmt=refAmt;}
-    refundFlow(o,`订单 ${o.no} 由 ${o.boxes}盒 改为 ${nb.total}盒(减 ${o.boxes-nb.total}盒)`+(refAmt!=null&&refAmt>0?`,应退 ${money(refAmt)}`:""),apply);
+    if(refAmt!=null&&refAmt>0){
+      patch.paid=patch.amount;patch.refundAmt=refAmt;patch.refundDue=true;
+      const _promo=hasPromo(o);
+      patch.refundRoute=_promo?"cs":(o.payMethod==="EMT"?"cs":"pending");
+      if(_promo)patch.refundUrgent=true;
+      if(_promo)alert("此单涉及优惠政策,退款金额已按新数量重算,将推送客服人工核对处理。");
+    }
+    apply();
+    if(patch.refundDue&&patch.refundRoute==="pending")setTimeout(()=>openRefundRouter(o.no),300);
   } else if(wasPaid && nb.total>(o.boxes||0)){
     const inc=nb.total-(o.boxes||0);
     // 加/减的产品差量:新增部分按所选差额付款方式计价,减少部分按原单方式退回
@@ -2099,51 +2105,7 @@ function saveEdit(o){
 }
 
 /* ---------------- 退款流程 ---------------- */
-function refundFlow(o,contextText,done){
-  const via=REFUND_VIA_OWNER.includes(o.payMethod);
-  if(via){
-    const msg=`【退款申请】\n客人:${o.name} ${o.phone||""}\n${contextText}\n付款方式:${o.payMethod}\n请 Owner 处理退款,完成后回复客服。`;
-    openModal(mhead("需要退款(经 Owner)")+`
-      <p class="note" style="margin:0 0 8px">${o.payMethod} 收款需 Owner 操作退款。文案已生成,复制发给 Owner,同时会加入 Owner 待办:</p>
-      <textarea id="rfText" style="min-height:120px">${esc(msg)}</textarea>
-      <button class="btn" style="margin-top:12px" id="rfGo">复制文案 + 加入Owner待办 + 继续</button>`);
-    document.getElementById("rfGo").onclick=()=>{
-      const t=document.getElementById("rfText").value;
-      if(navigator.clipboard)navigator.clipboard.writeText(t).catch(()=>{});
-      addTodo(t,"退款");
-      patchOrder(o.no,{refundDue:true},()=>{});
-      logOp(o.no,STAFF||"?","退款申请",`经Owner(${o.payMethod}),已加入待办`);
-      closeModal();toast("已复制并加入 Owner 待办");done();
-    };
-  }else{
-    openModal(mhead("需要退款确认")+`
-      <p class="note" style="margin:0 0 8px">${esc(contextText)}<br>付款方式:${esc(o.payMethod||"未记录")}。请选择退款处理:</p>
-      <div class="seg" id="rfSeg" style="flex-direction:column">
-        <button data-v="已退款">已退款给客人</button>
-        <button data-v="退Gift Card">退 Gift Card</button>
-        <button data-v="其它">其它</button>
-      </div>
-      <div id="rfOtherWrap" style="display:none"><label class="f">其它说明 *</label>
-        <input type="text" id="rfOther" placeholder="请填写处理方式"></div>
-      <button class="btn" style="margin-top:12px" id="rfOk">确认并继续</button>`);
-    let rv="";
-    document.getElementById("rfSeg").addEventListener("click",e=>{
-      const b=e.target.closest("button"); if(!b)return; rv=b.dataset.v;
-      document.querySelectorAll("#rfSeg button").forEach(x=>x.classList.toggle("on",x===b));
-      document.getElementById("rfOtherWrap").style.display=rv==="其它"?"block":"none";
-    });
-    document.getElementById("rfOk").onclick=()=>{
-      if(!rv)return toast("请选择退款处理方式");
-      let detail=rv;
-      if(rv==="其它"){const t=document.getElementById("rfOther").value.trim();
-        if(!t)return toast("请填写其它说明"); detail="其它:"+t;}
-      patchOrder(eNo||o.no,{refundNote:`${todayStr()} ${detail}`},()=>{});
-      logOp(o.no,STAFF||"?","退款处理",detail);
-      closeModal();done();
-    };
-  }
-}
-
+/* refundFlow retired b0819-55: 所有退款统一走 openRefundRouter */
 function clearDue(no){ settleDue(no,false); }
 function settleDue(no,alsoPick){
   const o=ORDERS[no]; if(!o)return;
@@ -2187,11 +2149,22 @@ function settleDue(no,alsoPick){
     const collected=Math.round(av*100)/100;
     const newPaid=Math.round((paidOf(o)+collected)*100)/100;
     const patch={pay:"已付",paid:newPaid,amount:newPaid,dueNote:null,dueQty:null,dueNegAmt:null};
+    // 多收退差:重算原始差额(未截断),负数=欠客人的,统一走退款路由
+    {const pmCalc=(pm==="其它")?(o.payMethod||pm):pm;
+     const raw=o.manualPrice?due0:(dueQ?Math.round((calcAmount(dueQ,pmCalc,o.channel)-negA)*100)/100:null);
+     if(raw!=null&&raw<0){const surplus=Math.round(-raw*100)/100;
+       patch.refundDue=true;patch.refundAmt=surplus;
+       const _p=hasPromo(o);
+       patch.refundRoute=_p?"cs":(o.payMethod==="EMT"?"cs":"pending");
+       if(_p)patch.refundUrgent=true;
+       window._settleRefund=no;}}
     window._unlockAfter=no;
     if(alsoPick){patch.pickedUp=true;patch.pickedAt=todayStr();}
     patchOrder(no,patch,()=>{
       logOp(no,staff,alsoPick?"取货并收差额":"差额收清",`收 ${money(collected)}(${pmLbl}),总额定为 ${money(newPaid)},恢复已付`);
       closeModal();toast(`${no} ${alsoPick?"已取货,":""}差额已收清 ✓`);
+      if(window._settleRefund===no){window._settleRefund=null;
+        if(ORDERS[no]&&ORDERS[no].refundDue&&ORDERS[no].refundRoute==="pending")setTimeout(()=>openRefundRouter(no),300);}
     });
   };
   if(alsoPick)document.getElementById("cdSkip").onclick=()=>{
