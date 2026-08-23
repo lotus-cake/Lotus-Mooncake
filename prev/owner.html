@@ -577,7 +577,6 @@ const FLAVORS = [
 ];
 const STORE_NAME = {CAM:"Cambie", BBY:"Burnaby", ALD:"Alderbridge"};
 const PAY_METHODS = ["Square","AlphaPay(微信&支付宝)","现金","EMT","SL WeChat","其它"];
-const REFUND_VIA_OWNER = ["EMT","SL WeChat"];
 const DEFAULT_PRICES = {p6:88, p6cash:80, p2:28, bb2:28, emp:0.9,
   promos:[{buy:10,free:1},{buy:20,free:3},{buy:30,free:5}]};
 let PRICES = {...DEFAULT_PRICES};
@@ -664,7 +663,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-54";
+const APP_BUILD="b0819-55";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1145,7 +1144,7 @@ function orderCard(o,forPickup){
     <div class="ometa">${o.batch?"分批取货,日期灵活":"取货 "+fmtMD(o.pickupDate)} · ${esc(o.phone||"无电话")} · ${payLabel}${link}${o.notes?" · "+esc(o.notes):""}</div>
     ${dead?"":`<div class="oacts">
       <button class="primary" onclick="event.stopPropagation();openDetail('${o.no}')">详情</button>
-      ${o.batch?"":`<button onclick="event.stopPropagation();doReschedule('${o.no}')">改期</button>`}
+
       <button class="danger" onclick="event.stopPropagation();doCancel('${o.no}')">取消订单</button>
     </div>`}
   </div>`;
@@ -1216,8 +1215,8 @@ function openDetail(no){
     <button class="btn" onclick="openEdit('${no}')">修改订单</button>
     <div class="row" style="margin-top:10px">
       ${o.batch
-        ?(boxCounts(rem).total>0?`<button class="btn ghost" onclick="closeModal();openBatchPick('${no}')">记一笔取货</button>`:"")
-        :`<button class="btn ghost" onclick="closeModal();doReschedule('${no}')">改期</button>
+        ?(boxCounts(rem).total>0?`<button class="btn ghost" onclick="closeModal();openBatchPick('${no}')">安排取货</button>`:"")
+        :`
            <button class="btn ghost" onclick="closeModal();openSplit('${no}')">拆分订单</button>`}
       <button class="btn warn" onclick="closeModal();doCancel('${no}')">取消订单</button>
     </div>
@@ -1365,7 +1364,7 @@ function saveEdit(o){
   if(wasPaid && nb.total<(o.boxes||0)){
     const refAmt=(patch.amount!=null)?Math.max(0,Math.round((paidOf(o)-patch.amount)*100)/100):null;
     if(refAmt!=null&&refAmt>0)patch.paid=patch.amount;
-    refundFlow(o,`订单 ${o.no} 由 ${o.boxes}盒 改为 ${nb.total}盒(减 ${o.boxes-nb.total}盒)`+(refAmt!=null&&refAmt>0?`,应退 ${money(refAmt)}`:""),apply);
+    return alert("此修改会产生退款。请到前台 App(用 Owner 码登录)操作,以走统一退款流程。");
   } else if(wasPaid && nb.total>(o.boxes||0)){
     const inc=nb.total-(o.boxes||0);
     // 加/减的产品差量:新增部分按所选差额付款方式计价,减少部分按原单方式退回
@@ -1443,50 +1442,7 @@ function saveEdit(o){
 }
 
 /* ---------------- 退款流程 ---------------- */
-function refundFlow(o,contextText,done){
-  const via=REFUND_VIA_OWNER.includes(o.payMethod);
-  if(via){
-    const msg=`【退款申请】\n客人:${o.name} ${o.phone||""}\n${contextText}\n付款方式:${o.payMethod}\n请 Owner 处理退款,完成后回复客服。`;
-    openModal(mhead("需要退款(经 Owner)")+`
-      <p class="note" style="margin:0 0 8px">${o.payMethod} 收款需 Owner 操作退款。文案已生成,复制发给 Owner,同时会加入 Owner 待办:</p>
-      <textarea id="rfText" style="min-height:120px">${esc(msg)}</textarea>
-      <button class="btn" style="margin-top:12px" id="rfGo">复制文案 + 加入Owner待办 + 继续</button>`);
-    document.getElementById("rfGo").onclick=()=>{
-      const t=document.getElementById("rfText").value;
-      if(navigator.clipboard)navigator.clipboard.writeText(t).catch(()=>{});
-      addTodo(t,"退款");
-      logOp(o.no,STAFF||"?","退款申请",`经Owner(${o.payMethod}),已加入待办`);
-      closeModal();toast("已复制并加入 Owner 待办");done();
-    };
-  }else{
-    openModal(mhead("需要退款确认")+`
-      <p class="note" style="margin:0 0 8px">${esc(contextText)}<br>付款方式:${esc(o.payMethod||"未记录")}。请选择退款处理:</p>
-      <div class="seg" id="rfSeg" style="flex-direction:column">
-        <button data-v="已退款">已退款给客人</button>
-        <button data-v="退Gift Card">退 Gift Card</button>
-        <button data-v="其它">其它</button>
-      </div>
-      <div id="rfOtherWrap" style="display:none"><label class="f">其它说明 *</label>
-        <input type="text" id="rfOther" placeholder="请填写处理方式"></div>
-      <button class="btn" style="margin-top:12px" id="rfOk">确认并继续</button>`);
-    let rv="";
-    document.getElementById("rfSeg").addEventListener("click",e=>{
-      const b=e.target.closest("button"); if(!b)return; rv=b.dataset.v;
-      document.querySelectorAll("#rfSeg button").forEach(x=>x.classList.toggle("on",x===b));
-      document.getElementById("rfOtherWrap").style.display=rv==="其它"?"block":"none";
-    });
-    document.getElementById("rfOk").onclick=()=>{
-      if(!rv)return toast("请选择退款处理方式");
-      let detail=rv;
-      if(rv==="其它"){const t=document.getElementById("rfOther").value.trim();
-        if(!t)return toast("请填写其它说明"); detail="其它:"+t;}
-      patchOrder(eNo||o.no,{refundNote:`${todayStr()} ${detail}`},()=>{});
-      logOp(o.no,STAFF||"?","退款处理",detail);
-      closeModal();done();
-    };
-  }
-}
-
+/* refundFlow retired: 订单退款统一在前台 App 处理 */
 function clearDue(no){ settleDue(no,false); }
 function settleDue(no,alsoPick){
   const o=ORDERS[no]; if(!o)return;
@@ -1561,48 +1517,11 @@ function doCancel(no){
         logOp(no,staff,"取消订单",`${o.boxes}盒`+(o.pay==="已付"?" · 原已付款":""));
         toast(no+" 已取消");
       });
-      if(o.pay==="已付"||paidOf(o)>0) refundFlow(o,`订单 ${no} 全单取消(${o.boxes}盒${paidOf(o)>0?",应退 "+money(paidOf(o)):""})`,fin); else fin();
+      if(o.pay==="已付"||paidOf(o)>0) return alert("已付订单取消涉及退款,请到前台 App(Owner 码)操作,以走统一退款流程。"); else fin();
     };
   });
 }
-function doReschedule(no){
-  const o=ORDERS[no]; if(!o||o.batch)return;
-  needPin(()=>{
-    openModal(mhead(`改期:${no}(${esc(o.name)})`)+`
-      <label class="f">新取货日期</label>
-      <input type="date" id="rsDate" min="${DATE_MIN}" max="${DATE_MAX}" value="${o.pickupDate}">
-      <label class="f">新取货门店</label>
-      <div class="seg store" id="rsStore">
-        ${["CAM","BBY","ALD"].map(s=>`<button data-v="${s}" class="${s===o.store?"on":""}">${STORE_NAME[s]}</button>`).join("")}
-      </div>
-      ${staffField()}
-      <button class="btn" style="margin-top:14px" id="rsGo">确认改期</button>`,true);
-    let ns=o.store;
-    document.getElementById("rsStore").addEventListener("click",e=>{
-      const b=e.target.closest("button"); if(!b)return; ns=b.dataset.v;
-      document.querySelectorAll("#rsStore button").forEach(x=>x.classList.toggle("on",x===b));
-    });
-    document.getElementById("rsGo").onclick=()=>{
-      const nd=document.getElementById("rsDate").value;
-      if(!nd||nd<DATE_MIN||nd>DATE_MAX)return toast("日期须在 9/4 – 9/30");
-      const staff=getStaff(); if(!staff)return;
-      closeModal();
-      nextOrderNo(newNo=>{
-        const n={...o,no:newNo,pickupDate:nd,store:ns,status:"有效",pickedUp:false,
-          linkedNo:no,notes:(o.notes?o.notes+" · ":"")+`由${no}改期`,createdAt:Date.now(),createdBy:staff};
-        delete n.pickups; delete n.history;
-        saveOrder(n,()=>patchOrder(no,{status:"已改期",linkedNo:newNo},()=>{
-          logOp(no,staff,"改期(原单)",`${fmtMD(o.pickupDate)} ${o.store} → ${fmtMD(nd)} ${ns},新单 ${newNo}`);
-          logOp(newNo,staff,"改期(新单)",`由 ${no} 改期而来`);
-          toast(`已改期:${no} → ${newNo}(${fmtMD(nd)} ${ns})`);
-        }));
-      });
-    };
-  });
-}
-
-/* ---------------- 拆分订单 ---------------- */
-let sQty={};
+/* doReschedule retired: 改期=前台修改订单 */
 function openSplit(no){
   const o=ORDERS[no]; sQty={};
   openModal(mhead(`拆分订单:${no}`)+`
