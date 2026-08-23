@@ -663,7 +663,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-55";
+const APP_BUILD="b0819-56";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -2481,7 +2481,7 @@ function renderPace(){
     PARAMS.deadline=di.value;renderPace();});}
   const days=Math.max(1,Math.ceil((new Date(dl+"T23:59")-Date.now())/864e5));
   const doneBy={},recent={};
-  const d3=[0,1,2].map(i=>{const d=new Date();d.setDate(d.getDate()-i);return d.toISOString().slice(0,10);});
+  const d3=[0,1,2].map(i=>{const d=new Date();d.setDate(d.getDate()-i);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");});
   Object.values(PRODRECS||{}).forEach(r=>{
     if(r.voided||r.stage!=="mold")return;
     doneBy[r.flavor]=(doneBy[r.flavor]||0)+(+r.good||0);
