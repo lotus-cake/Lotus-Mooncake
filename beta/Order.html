@@ -654,7 +654,7 @@ function calcDetail(qty,payMethod,channel){
   }
   let amt=gross-promoDisc;
   if(channel==="员工")amt*=(PRICES.emp||0.9);
-  return {amt:Math.round(amt*100)/100, gross:Math.round(gross*100)/100,
+  return {freeCount:(tier?tier.free:0),amt:Math.round(amt*100)/100, gross:Math.round(gross*100)/100,
           promoDisc:Math.round(promoDisc*100)/100, tier, t6:T6};
 }
 function nextTierHint(d){
@@ -686,6 +686,13 @@ function famTotalOf(o){
   const ks=Object.values(ORDERS).filter(c=>c.parentNo===o.no&&c.status==="有效");
   if(!ks.length)return o.amount;
   return Math.round(((o.amount||0)+ks.reduce((s,c)=>s+(c.amount||0),0))*100)/100;
+}
+/* ===== 钱账本:每笔钱动一条流水,只增不改 ===== */
+let LEDGER={};
+function addLedger(e){
+  const row=Object.assign({d:todayStr(),t:nowHM(),acct:acctLabel(),store:(ROLE&&ROLE.type==="store"?ROLE.store:null),ts:Date.now()},e);
+  if(DB)DB.ref(DB_ROOT+"/ledger").push(row);
+  else LEDGER["L"+Date.now()+Math.random().toString(36).slice(2,5)]=row;
 }
 function paidOf(o){ return o.paid!=null?o.paid:(o.pay==="已付"?(o.amount||0):0); }
 function dueAmt(o){ if(o.amount==null)return null; return Math.max(0,Math.round((o.amount-paidOf(o))*100)/100); }
@@ -737,7 +744,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-56";
+const APP_BUILD="b0819-57";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -862,6 +869,7 @@ function addReceipt(store,rec){
 }
 function addSale(store,sale){
   if(!sale.acct)sale.acct=acctLabel();
+  if((+sale.amt||0)>0)addLedger({orderNo:sale.orderNo||null,store,type:"现货销售",pm:sale.pm,amt:+sale.amt,staff:sale.staff||null,ref:null});
   if(DB) DB.ref(DB_ROOT+"/walkin/"+store+"/sales").push(sale);
   else { WALKIN[store]=WALKIN[store]||{receipts:{},sales:{}};
          (WALKIN[store].sales=WALKIN[store].sales||{})["s"+Date.now()]=sale; renderWalkin(); }
@@ -1146,9 +1154,11 @@ window.confirm=m=>_cf(TT(m));window.alert=m=>_al(TT(m));
 function acctLabel(){return ROLE?(ROLE.type==="store"?STORE_NAME[ROLE.store]+"店":ROLE.type==="owner"?"Owner":"CS"):"?";}
 function fullPrice(o){const b6=+o.box6||0,b2=+o.box2||0;return b6*(PRICES.p6||0)+b2*(PRICES.p2||0);}
 function hasPromo(o){
-  if(o.batch)return true;
-  const fp=fullPrice(o);
-  return fp>0&&((+o.autoAmount||+o.amount||fp)<fp-0.01);
+  // 真优惠三件套:踩中赠盒门槛 / 员工渠道折扣 / 手动改价。纯现金价不算优惠。
+  if(o.manualPrice)return true;
+  if(o.channel==="员工")return true;
+  const d=calcDetail(o.qty||{},o.payMethod,o.channel);
+  return !!(d&&d.freeCount>0);
 }
 function refundRoute(o){
   if(hasPromo(o))return "cs";
@@ -1741,14 +1751,16 @@ window.openRefundRouter=(no)=>{
   const fin=(how)=>{const staff=getStaff();if(!staff)return;
     closeModal();
     patchOrder(no,{refunded:true,refundedAt:Date.now(),refundRoute:"done"},()=>{
-      logOp(no,staff,"已退款",`${money(amt)} · ${how}`);toast(`${no} 退款已完成(${how})`);});};
+      logOp(no,staff,"已退款",`${money(amt)} · ${how}`);
+      addLedger({orderNo:no,type:"退款",pm:o.payMethod||null,amt:-Math.abs(amt),staff,ref:how});
+      toast(`${no} 退款已完成(${how})`);});};
   const route=(r,lbl)=>{const staff=getStaff();if(!staff)return;
     closeModal();
     patchOrder(no,{refundRoute:r},()=>{logOp(no,staff,"退款转办",lbl);toast(`${no} ${lbl}`);});};
   let body="";
   if(pm==="现金"){
     body=`<button class="btn" id="rrA">当场已退现金 ${money(amt)}</button>
-      <button class="btn ghost" id="rrB" style="margin-top:8px">现金不足 → 转 Owner 备现金</button>`;
+      <button class="btn ghost" id="rrB" style="margin-top:8px">现金不足 → 通知经理备现金(仍由本店退)</button>`;
   }else{
     body=`<button class="btn" id="rrA">已确认退款(终端/平台已原路退)</button>
       <button class="btn ghost" id="rrB" style="margin-top:8px">推送客服协助退款</button>`;
@@ -1757,7 +1769,7 @@ window.openRefundRouter=(no)=>{
     <p class="note" style="margin:0 0 8px">${pm==="现金"?"店里现金够就当场退给客人;不够转 Owner 队列。":"店经理已在终端/平台退掉就选第一个;否则推给客服。"}</p>
     ${body}${staffField()}`,true);
   document.getElementById("rrA").onclick=()=>fin(pm==="现金"?"现金当场退":"终端已退·"+pmDisp(pm));
-  document.getElementById("rrB").onclick=()=>route(pm==="现金"?"owner":"cs",pm==="现金"?"已转 Owner 备现金":"已推送客服协助退款");
+  document.getElementById("rrB").onclick=()=>route(pm==="现金"?"owner":"cs",pm==="现金"?"已通知经理备现金,现金到店后由本店完成退款":"已推送客服协助退款");
 };
 window.undoPicked=(no)=>{
   const o=ORDERS[no];if(!o)return;
@@ -2048,7 +2060,7 @@ function saveEdit(o){
       <p class="note" style="margin:6px 0 0">选后两项:订单变「部分付」并挂红色「待收差额」标签,门店知道只差这部分,不会当成整单未付。</p>
       <div id="incPmWrap" style="display:none">
         <label class="f">差额付款方式(选「现金」自动按现金价重算差额)</label>
-        <select id="incPm">${LEGACY_PM(o.payMethod)?`<option selected>${esc(o.payMethod)}</option>`:""}${PAY_METHODS.map(m=>`<option ${m===o.payMethod?"selected":""}>${m}</option>`).join("")}</select>
+        <select id="incPm">${LEGACY_PM(o.payMethod)?`<option selected>${esc(o.payMethod)}</option>`:""}${PAY_METHODS.filter(x=>!(ROLE&&ROLE.type==="cs"&&x==="现金")).map(m=>`<option ${m===o.payMethod?"selected":""}>${m}</option>`).join("")}</select>
         <div id="incPmOtherWrap" style="display:none">
           <label class="f">其它说明 *</label><input type="text" id="incPmOther"></div>
       </div>
@@ -2084,6 +2096,7 @@ function saveEdit(o){
           if(!t)return toast("请填写其它说明"); pmLbl="其它:"+t;}
         patch.pay="已付"; patch.paid=patch.amount; patch.dueNote=null; patch.dueQty=null; patch.dueNegAmt=null;
         detail=`已补收 ${money(incAmt)}(${pmLbl})`+(pm!==o.payMethod?" · 与原单方式不同":"");
+        if(incAmt>0)addLedger({orderNo:o.no,type:"订单收款",pm:pmLbl,amt:Math.round(incAmt*100)/100,staff:null,ref:"改单补收"});
       } else if(iv==="store"){
         patch.pay="部分付"; patch.dueNote=`到店补收差额${inc}盒`+(incAmt>0?` ${money(incAmt)}`:"");
         patch.dueQty=Object.keys(posDelta).length?posDelta:null;
@@ -2122,7 +2135,7 @@ function settleDue(no,alsoPick){
     选付款方式后金额自动按该方式重算${o.manualPrice?"(此单为手动定价,不自动重算)":"——<b>现金=现金价,刷卡/转账=原价</b>"},也可手动改。</p>
     <label class="f">差额付款方式 *</label>
     <div class="seg" id="cdSeg" style="flex-direction:column">
-      ${PAY_METHODS.map(m=>`<button data-v="${m}">${m}</button>`).join("")}
+      ${PAY_METHODS.filter(x=>!(ROLE&&ROLE.type==="cs"&&x==="现金")).map(m=>`<button data-v="${m}">${m}</button>`).join("")}
     </div>
     <div id="cdOtherWrap" style="display:none"><label class="f">其它说明 *</label>
       <input type="text" id="cdOther"></div>
@@ -2162,6 +2175,7 @@ function settleDue(no,alsoPick){
     if(alsoPick){patch.pickedUp=true;patch.pickedAt=todayStr();}
     patchOrder(no,patch,()=>{
       logOp(no,staff,alsoPick?"取货并收差额":"差额收清",`收 ${money(collected)}(${pmLbl}),总额定为 ${money(newPaid)},恢复已付`);
+      if(collected>0)addLedger({orderNo:no,type:"订单收款",pm:pmLbl,amt:collected,staff,ref:null});
       closeModal();toast(`${no} ${alsoPick?"已取货,":""}差额已收清 ✓`);
       if(window._settleRefund===no){window._settleRefund=null;
         if(ORDERS[no]&&ORDERS[no].refundDue&&ORDERS[no].refundRoute==="pending")setTimeout(()=>openRefundRouter(no),300);}
@@ -2281,7 +2295,7 @@ function openMarkRefund(no){
   const o=ORDERS[no];if(!o)return;
   if(o.refundUrgent&&ROLE&&ROLE.type==="store")return toast("优惠单退款需客服/Owner 核对处理");
   const amt0=(o.refundAmt!=null?o.refundAmt:(paidOf(o)||o.amount));
-  const canEdit=ROLE&&(ROLE.type==="cs"||ROLE.type==="owner");
+  const canEdit=ROLE&&(ROLE.type==="cs"||ROLE.type==="owner"||(ROLE.type==="store"&&o.refundRoute==="owner"&&o.payMethod==="现金"));
   openModal(mhead(`标记已退款:${no}(${esc(o.name)})`)+`
     ${o.refundUrgent?'<p class="note" style="color:var(--danger);margin:0 0 8px"><b>优惠单</b>:请按优惠规则重算实际应退金额</p>':""}
     <label class="f">退款金额 $</label>
@@ -2299,7 +2313,9 @@ function openMarkRefund(no){
     if(!ref&&m!=="现金")return toast("请填写退款凭证号(现金可空)");
     const staff=getStaff();if(!staff)return;
     patchOrder(no,{refunded:{by:staff,at:todayStr()+" "+nowHM(),method:m,ref:ref||"现金",amount:amt},refundDue:null,refundUrgent:null},
-      ()=>{logOp(no,staff,"已退款",`${money(amt)} · ${m}${ref?" · "+ref:""}`);closeModal();toast("已标记退款完成 ✓");renderPend();});
+      ()=>{logOp(no,staff,"已退款",`${money(amt)} · ${m}${ref?" · "+ref:""}`);
+        addLedger({orderNo:no,type:"退款",pm:m||null,amt:-Math.abs(amt),staff,ref:ref||"标记已退款"});
+        closeModal();toast("已标记退款完成 ✓");renderPend();});
   };
 }
 
@@ -2404,7 +2420,7 @@ function openMarkPaid(no){
   const o=ORDERS[no];if(!o)return;
   openModal(mhead(`标记已收款:${no}(${esc(o.name)} · ${money(o.amount)})`)+`
     <label class="f">付款方式 *</label>
-    <select id="mpM"><option value="">—</option><option>Square Online</option><option>Credit Card</option><option>现金</option><option>EMT</option><option>SL</option><option>AlphaPay(微信&支付宝)</option><option>其它</option></select>
+    <select id="mpM"><option value="">—</option><option>Square Online</option><option>Credit Card</option>${ROLE&&ROLE.type==="cs"?"":"<option>现金</option>"}<option>EMT</option><option>SL</option><option>AlphaPay(微信&支付宝)</option><option>其它</option></select>
     <label class="f" id="mpRefLbl">收款凭证号</label>
     <input type="text" id="mpRef">
     ${staffField()}
@@ -2427,6 +2443,7 @@ function openMarkPaid(no){
     patchOrder(no,{pay:"已付",payMethod:pm,backendNo:ref,paid:o.amount,paidAt:Date.now(),
       channel:pm==="Square Online"?"Square Online":o.channel},
       ()=>{logOp(no,staff,"标记已收款",`${money(o.amount)} · ${pm}${ref?" · "+ref:""}`);
+        addLedger({orderNo:no,type:"订单收款",pm,amt:+o.amount||0,staff,ref:ref||null});
         afterPaidUnlockKids(no,staff);
         closeModal();toast("已收款 ✓");});
   };
