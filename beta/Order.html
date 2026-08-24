@@ -744,7 +744,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-59";
+const APP_BUILD="b0819-59d";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -4010,6 +4010,13 @@ document.querySelector("nav").addEventListener("click",e=>{
   renderAll();
 });
 function renderAll(){
+  try{ return _renderAllCore(); }catch(err){
+    var box=document.getElementById('orderList')||document.body;
+    box.innerHTML='<div style="background:#FCEBEB;color:#791F1F;padding:14px;border-radius:10px;margin:12px;font-size:13px;word-break:break-all"><b>渲染出错(截图此框给开发)</b><br>'+String(err&&err.message).replace(/</g,'&lt;')+'<br>'+String(err&&err.stack||'').slice(0,400).replace(/</g,'&lt;')+'</div>';
+    throw err;
+  }
+}
+function _renderAllCore(){
   autoReleaseReserves();
   renderPend();
   renderArrive();
