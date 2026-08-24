@@ -744,7 +744,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-62";
+const APP_BUILD="b0819-63";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -2034,7 +2034,7 @@ function saveEdit(o){
   if(wasPaid && nb.total<(o.boxes||0)){
     const refAmt=(patch.amount!=null)?Math.max(0,Math.round((paidOf(o)-patch.amount)*100)/100):null;
     if(refAmt!=null&&refAmt>0){
-      patch.paid=patch.amount;patch.refundAmt=refAmt;patch.refundDue=true;
+      patch.refundAmt=refAmt;patch.refundDue=true; // 原始付款保留,不覆盖 paid
       const _promo=hasPromo(o);
       patch.refundRoute=_promo?"cs":(o.payMethod==="EMT"?"cs":"pending");
       if(_promo)patch.refundUrgent=true;
