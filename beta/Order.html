@@ -2009,19 +2009,6 @@ function saveEdit(o){
     });
   }
   if(_hasKids){
-    // 家族母单:总额锁死——只改货,不碰钱,不触发收退
-    ["amount","autoAmount","manualPrice","paid","pay","payMethod","payOther"].forEach(k=>delete patch[k]);
-    for(let k=diffs.length-1;k>=0;k--)if(/^(已收|付款|总额|收款)/.test(diffs[k]))diffs.splice(k,1);
-    diffs.push("家族总额锁定,金额不变");
-    return askStaff("确认修改母单:"+o.no,staff=>{
-      patchOrder(o.no,patch,()=>{
-        logOp(o.no,staff,"修改订单",(diffs.length?diffs.join(";"):"无字段变化")+" · "+(window._eSrcV||""));
-        toast(o.no+" 已更新(家族总额不变)");
-        openDetail(o.no);
-      });
-    });
-  }
-  if(_hasKids){
     // 付款身份仍锁(状态/方式/已收不许手改);金额=全家数量自动重算,差额走正常补收/退款
     ["paid","pay","payMethod","payOther"].forEach(k=>delete patch[k]);
     for(let k=diffs.length-1;k>=0;k--)if(/^(已收|付款状态|付款方式|收款)/.test(diffs[k]))diffs.splice(k,1);
