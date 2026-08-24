@@ -744,7 +744,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-61";
+const APP_BUILD="b0819-62";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1813,7 +1813,7 @@ function openEdit(no){
       ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?`<div class="kv" style="background:var(--cream);border-radius:8px;padding:8px 10px;width:100%"><span>家族总额(按全家数量自动计算,改数量会触发补收/退款)</span><b>${money(famTotalOf(o))}</b></div><input type="hidden" id="eAmt" value="${o.amount!=null?o.amount:""}">`:`<input type="number" id="eAmt" min="0" step="0.01" value="${o.amount!=null?o.amount:""}" ${ROLE&&ROLE.type==="owner"?"":"disabled"}>
       ${ROLE&&ROLE.type==="owner"?`<button class="btn small ghost" id="eAmtAuto" style="white-space:nowrap">按价目自动算</button>`:`<span class="note" style="white-space:nowrap">改价需 Owner</span>`}`}
     </div>
-    ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?`<div class="kv" style="background:var(--cream);border-radius:8px;padding:8px 10px;margin-top:6px"><span>付款信息(家族锁定)</span><b>已收 ${money(paidOf(o))} · ${o.pay} · ${pmDisp(o.payMethod)||"—"}</b></div><div style="display:none">`:""}<label class="f">已收金额 $</label>
+    ${(Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")||((paidOf(o)>0)&&!(ROLE&&ROLE.type==="owner")))?`<div class="kv" style="background:var(--cream);border-radius:8px;padding:8px 10px;margin-top:6px"><span>付款记录(已锁定${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?"·家族":""})</span><b>已收 ${money(paidOf(o))} · ${o.pay} · ${pmDisp(o.payMethod)||"—"}</b></div><div style="display:none">`:""}<label class="f">已收金额 $</label>
     <input type="number" id="ePaid" min="0" step="0.01" value="${paidOf(o)}">
     <div class="row">
       <div><label class="f">付款状态</label>
@@ -1827,7 +1827,7 @@ function openEdit(no){
       <label class="f">其它付款方式说明 *</label>
       <input type="text" id="ePayOther" value="${esc(o.payOther||"")}">
     </div>
-    ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?`</div>`:""}
+    ${(Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")||((paidOf(o)>0)&&!(ROLE&&ROLE.type==="owner")))?`</div>`:""}
     ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?`</div>`:""}
     <label class="f">修改来源 *</label>
     <select id="eSrc"><option value="">—</option><option>到店修改</option><option>致电修改</option><option>联系客服修改</option><option>其它</option></select>
@@ -2025,6 +2025,10 @@ function saveEdit(o){
   if(!(ROLE&&ROLE.type==="owner")&&!o.batch&&!_hasKids){
     patch.amount=Math.round(calcAmount(eQty,(document.getElementById("ePayM")||{}).value||o.payMethod,o.channel)*100)/100;
     patch.manualPrice=false;
+  }
+  if(!_hasKids&&paidOf(o)>0&&!(ROLE&&ROLE.type==="owner")){
+    ["paid","pay","payMethod","payOther"].forEach(k=>delete patch[k]);
+    for(let k=diffs.length-1;k>=0;k--)if(/^(已收|付款状态|付款方式)/.test(diffs[k]))diffs.splice(k,1);
   }
   const wasPaid=o.pay==="已付";
   if(wasPaid && nb.total<(o.boxes||0)){
