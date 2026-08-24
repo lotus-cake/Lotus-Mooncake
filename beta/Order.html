@@ -276,7 +276,7 @@ table.sum .z{color:#C9C6B4}
     
     
     <div id="fPaidWrap" style="display:none">
-      ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?`<div class="kv" style="background:var(--cream);border-radius:8px;padding:8px 10px;margin-top:6px"><span>付款信息(家族锁定)</span><b>已收 ${money(paidOf(o))} · ${o.pay} · ${pmDisp(o.payMethod)||"—"}</b></div><div style="display:none">`:""}<label class="f">已收金额 $ *(部分付时填实际已收)</label>
+      <label class="f">已收金额 $ *(部分付时填实际已收)</label>
       <input type="number" id="fPaid" min="0" step="0.01" inputmode="decimal">
     </div>
     <div id="fPayOtherWrap" style="display:none">
@@ -744,7 +744,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-58";
+const APP_BUILD="b0819-57";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1826,7 +1826,6 @@ function openEdit(no){
       <input type="text" id="ePayOther" value="${esc(o.payOther||"")}">
     </div>
     ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?`</div>`:""}
-    ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?`</div>`:""}
     <label class="f">修改来源 *</label>
     <select id="eSrc"><option value="">—</option><option>到店修改</option><option>致电修改</option><option>联系客服修改</option><option>其它</option></select>
     <input type="text" id="eSrcTxt" placeholder="其它:请说明" style="display:none;margin-top:6px">
@@ -2009,7 +2008,6 @@ function saveEdit(o){
   if(_hasKids){
     // 家族母单:总额锁死——只改货,不碰钱,不触发收退
     ["amount","autoAmount","manualPrice","paid","pay","payMethod","payOther"].forEach(k=>delete patch[k]);
-    for(let k=diffs.length-1;k>=0;k--)if(/^(已收|付款|总额|收款)/.test(diffs[k]))diffs.splice(k,1);
     diffs.push("家族总额锁定,金额不变");
     return askStaff("确认修改母单:"+o.no,staff=>{
       patchOrder(o.no,patch,()=>{
@@ -2021,7 +2019,6 @@ function saveEdit(o){
   }
   if(_hasKids){
     ["amount","autoAmount","manualPrice","paid","pay","payMethod","payOther"].forEach(k=>delete patch[k]);
-    for(let k=diffs.length-1;k>=0;k--)if(/^(已收|付款|总额|收款)/.test(diffs[k]))diffs.splice(k,1);
     diffs.push("家族总额锁定,金额不变");
     return askStaff("确认修改母单:"+o.no,staff=>{
       patchOrder(o.no,patch,()=>{
