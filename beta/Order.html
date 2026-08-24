@@ -744,7 +744,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-57";
+const APP_BUILD="b0819-60";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1510,7 +1510,7 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
           wxAcct:chanV==="微信"?wxAcct:null,
           chStore:chanV==="门店"?fChStoreVal:null,
           chStaff:chanV==="员工"?chStaff:null,qty:{...fQty},box6:b6,box2:b2,boxes:total,
-          amount:amt,autoAmount:autoAmt,manualPrice:fAmtManual!=null,paid:paidV,
+          amount:(ROLE&&ROLE.type==="owner")?amt:autoAmt,autoAmount:autoAmt,manualPrice:(ROLE&&ROLE.type==="owner")?(fAmtManual!=null):false,paid:paidV,
           pay:cand.pay,payMethod:payM,payOther:payM==="其它"?payOther:"",
           channel:document.getElementById("fChan").value,
           backendNo:document.getElementById("fRef").value.trim(),
@@ -1808,10 +1808,10 @@ function openEdit(no){
     <div class="tot-line"><span>盒数合计</span><b id="eTotal"></b></div>
     <label class="f">订单总额 $(改数量会自动重算;促销/折扣可手动填实收)</label>
     <div class="row">
-      ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?`<div class="kv" style="background:var(--cream);border-radius:8px;padding:8px 10px;width:100%"><span>家族总额(锁定,拆分/改货不影响)</span><b>${money(famTotalOf(o))}</b></div><input type="hidden" id="eAmt" value="${o.amount!=null?o.amount:""}">`:`<input type="number" id="eAmt" min="0" step="0.01" value="${o.amount!=null?o.amount:""}">
-      <button class="btn small ghost" id="eAmtAuto" style="white-space:nowrap">按价目自动算</button>`}
+      ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?`<div class="kv" style="background:var(--cream);border-radius:8px;padding:8px 10px;width:100%"><span>家族总额(锁定,拆分/改货不影响)</span><b>${money(famTotalOf(o))}</b></div><input type="hidden" id="eAmt" value="${o.amount!=null?o.amount:""}">`:`<input type="number" id="eAmt" min="0" step="0.01" value="${o.amount!=null?o.amount:""}" ${ROLE&&ROLE.type==="owner"?"":"disabled"}>
+      ${ROLE&&ROLE.type==="owner"?`<button class="btn small ghost" id="eAmtAuto" style="white-space:nowrap">按价目自动算</button>`:`<span class="note" style="white-space:nowrap">改价需 Owner</span>`}`}
     </div>
-    <label class="f">已收金额 $</label>
+    ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?`<div class="kv" style="background:var(--cream);border-radius:8px;padding:8px 10px;margin-top:6px"><span>付款信息(家族锁定)</span><b>已收 ${money(paidOf(o))} · ${o.pay} · ${pmDisp(o.payMethod)||"—"}</b></div><div style="display:none">`:""}<label class="f">已收金额 $</label>
     <input type="number" id="ePaid" min="0" step="0.01" value="${paidOf(o)}">
     <div class="row">
       <div><label class="f">付款状态</label>
@@ -1825,6 +1825,7 @@ function openEdit(no){
       <label class="f">其它付款方式说明 *</label>
       <input type="text" id="ePayOther" value="${esc(o.payOther||"")}">
     </div>
+    ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?`</div>`:""}
     ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?`</div>`:""}
     <label class="f">修改来源 *</label>
     <select id="eSrc"><option value="">—</option><option>到店修改</option><option>致电修改</option><option>联系客服修改</option><option>其它</option></select>
@@ -2008,6 +2009,7 @@ function saveEdit(o){
   if(_hasKids){
     // 家族母单:总额锁死——只改货,不碰钱,不触发收退
     ["amount","autoAmount","manualPrice","paid","pay","payMethod","payOther"].forEach(k=>delete patch[k]);
+    for(let k=diffs.length-1;k>=0;k--)if(/^(已收|付款|总额|收款)/.test(diffs[k]))diffs.splice(k,1);
     diffs.push("家族总额锁定,金额不变");
     return askStaff("确认修改母单:"+o.no,staff=>{
       patchOrder(o.no,patch,()=>{
@@ -2019,6 +2021,7 @@ function saveEdit(o){
   }
   if(_hasKids){
     ["amount","autoAmount","manualPrice","paid","pay","payMethod","payOther"].forEach(k=>delete patch[k]);
+    for(let k=diffs.length-1;k>=0;k--)if(/^(已收|付款|总额|收款)/.test(diffs[k]))diffs.splice(k,1);
     diffs.push("家族总额锁定,金额不变");
     return askStaff("确认修改母单:"+o.no,staff=>{
       patchOrder(o.no,patch,()=>{
@@ -2027,6 +2030,10 @@ function saveEdit(o){
         openDetail(o.no);
       });
     });
+  }
+  if(!(ROLE&&ROLE.type==="owner")&&!o.batch){
+    patch.amount=Math.round(calcAmount(eQty,(document.getElementById("ePayM")||{}).value||o.payMethod,o.channel)*100)/100;
+    patch.manualPrice=false;
   }
   const wasPaid=o.pay==="已付";
   if(wasPaid && nb.total<(o.boxes||0)){
@@ -4003,6 +4010,13 @@ document.querySelector("nav").addEventListener("click",e=>{
   renderAll();
 });
 function renderAll(){
+  try{ return _renderAllCore(); }catch(err){
+    var box=document.getElementById('orderList')||document.body;
+    box.innerHTML='<div style="background:#FCEBEB;color:#791F1F;padding:14px;border-radius:10px;margin:12px;font-size:13px;word-break:break-all"><b>渲染出错(截图此框给开发)</b><br>'+String(err&&err.message).replace(/</g,'&lt;')+'<br>'+String(err&&err.stack||'').slice(0,400).replace(/</g,'&lt;')+'</div>';
+    throw err;
+  }
+}
+function _renderAllCore(){
   autoReleaseReserves();
   renderPend();
   renderArrive();
