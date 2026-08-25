@@ -449,6 +449,8 @@ table.sum .z{color:#C9C6B4}
 <div class="page" id="pg-ofin">
 <div class="card"><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><b>门店对账(按动账日)</b><span style="display:flex;gap:6px;align-items:center"><input type="date" id="rcDate" style="padding:4px 6px;border:1px solid var(--line);border-radius:8px"><button class="btn small ghost" onclick="rcCSV()">导出CSV</button></span></div><div class="note" style="margin-top:4px">点任意方式行可展开当日逐笔台账</div></div>
 <div id="rcBox"></div>
+<div class="card" style="margin-top:2px"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px"><b>出货日报(盒数口径)</b><button class="btn small ghost" onclick="gdCSV()">导出盒数CSV</button></div><div class="note" style="margin-top:4px">盒数口径=货哪天出门;钱口径=钱哪天动。两表天然不相等,请勿互相硬对。</div></div>
+<div id="gdBox"></div>
   <h2>财务</h2>
 <div class="card">
     <div class="note" style="margin:0 0 8px"><b>财务速览</b></div>
@@ -666,7 +668,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-71";
+const APP_BUILD="b0819-72";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -687,12 +689,12 @@ function initData(){
     firebase.auth().onAuthStateChanged(u=>{AUTHED=!!u;setConn(!!u,"未登录");});
     firebase.auth().signInAnonymously().catch(e=>{AUTHED=false;setConn(false,"连接失败:"+e.message);toast("云端连接失败:"+e.message+"(检查 Firebase 匿名登录是否启用)");});
     DB=firebase.database();
-    DB.ref(DB_ROOT+"/orders").on("value",s=>{ORDERS=s.val()||{};renderAll();});
+    DB.ref(DB_ROOT+"/orders").on("value",s=>{ORDERS=s.val()||{};renderAll();if(typeof renderGoods==="function")renderGoods();});
     DB.ref(DB_ROOT+"/meta/caps").on("value",s=>{CAPS=Object.assign({b6:0,b2:0},s.val()||{});renderAll();});
     DB.ref(DB_ROOT+"/meta/prices").on("value",s=>{PRICES=Object.assign({},DEFAULT_PRICES,s.val()||{});renderAll();});
     DB.ref(DB_ROOT+"/meta/aiKey").on("value",s=>{AIKEY=s.val()||"";updateKeyStatus();});
     DB.ref(DB_ROOT+"/todos").on("value",s=>{TODOS=s.val()||{};renderTodos();});
-    DB.ref(DB_ROOT+"/walkin").on("value",s=>{WALKIN=s.val()||{};renderWalkin();});
+    DB.ref(DB_ROOT+"/walkin").on("value",s=>{WALKIN=s.val()||{};renderWalkin();if(typeof renderGoods==="function")renderGoods();});
     DB.ref(DB_ROOT+"/prod/records").on("value",s=>{PRODRECS=s.val()||{};renderSum();renderPickup();});
     DB.ref(DB_ROOT+"/prod/walkplan").on("value",s=>{WPLAN=s.val()||{};renderSum();});
     DB.ref(DB_ROOT+"/prod/recv").on("value",s=>{RECV=s.val()||{};renderSum();renderPickup();});
@@ -2927,6 +2929,70 @@ window.rcCSV=function(){
     a.download="lotus_ledger_"+d+".csv"; document.body.appendChild(a); a.click(); a.remove();
     toast("已导出 "+d+" 台账 CSV");}catch(_){toast("此设备不支持直接下载");}
 };
+window.gdCalc=function(D){
+  const S={CAM:{pre:{},ret:{},loss:{}},BBY:{pre:{},ret:{},loss:{}},ALD:{pre:{},ret:{},loss:{}}};
+  const add=(o,k,n)=>{o[k]=(o[k]||0)+n;};
+  const fwSet=new Set();
+  ["CAM","BBY","ALD"].forEach(st=>{Object.values((WALKIN[st]||{}).sales||{}).forEach(r=>{
+    if(r&&r.date===D&&r.src==="familywalk"&&r.orderNo)fwSet.add(r.orderNo);});});
+  Object.values(ORDERS||{}).forEach(o=>{
+    if(!o||o.batch)return;
+    if(o.pickedUp&&o.pickedAt===D&&!fwSet.has(o.no)&&!(o.crossPick&&!o.pickedAt)){
+      const st=S[o.store]; if(!st)return;
+      Object.entries(o.qty||{}).forEach(([k,v])=>{if(v>0)add(st.pre,k,v);});
+    }});
+  ["CAM","BBY","ALD"].forEach(stk=>{Object.values((WALKIN[stk]||{}).sales||{}).forEach(r=>{
+    if(!r||r.date!==D)return; const k=r.product; const v=+r.qty||0; if(!k||v<=0)return;
+    const src=r.src||"";
+    if(src==="storechange")return;
+    if(src==="自损")add(S[stk].loss,k,v);
+    else if(src==="batch"||src==="familywalk"||src==="crosspick")add(S[stk].pre,k,v);
+    else add(S[stk].ret,k,v);
+  });});
+  return S;
+};
+window.renderGoods=function(){
+  const box=document.getElementById("gdBox"); if(!box)return;
+  const D=rcDate(); const S=gdCalc(D);
+  const sum=o=>Object.values(o).reduce((a,b)=>a+b,0);
+  const lines=(o,pre)=>Object.entries(o).map(([k,v])=>'<div class="kv"><span style="padding-left:10px">'+esc(_pname(k))+'</span><b>'+v+' 盒</b></div>').join("");
+  let html="",tot={pre:{},ret:{},loss:{}};
+  ["CAM","BBY","ALD"].forEach(stk=>{
+    const s=S[stk]; const p=sum(s.pre),r=sum(s.ret),l=sum(s.loss);
+    Object.entries(s.pre).forEach(([k,v])=>tot.pre[k]=(tot.pre[k]||0)+v);
+    Object.entries(s.ret).forEach(([k,v])=>tot.ret[k]=(tot.ret[k]||0)+v);
+    Object.entries(s.loss).forEach(([k,v])=>tot.loss[k]=(tot.loss[k]||0)+v);
+    html+='<div class="card" style="margin-bottom:10px"><b>'+(STORE_NAME[stk]||stk)+'</b>'
+      +'<div class="kv"><span><b>预订取货</b>(配送+分批+现取+代取)</span><b>'+p+' 盒</b></div>'+lines(s.pre)
+      +'<div class="kv"><span><b>现货零售</b>(含盲盒)</span><b>'+r+' 盒</b></div>'+lines(s.ret)
+      +(l?('<div class="kv" style="color:var(--muted)"><span><b>自损出库</b>(不计销)</span><b>'+l+' 盒</b></div>'+lines(s.loss)):"")
+      +'<div class="kv" style="border-top:1px dashed var(--line);margin-top:4px;padding-top:6px"><span><b>本店出门合计</b></span><b>'+(p+r)+' 盒'+(l?('(另自损 '+l+')'):'')+'</b></div></div>';
+  });
+  const tp=sum(tot.pre),tr=sum(tot.ret),tl=sum(tot.loss);
+  const allK={}; [tot.pre,tot.ret].forEach(o=>Object.entries(o).forEach(([k,v])=>allK[k]=(allK[k]||0)+v));
+  html+='<div class="card"><b>三店合计 · '+D+'</b>'
+    +'<div class="kv"><span>预订取货 / 现货零售'+(tl?" / 自损":"")+'</span><b>'+tp+' / '+tr+(tl?(' / '+tl):'')+' 盒</b></div>'
+    +'<div class="note" style="margin:4px 0 2px">按产品(出门合计,厨房排产用):</div>'
+    +Object.entries(allK).map(([k,v])=>'<div class="kv"><span style="padding-left:10px">'+esc(_pname(k))+'</span><b>'+v+' 盒</b></div>').join("")
+    +'<div class="kv" style="border-top:1px dashed var(--line);margin-top:4px;padding-top:6px"><span><b>全线出门合计</b></span><b>'+(tp+tr)+' 盒</b></div></div>';
+  box.innerHTML=html;
+};
+window.gdCSVText=function(D){
+  const S=gdCalc(D); const q=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"';
+  let csv="日期,门店,渠道,产品,盒数\n";
+  ["CAM","BBY","ALD"].forEach(stk=>{
+    [["预订取货","pre"],["现货零售","ret"],["自损","loss"]].forEach(([lbl,key])=>{
+      Object.entries(S[stk][key]).forEach(([k,v])=>{csv+=[D,STORE_NAME[stk]||stk,lbl,_pname(k),v].map(q).join(",")+"\n";});
+    });});
+  return csv;
+};
+window.gdCSV=function(){
+  const D=rcDate();
+  try{const a=document.createElement("a");
+    a.href="data:text/csv;charset=utf-8,\uFEFF"+encodeURIComponent(gdCSVText(D));
+    a.download="lotus_boxes_"+D+".csv"; document.body.appendChild(a); a.click(); a.remove();
+    toast("已导出 "+D+" 盒数 CSV");}catch(_){toast("此设备不支持直接下载");}
+};
 window.renderSelfLoss=function(){
   const box=document.getElementById("slBox"); if(!box)return;
   const ent=Object.entries(SELFLOSS||{}).sort((a,b)=>(b[1].ts||0)-(a[1].ts||0));
@@ -2958,7 +3024,7 @@ window.slReject=function(id){
     toast("已驳回(不扣库存)"); renderSelfLoss();
   });
 };
-(function(){const e=document.getElementById("rcDate");if(e){e.value=todayStr();e.addEventListener("change",renderRecon);}renderRecon();renderSelfLoss();})();
+(function(){const e=document.getElementById("rcDate");if(e){e.value=todayStr();e.addEventListener("change",()=>{renderRecon();renderGoods();});}renderRecon();renderGoods();renderSelfLoss();})();
 </script>
 </body>
 </html>
