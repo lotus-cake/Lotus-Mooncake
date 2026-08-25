@@ -552,7 +552,7 @@ const firebaseConfig = {
   messagingSenderId: "1061048356919",
   appId: "1:1061048356919:web:d91f819b897ff1710fefb2"
 };
-const DB_ROOT = "v1";  // 生产链已上线,记的是真账
+const DB_ROOT = "v1";  // 正式账本(发版器自动写入)
 const OWNER_PIN   = "0000"; // ★ Owner 访问码 — 部署前务必修改
 const ACCESS_CODES = {       // ★ 各角色访问码 — 部署前全部修改
   CAM:  "1111",   // Cambie 门店
@@ -574,6 +574,12 @@ const PRODUCTS = [
   {k:"cp2",  n:"两粒陈皮红豆",box:2},
   {k:"mk2",  n:"两粒摩卡",   box:2},
   {k:"wl2",  n:"两粒乌龙",   box:2},
+  {k:"s_js", n:"单颗金沙",   box:0, pc:1},
+  {k:"s_mt", n:"单颗抹茶柚子",box:0, pc:1},
+  {k:"s_tr", n:"单颗黑松露", box:0, pc:1},
+  {k:"s_cp", n:"单颗陈皮红豆",box:0, pc:1},
+  {k:"s_mk", n:"单颗摩卡",   box:0, pc:1},
+  {k:"s_wl", n:"单颗乌龙",   box:0, pc:1},
 ];
 const WALKIN_PRODUCTS = PRODUCTS.concat([{k:"bb2", n:"两粒盲盒", box:2}]);
 const FLAVORS = [
@@ -668,7 +674,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-72";
+const APP_BUILD="b0819-82";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -2929,6 +2935,9 @@ window.rcCSV=function(){
     a.download="lotus_ledger_"+d+".csv"; document.body.appendChild(a); a.click(); a.remove();
     toast("已导出 "+d+" 台账 CSV");}catch(_){toast("此设备不支持直接下载");}
 };
+const _isPc=k=>{const P=(typeof WALKIN_PRODUCTS!=="undefined"&&WALKIN_PRODUCTS)||(typeof PRODUCTS!=="undefined"&&PRODUCTS)||[];const p=P.find(x=>x.k===k);return !!(p&&p.pc);};
+const _bp=o=>{let bx=0,pc=0;Object.entries(o).forEach(([k,v])=>{_isPc(k)?pc+=v:bx+=v;});return {bx,pc};};
+const _bpText=o=>{const t=_bp(o);return t.bx+" 盒"+(t.pc?(" + "+t.pc+" 颗"):"");};
 window.gdCalc=function(D){
   const S={CAM:{pre:{},ret:{},loss:{}},BBY:{pre:{},ret:{},loss:{}},ALD:{pre:{},ret:{},loss:{}}};
   const add=(o,k,n)=>{o[k]=(o[k]||0)+n;};
@@ -2955,7 +2964,7 @@ window.renderGoods=function(){
   const box=document.getElementById("gdBox"); if(!box)return;
   const D=rcDate(); const S=gdCalc(D);
   const sum=o=>Object.values(o).reduce((a,b)=>a+b,0);
-  const lines=(o,pre)=>Object.entries(o).map(([k,v])=>'<div class="kv"><span style="padding-left:10px">'+esc(_pname(k))+'</span><b>'+v+' 盒</b></div>').join("");
+  const lines=(o,pre)=>Object.entries(o).map(([k,v])=>'<div class="kv"><span style="padding-left:10px">'+esc(_pname(k))+'</span><b>'+v+(_isPc(k)?' 颗':' 盒')+'</b></div>').join("");
   let html="",tot={pre:{},ret:{},loss:{}};
   ["CAM","BBY","ALD"].forEach(stk=>{
     const s=S[stk]; const p=sum(s.pre),r=sum(s.ret),l=sum(s.loss);
@@ -2963,18 +2972,18 @@ window.renderGoods=function(){
     Object.entries(s.ret).forEach(([k,v])=>tot.ret[k]=(tot.ret[k]||0)+v);
     Object.entries(s.loss).forEach(([k,v])=>tot.loss[k]=(tot.loss[k]||0)+v);
     html+='<div class="card" style="margin-bottom:10px"><b>'+(STORE_NAME[stk]||stk)+'</b>'
-      +'<div class="kv"><span><b>预订取货</b>(配送+分批+现取+代取)</span><b>'+p+' 盒</b></div>'+lines(s.pre)
-      +'<div class="kv"><span><b>现货零售</b>(含盲盒)</span><b>'+r+' 盒</b></div>'+lines(s.ret)
-      +(l?('<div class="kv" style="color:var(--muted)"><span><b>自损出库</b>(不计销)</span><b>'+l+' 盒</b></div>'+lines(s.loss)):"")
-      +'<div class="kv" style="border-top:1px dashed var(--line);margin-top:4px;padding-top:6px"><span><b>本店出门合计</b></span><b>'+(p+r)+' 盒'+(l?('(另自损 '+l+')'):'')+'</b></div></div>';
+      +'<div class="kv"><span><b>预订取货</b>(配送+分批+现取+代取)</span><b>'+_bpText(s.pre)+'</b></div>'+lines(s.pre)
+      +'<div class="kv"><span><b>现货零售</b>(含盲盒)</span><b>'+_bpText(s.ret)+'</b></div>'+lines(s.ret)
+      +(l?('<div class="kv" style="color:var(--muted)"><span><b>自损出库</b>(不计销)</span><b>'+_bpText(s.loss)+'</b></div>'+lines(s.loss)):"")
+      +(()=>{const A=_bp(s.pre),B=_bp(s.ret);return '<div class="kv" style="border-top:1px dashed var(--line);margin-top:4px;padding-top:6px"><span><b>本店出门合计</b></span><b>'+(A.bx+B.bx)+' 盒'+((A.pc+B.pc)?(' + '+(A.pc+B.pc)+' 颗'):'')+(l?'(另自损 '+_bpText(s.loss)+')':'')+'</b></div></div>';})();
   });
   const tp=sum(tot.pre),tr=sum(tot.ret),tl=sum(tot.loss);
   const allK={}; [tot.pre,tot.ret].forEach(o=>Object.entries(o).forEach(([k,v])=>allK[k]=(allK[k]||0)+v));
   html+='<div class="card"><b>三店合计 · '+D+'</b>'
-    +'<div class="kv"><span>预订取货 / 现货零售'+(tl?" / 自损":"")+'</span><b>'+tp+' / '+tr+(tl?(' / '+tl):'')+' 盒</b></div>'
+    +'<div class="kv"><span>预订取货 / 现货零售'+(tl?" / 自损":"")+'</span><b>'+_bpText(tot.pre)+' / '+_bpText(tot.ret)+(tl?(' / '+_bpText(tot.loss)):'')+'</b></div>'
     +'<div class="note" style="margin:4px 0 2px">按产品(出门合计,厨房排产用):</div>'
-    +Object.entries(allK).map(([k,v])=>'<div class="kv"><span style="padding-left:10px">'+esc(_pname(k))+'</span><b>'+v+' 盒</b></div>').join("")
-    +'<div class="kv" style="border-top:1px dashed var(--line);margin-top:4px;padding-top:6px"><span><b>全线出门合计</b></span><b>'+(tp+tr)+' 盒</b></div></div>';
+    +Object.entries(allK).map(([k,v])=>'<div class="kv"><span style="padding-left:10px">'+esc(_pname(k))+'</span><b>'+v+(_isPc(k)?' 颗':' 盒')+'</b></div>').join("")
+    +(()=>{const A=_bp(tot.pre),B=_bp(tot.ret);return '<div class="kv" style="border-top:1px dashed var(--line);margin-top:4px;padding-top:6px"><span><b>全线出门合计</b></span><b>'+(A.bx+B.bx)+' 盒'+((A.pc+B.pc)?(' + '+(A.pc+B.pc)+' 颗'):'')+'</b></div></div>';})();
   box.innerHTML=html;
 };
 window.gdCSVText=function(D){
