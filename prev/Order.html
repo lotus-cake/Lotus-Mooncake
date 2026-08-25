@@ -385,6 +385,7 @@ table.sum .z{color:#C9C6B4}
     <div class="card" id="wLog"></div>
     <button class="btn small warn" id="btnUndoSale">撤销最近一笔销售</button>
     <div style="margin:10px 0 2px"><button class="btn" style="width:100%" onclick="openDayClose()">🔒 日结(汇总今日·锁定本店钱账)</button></div>
+    <div style="margin:2px 0 8px"><button class="btn small ghost" style="width:100%" onclick="openSelfLoss()">📷 报自损(需照片 · Owner 审批后自动扣现货)</button></div>
   </div>
 </div>
 
@@ -755,7 +756,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-70";
+const APP_BUILD="b0819-71";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -779,6 +780,7 @@ function initData(){
     DB.ref(DB_ROOT+"/orders").on("value",s=>{ORDERS=s.val()||{};renderAll();});
     DB.ref(DB_ROOT+"/ledger").on("value",s=>{LEDGER=s.val()||{};});
     DB.ref(DB_ROOT+"/closes").on("value",s=>{CLOSES=s.val()||{};renderAll();});
+    DB.ref(DB_ROOT+"/selfloss").on("value",s=>{SELFLOSS=s.val()||{};});
     DB.ref(DB_ROOT+"/meta/caps").on("value",s=>{CAPS=Object.assign({b6:0,b2:0},s.val()||{});renderAll();});
     DB.ref(DB_ROOT+"/meta/prices").on("value",s=>{PRICES=Object.assign({},DEFAULT_PRICES,s.val()||{});renderAll();});
     DB.ref(DB_ROOT+"/meta/aiKey").on("value",s=>{AIKEY=s.val()||"";updateKeyStatus();});
@@ -4157,6 +4159,46 @@ try{
     }catch(_){}
   });
 })();
+</script>
+
+<script>
+window.SELFLOSS=window.SELFLOSS||{};window._slPhoto=null;
+function slCompress(file,cb){try{const r=new FileReader();r.onload=e=>{const img=new Image();img.onload=()=>{try{const c=document.createElement("canvas");const sc=Math.min(1,480/img.width);c.width=Math.max(1,Math.round(img.width*sc));c.height=Math.max(1,Math.round(img.height*sc));c.getContext("2d").drawImage(img,0,0,c.width,c.height);cb(c.toDataURL("image/jpeg",0.6));}catch(_){cb(e.target.result);}};img.onerror=()=>cb(e.target.result);img.src=e.target.result;};r.readAsDataURL(file);}catch(_){cb(null);}}
+window.openSelfLoss=function(){
+  if(!(ROLE&&ROLE.type==="store"))return toast("报自损在门店码下进行");
+  const st=ROLE.store; window._slPhoto=null;
+  const opts=WALKIN_PRODUCTS.map(p=>`<option value="${p.k}">${p.n}</option>`).join("");
+  const mine=Object.entries(SELFLOSS||{}).filter(([,q])=>q&&q.store===st&&q.d===todayStr()).sort((a,b)=>(b[1].ts||0)-(a[1].ts||0));
+  const hist=mine.map(([id,q])=>{const col=q.status==="approved"?"#DCE3C8":(q.status==="rejected"?"#EFEADB":"#F3E0C0");
+    const lbl=q.status==="approved"?"已批准·已扣现货":(q.status==="rejected"?"已驳回":"待审批");
+    return `<div class="kv"><span>${esc((WALKIN_PRODUCTS.find(p=>p.k===q.pk)||{}).n||q.pk)} ×${q.qty} · ${esc(q.t||"")}</span><b><span class="badge" style="background:${col}">${lbl}</span></b></div>`;}).join("");
+  openModal(mhead("报自损("+(STORE_NAME[st]||st)+")")+`
+    <p class="note" style="margin:0 0 8px">门店自用/损坏等自损:填原因、<b>必须拍照</b>,提交后由 Owner 审批;批准后系统自动 $0 出库扣本店现货。</p>
+    <label class="f">产品 *</label><select id="slPk">${opts}</select>
+    <label class="f">数量(盒)*</label><input type="number" id="slQty" min="1" step="1" value="1">
+    <label class="f">原因 *</label><textarea id="slReason" rows="2" placeholder="例:包装破损 / 店内试吃 / 员工自购损坏…"></textarea>
+    <label class="f">照片 *</label><input type="file" id="slPhoto" accept="image/*" capture="environment">
+    <img id="slPrev" style="display:none;max-width:100%;border-radius:10px;margin-top:6px">
+    ${staffField()}
+    <button class="btn" style="margin-top:12px" id="slGo">提交报损</button>
+    ${hist?`<div class="sect" style="margin-top:12px">今日本店报损</div>${hist}`:""}`,true);
+  document.getElementById("slPhoto").addEventListener("change",function(){
+    const f=this.files&&this.files[0]; if(!f)return;
+    slCompress(f,d=>{window._slPhoto=d; const im=document.getElementById("slPrev"); if(im&&d){im.src=d;im.style.display="block";}});
+  });
+  document.getElementById("slGo").onclick=()=>{
+    const pk=document.getElementById("slPk").value;
+    const qty=parseInt(document.getElementById("slQty").value)||0;
+    const reason=document.getElementById("slReason").value.trim();
+    if(!pk||qty<1)return toast("请选产品并填数量");
+    if(!reason)return toast("请填写自损原因");
+    if(!window._slPhoto)return toast("必须拍照留证(照片是审批依据)");
+    const staff=getStaff(); if(!staff)return;
+    const row={store:st,d:todayStr(),t:nowHM(),pk,qty,reason,photo:window._slPhoto,staff,status:"pending",ts:Date.now()};
+    if(DB)DB.ref(DB_ROOT+"/selfloss").push(row); else SELFLOSS["sl"+Date.now()]=row;
+    closeModal(); toast("已提交,待 Owner 审批(批准后自动扣现货)");
+  };
+};
 </script>
 </body>
 </html>
