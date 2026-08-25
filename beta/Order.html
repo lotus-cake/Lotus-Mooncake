@@ -384,6 +384,7 @@ table.sum .z{color:#C9C6B4}
     <div class="sect">今日销售流水</div>
     <div class="card" id="wLog"></div>
     <button class="btn small warn" id="btnUndoSale">撤销最近一笔销售</button>
+    <div style="margin:10px 0 2px"><button class="btn" style="width:100%" onclick="openDayClose()">🔒 日结(汇总今日·锁定本店钱账)</button></div>
   </div>
 </div>
 
@@ -754,7 +755,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-66";
+const APP_BUILD="b0819-67";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -3128,7 +3129,7 @@ function renderWalkin(){
       const who=(s.acct||s.staff)?` · ${esc(s.acct||"")}${s.acct&&s.staff?"|":""}${esc(s.staff||"")}`:"";
       const srcTag=s.src==="batch"?"分批取走":s.src==="crosspick"?"跨店代取":esc(s.pm||"");
       return `<div class="wlog"><span>${s.time||""} ${pn}${(s.qty||1)>1?" ×"+s.qty:""}${s.amt!=null&&s.amt>0?" "+money(s.amt):""}${who}</span><b>${srcTag}${s.other?":"+esc(s.other):""}</b></div>`;
-    }).join("")+`<div style="margin:8px 0"><button class="btn" style="width:100%" onclick="openDayClose()">🔒 日结(汇总今日·锁定本店钱账)</button></div><div class="wlog" style="border-bottom:none"><span><b>今日现货销售额</b></span><b style="color:var(--olive)">${money(dayRev)}</b></div>`
+    }).join("")+`<div class="wlog" style="border-bottom:none"><span><b>今日现货销售额</b></span><b style="color:var(--olive)">${money(dayRev)}</b></div>`
     :`<div class="note">今日暂无现货销售</div>`);
 }
 document.getElementById("btnRecv").addEventListener("click",()=>{
