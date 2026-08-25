@@ -783,7 +783,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-74";
+const APP_BUILD="b0819-75";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1714,7 +1714,7 @@ function openDetail(no){
   const pkKeys=o.batch?Object.entries(o.pickups||{}).sort((a,b)=>((a[1].date||"").localeCompare(b[1].date||""))):[];
   const pkList=o.batch?pkKeys.map(([k,r])=>`<div class="wlog" style="${r.voided?"opacity:.45;text-decoration:line-through":""}"><span>${fmtMD(r.date)} 取 ${itemsText(r.qty)}${r.staff?" · "+esc(r.staff):""}${r.voided?" · 已作废:"+esc(r.voidReason||""):""}</span><b>${r.boxes}盒</b>${(!r.voided&&ROLE&&(ROLE.type==="cs"||ROLE.type==="owner"))?`<button class="btn small ghost" style="margin-left:6px" onclick="event.stopPropagation();voidBatchPick('${o.no}','${k}')">作废</button>`:""}</div>`).join(""):"";
   const prodLines=PRODUCTS.filter(p=>o.qty&&o.qty[p.k]>0)
-    .map(p=>`<div class="kv"><span>${p.n}</span><b>${o.qty[p.k]} 盒</b></div>`).join("");
+    .map(p=>`<div class="kv"><span>${p.n}</span><b>${o.qty[p.k]} ${p.pc?"颗":"盒"}</b></div>`).join("");
   let payLbl=(o.payMethod?(o.payMethod==="其它"?"其它:"+esc(o.payOther||""):esc(pmDisp(o.payMethod))):"—");
   const _lr=Object.values(LEDGER||{}).filter(r=>r&&r.orderNo===no).sort((a,b)=>(a.ts||0)-(b.ts||0));
   const _pms=[...new Set(_lr.filter(r=>(+r.amt||0)>0).map(r=>String(r.pm||"").startsWith("其它")?"其它":(pmDisp(r.pm)||"")))].filter(x=>x&&x!=="—");
@@ -2065,9 +2065,9 @@ function saveEdit(o){
   if(sigOf(patch.qty)!==sigOf(o.qty)){
     PRODUCTS.forEach(p=>{
       const ov=(o.qty&&o.qty[p.k])||0, nv=patch.qty[p.k]||0;
-      if(ov!==nv)diffs.push(`${p.n} ${ov}盒→${nv}盒`);
+      if(ov!==nv){const u=p.pc?"颗":"盒";diffs.push(`${p.n} ${ov}${u}→${nv}${u}`);}
     });
-    if((o.boxes||0)!==nb.total)diffs.push(`合计 ${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}→${nb.total}盒`);
+    if((o.boxes||0)!==nb.total||(piecesOf(o)||0)!==nb.pieces)diffs.push(`合计 ${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}→${nb.total}盒${nb.pieces?"+"+nb.pieces+"颗":""}`);
   }
   if(patch.pay!==o.pay)diffs.push(`付款状态 ${o.pay}→${patch.pay}`);
   if((patch.amount==null?null:patch.amount)!==(o.amount==null?null:o.amount))
