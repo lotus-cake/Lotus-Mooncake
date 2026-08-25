@@ -259,6 +259,7 @@ table.sum .z{color:#C9C6B4}
       <span>金额合计 <button class="btn small ghost" id="btnPriceEdit" style="padding:4px 10px;font-size:12px;margin-left:6px">改价</button></span>
       <b id="fAmount">$0</b></div>
     <div class="note" id="fAmtHint" style="display:none;margin-top:2px"></div>
+    <div class="kv" style="margin-top:6px;background:var(--cream);border-radius:8px;padding:8px 10px"><span><b>本单 GST</b>(取消勾=和店内其它商品在收银机一起收税)</span><input type="checkbox" id="fTax" checked style="width:22px;height:22px;accent-color:var(--olive)" onchange="fTaxOff=!this.checked;renderFAmount()"></div>
   </div>
 
   <div class="card">
@@ -266,8 +267,7 @@ table.sum .z{color:#C9C6B4}
       <div><label class="f">付款状态</label>
         <select id="fPay"><option>未付</option><option>等待付款中</option><option>部分付</option><option>已付</option></select></div>
       <div id="fPayMWrap"><label class="f">付款方式</label>
-        <select id="fPayM"><option value="">—</option><option>Square Online</option><option>Credit Card</option><option>现金</option><option>EMT</option><option>SL</option><option>AlphaPay(微信&支付宝)</option><option>其它</option></select>
-        <div class="kv" style="margin-top:6px"><span>本单 GST(取消勾=随店内商品在收银机一起收税)</span><input type="checkbox" id="fTax" checked style="width:20px;height:20px;accent-color:var(--olive)" onchange="fTaxOff=!this.checked;renderFAmount()"></div></div>
+        <select id="fPayM"><option value="">—</option><option>Square Online</option><option>Credit Card</option><option>现金</option><option>EMT</option><option>SL</option><option>AlphaPay(微信&支付宝)</option><option>其它</option></select></div>
     </div>
     <div id="fUnpaidWrap" style="display:none;margin-left:10px;border-left:3px solid var(--line);padding-left:10px">
       <label class="f">未付安排</label>
@@ -783,7 +783,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-76";
+const APP_BUILD="b0819-77";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
