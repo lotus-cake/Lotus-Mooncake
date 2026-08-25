@@ -384,6 +384,7 @@ table.sum .z{color:#C9C6B4}
     <div class="sect">今日销售流水</div>
     <div class="card" id="wLog"></div>
     <button class="btn small warn" id="btnUndoSale">撤销最近一笔销售</button>
+    <div style="margin:10px 0 2px"><button class="btn" style="width:100%" onclick="openDayClose()">🔒 日结(汇总今日·锁定本店钱账)</button></div>
   </div>
 </div>
 
@@ -594,12 +595,12 @@ const firebaseConfig = {
   messagingSenderId: "1061048356919",
   appId: "1:1061048356919:web:d91f819b897ff1710fefb2"
 };
-const DB_ROOT = "test";  // ★ 测试期用 test;正式上线前改回 "v1"
-const OWNER_PIN   = "0000"; // ★ Owner 访问码 — 部署前务必修改
+const DB_ROOT = "v1";  // ★ 正式账本(2026-08-25 上线)
+const OWNER_PIN   = "6390"; // ★ Owner 访问码 — 部署前务必修改
 const ACCESS_CODES = {       // ★ 各角色访问码 — 部署前全部修改
-  CAM:  "1111",   // Cambie 门店
-  BBY:  "2222",   // Burnaby 门店
-  ALD:  "3333",   // Alderbridge 门店
+  CAM:  "4726",   // Cambie 门店
+  BBY:  "8153",   // Burnaby 门店
+  ALD:  "2947",   // Alderbridge 门店
   CS:   "5678",   // 客服
   OWNER: OWNER_PIN
 };
@@ -654,7 +655,7 @@ function calcDetail(qty,payMethod,channel){
   }
   let amt=gross-promoDisc;
   if(channel==="员工")amt*=(PRICES.emp||0.9);
-  return {amt:Math.round(amt*100)/100, gross:Math.round(gross*100)/100,
+  return {freeCount:(tier?tier.free:0),amt:Math.round(amt*100)/100, gross:Math.round(gross*100)/100,
           promoDisc:Math.round(promoDisc*100)/100, tier, t6:T6};
 }
 function nextTierHint(d){
@@ -686,6 +687,23 @@ function famTotalOf(o){
   const ks=Object.values(ORDERS).filter(c=>c.parentNo===o.no&&c.status==="有效");
   if(!ks.length)return o.amount;
   return Math.round(((o.amount||0)+ks.reduce((s,c)=>s+(c.amount||0),0))*100)/100;
+}
+/* ===== 钱账本:每笔钱动一条流水,只增不改 ===== */
+let LEDGER={};
+let CLOSES={};
+function dayLockedFor(){ // 门店角色+本店今日已锁 → true
+  if(!(ROLE&&ROLE.type==="store"))return false;
+  const c=CLOSES[ROLE.store+"_"+todayStr()];
+  return !!(c&&c.locked);
+}
+function moneyGate(){
+  if(dayLockedFor()){toast("本店今日已日结锁定:更正请 Owner 解锁重结,或明日记调整分录");return false;}
+  return true;
+}
+function addLedger(e){
+  const row=Object.assign({d:todayStr(),t:nowHM(),acct:acctLabel(),store:(ROLE&&ROLE.type==="store"?ROLE.store:null),ts:Date.now()},e);
+  if(DB)DB.ref(DB_ROOT+"/ledger").push(row);
+  else LEDGER["L"+Date.now()+Math.random().toString(36).slice(2,5)]=row;
 }
 function paidOf(o){ return o.paid!=null?o.paid:(o.pay==="已付"?(o.amount||0):0); }
 function dueAmt(o){ if(o.amount==null)return null; return Math.max(0,Math.round((o.amount-paidOf(o))*100)/100); }
@@ -737,7 +755,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-56";
+const APP_BUILD="b0819-70";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -759,6 +777,8 @@ function initData(){
     firebase.auth().signInAnonymously().catch(e=>{AUTHED=false;setConn(false,"连接失败:"+e.message);toast("云端连接失败:"+e.message+"(检查 Firebase 匿名登录是否启用)");});
     DB=firebase.database();
     DB.ref(DB_ROOT+"/orders").on("value",s=>{ORDERS=s.val()||{};renderAll();});
+    DB.ref(DB_ROOT+"/ledger").on("value",s=>{LEDGER=s.val()||{};});
+    DB.ref(DB_ROOT+"/closes").on("value",s=>{CLOSES=s.val()||{};renderAll();});
     DB.ref(DB_ROOT+"/meta/caps").on("value",s=>{CAPS=Object.assign({b6:0,b2:0},s.val()||{});renderAll();});
     DB.ref(DB_ROOT+"/meta/prices").on("value",s=>{PRICES=Object.assign({},DEFAULT_PRICES,s.val()||{});renderAll();});
     DB.ref(DB_ROOT+"/meta/aiKey").on("value",s=>{AIKEY=s.val()||"";updateKeyStatus();});
@@ -861,7 +881,9 @@ function addReceipt(store,rec){
          (WALKIN[store].receipts=WALKIN[store].receipts||{})["r"+Date.now()]=rec; renderWalkin(); }
 }
 function addSale(store,sale){
+  if((+sale.amt||0)>0&&!moneyGate())return;
   if(!sale.acct)sale.acct=acctLabel();
+  if((+sale.amt||0)>0)addLedger({orderNo:sale.orderNo||null,store,type:"现货销售",pm:sale.pm,amt:+sale.amt,staff:sale.staff||null,ref:null});
   if(DB) DB.ref(DB_ROOT+"/walkin/"+store+"/sales").push(sale);
   else { WALKIN[store]=WALKIN[store]||{receipts:{},sales:{}};
          (WALKIN[store].sales=WALKIN[store].sales||{})["s"+Date.now()]=sale; renderWalkin(); }
@@ -1146,9 +1168,13 @@ window.confirm=m=>_cf(TT(m));window.alert=m=>_al(TT(m));
 function acctLabel(){return ROLE?(ROLE.type==="store"?STORE_NAME[ROLE.store]+"店":ROLE.type==="owner"?"Owner":"CS"):"?";}
 function fullPrice(o){const b6=+o.box6||0,b2=+o.box2||0;return b6*(PRICES.p6||0)+b2*(PRICES.p2||0);}
 function hasPromo(o){
-  if(o.batch)return true;
-  const fp=fullPrice(o);
-  return fp>0&&((+o.autoAmount||+o.amount||fp)<fp-0.01);
+  // 真优惠三件套:踩中赠盒门槛 / 员工渠道折扣 / 手动改价。纯现金价不算优惠。
+  if(o.manualPrice)return true;
+  if(o.channel==="员工")return true;
+  const fq={...(o.qty||{})};
+  Object.values(ORDERS).forEach(c=>{if(c.parentNo===o.no&&c.status==="有效")Object.entries(c.qty||{}).forEach(([k,v])=>fq[k]=(fq[k]||0)+v);});
+  const d=calcDetail(fq,o.payMethod,o.channel);
+  return !!(d&&d.freeCount>0);
 }
 function refundRoute(o){
   if(hasPromo(o))return "cs";
@@ -1500,7 +1526,7 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
           wxAcct:chanV==="微信"?wxAcct:null,
           chStore:chanV==="门店"?fChStoreVal:null,
           chStaff:chanV==="员工"?chStaff:null,qty:{...fQty},box6:b6,box2:b2,boxes:total,
-          amount:amt,autoAmount:autoAmt,manualPrice:fAmtManual!=null,paid:paidV,
+          amount:(ROLE&&ROLE.type==="owner")?amt:autoAmt,autoAmount:autoAmt,manualPrice:(ROLE&&ROLE.type==="owner")?(fAmtManual!=null):false,paid:paidV,
           pay:cand.pay,payMethod:payM,payOther:payM==="其它"?payOther:"",
           channel:document.getElementById("fChan").value,
           backendNo:document.getElementById("fRef").value.trim(),
@@ -1511,6 +1537,7 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
         if(cand.exception)o.exception=cand.exception;
         saveOrder(o,()=>{
           done=true;clearTimeout(dog);closeModal();
+          if(paidV>0)addLedger({orderNo:no,type:"订单收款",pm:payM==="其它"?(payOther||"其它"):payM,amt:Math.round(paidV*100)/100,staff,ref:"录单收款"});
           logOp(no,staff,"创建订单",`${total}盒 ${money(amt)}${o.manualPrice?"(手动定价)":""} · ${o.batch?"分批大单":fmtMD(date)} ${o.store} · ${o.pay}`+(cand.exception?" · 例外:"+cand.exception.reason:""));
           toast(`已保存 ${no} · ${total}盒 ${money(amt)}`);
           ["fName","fPhone","fRef","fNote","fPayOther","fPaid"].forEach(id=>document.getElementById(id).value="");
@@ -1646,7 +1673,13 @@ function openDetail(no){
   const pkList=o.batch?pkKeys.map(([k,r])=>`<div class="wlog" style="${r.voided?"opacity:.45;text-decoration:line-through":""}"><span>${fmtMD(r.date)} 取 ${itemsText(r.qty)}${r.staff?" · "+esc(r.staff):""}${r.voided?" · 已作废:"+esc(r.voidReason||""):""}</span><b>${r.boxes}盒</b>${(!r.voided&&ROLE&&(ROLE.type==="cs"||ROLE.type==="owner"))?`<button class="btn small ghost" style="margin-left:6px" onclick="event.stopPropagation();voidBatchPick('${o.no}','${k}')">作废</button>`:""}</div>`).join(""):"";
   const prodLines=PRODUCTS.filter(p=>o.qty&&o.qty[p.k]>0)
     .map(p=>`<div class="kv"><span>${p.n}</span><b>${o.qty[p.k]} 盒</b></div>`).join("");
-  const payLbl=(o.payMethod?(o.payMethod==="其它"?"其它:"+esc(o.payOther||""):esc(pmDisp(o.payMethod))):"—");
+  let payLbl=(o.payMethod?(o.payMethod==="其它"?"其它:"+esc(o.payOther||""):esc(pmDisp(o.payMethod))):"—");
+  const _lr=Object.values(LEDGER||{}).filter(r=>r&&r.orderNo===no).sort((a,b)=>(a.ts||0)-(b.ts||0));
+  const _pms=[...new Set(_lr.filter(r=>(+r.amt||0)>0).map(r=>String(r.pm||"").startsWith("其它")?"其它":(pmDisp(r.pm)||"")))].filter(x=>x&&x!=="—");
+  if(_pms.length>1)payLbl="多方式:"+_pms.join(" + ")+"(见付款记录)";
+  const _inSum=_lr.reduce((s,r)=>s+Math.max(0,+r.amt||0),0);
+  const _gap=Math.max(0,Math.round((paidOf(o)-_inSum)*100)/100);
+  if(_gap>0&&_lr.length)payLbl=(_pms.length?(_pms.length>1?"多方式:":"")+_pms.join(" + "):payLbl)+"(另含台账前收款,见付款记录)";
   const rem=o.batch?batchRemainQty(o):null;
   const kidsAll=Object.values(ORDERS).filter(c=>c.parentNo===o.no&&c.status==="有效");
   const dashHtml="";
@@ -1674,6 +1707,7 @@ function openDetail(no){
     <div class="kv"><span>已收</span><b>${money(paidOf(o))||"$0"}</b></div>
     ${dueAmt(o)>0?`<div class="kv"><span style="color:var(--danger)">待收</span><b style="color:var(--danger)">${money(dueAmt(o))}</b></div>`:""}
     <div class="kv"><span>付款</span><b>${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay} · ${payLbl}</b></div>
+    ${_lr.length?`<div class="kv" style="align-items:flex-start"><span>付款记录</span><b style="text-align:right;font-weight:500">${(_gap>0?`台账前收款(明细见操作记录) <span style="color:var(--ok)">~+${money(_gap)}</span><br>`:"")}${_lr.map(r=>`${esc(r.d||"")}${r.t?" "+esc(r.t):""} ${esc(r.type||"")} · ${String(r.pm||"").startsWith("其它")?esc(r.pm):(pmDisp(r.pm)||"—")} <span style="color:${(+r.amt||0)<0?"var(--danger)":"var(--ok)"}">${(+r.amt||0)<0?"−":"+"}${money(Math.abs(+r.amt||0))}</span>${r.staff?" · "+esc(r.staff):""}`).join("<br>")}</b></div>`:(paidOf(o)>0&&!o.parentNo?`<div class="kv"><span>付款记录</span><b style="font-weight:400;color:var(--muted)">历史收款(台账上线前,无分笔流水)</b></div>`:"")}
     <div class="kv"><span>渠道</span><b>${esc(o.channel||"—")}${o.wxAcct?" · "+esc(o.wxAcct):""}${o.chStore?" · "+(STORE_NAME[o.chStore]||o.chStore):""}${o.chStaff?" · "+esc(o.chStaff):""}</b></div>
     <div class="kv"><span>渠道 / 单号</span><b>${esc(o.channel||"—")}${o.backendNo?" · "+esc(o.backendNo):""}</b></div>${o.parentNo?`</div>`:""}
     ${o.linkedNo?`<div class="kv"><span>关联订单</span><b>${o.linkedNo}</b></div>`:""}
@@ -1735,20 +1769,75 @@ window.voidBatchPick=(no,key)=>{
     setTimeout(()=>openDetail(no),50);
   };
 };
+window.openDayClose=()=>{
+  const st=(ROLE&&ROLE.type==="store")?ROLE.store:null;
+  const isOwner=ROLE&&ROLE.type==="owner";
+  if(!st&&!isOwner)return toast("日结在门店码下进行");
+  const store=st||window._dcStore||"CAM";
+  const D=todayStr();
+  const key=store+"_"+D;
+  const cur=CLOSES[key];
+  const rows=Object.values(LEDGER||{}).filter(r=>r.d===D&&(r.store===store||(!r.store&&String(r.acct||"").includes(STORE_NAME[store]||store))));
+  const byPm={};
+  rows.forEach(r=>{const pm=pmDisp(r.pm||"—");byPm[pm]=byPm[pm]||{inn:0,out:0};
+    if((+r.amt||0)>=0)byPm[pm].inn+=+r.amt;else byPm[pm].out+=-r.amt;});
+  const lines=Object.entries(byPm).map(([pm,v])=>{
+    const net=Math.round((v.inn-v.out)*100)/100;
+    return `<div class="kv"><span>${esc(pm)}</span><b>收 ${money(Math.round(v.inn*100)/100)}${v.out?` · 退 ${money(Math.round(v.out*100)/100)}`:""} · 净 ${money(net)}</b></div>`;}).join("")||'<p class="note">今日本店暂无钱账流水</p>';
+  const cashNet=Math.round((((byPm["现金"]||{}).inn||0)-((byPm["现金"]||{}).out||0))*100)/100;
+  const total=Math.round(Object.values(byPm).reduce((s,v)=>s+v.inn-v.out,0)*100)/100;
+  openModal(mhead(`日结 · ${STORE_NAME[store]||store} · ${D}`)+`
+    ${cur&&cur.locked?`<p class="note" style="color:var(--danger)">本日已锁定(${esc(cur.staff||"")} ${cur.t||""});实点现金 ${money(cur.cashCounted)} · 差额 ${money(cur.diff)}</p>`:""}
+    ${lines}
+    <div class="kv"><span><b>净收款合计</b></span><b>${money(total)}</b></div>
+    <div class="kv"><span>应有现金增量</span><b>${money(cashNet)}</b></div>
+    ${!cur||!cur.locked?`
+    <label class="f">实点现金 $ *</label>
+    <input type="number" id="dcCash" step="0.01" placeholder="点钞后填入">
+    <p class="note" id="dcDiff" style="margin:4px 0"></p>
+    ${staffField()}
+    <button class="btn" id="dcGo" style="width:100%">提交日结并锁定(今日本店不可再录钱)</button>`
+    :(isOwner?`${staffField()}<button class="btn warn" id="dcUnlock" style="width:100%">Owner 解锁重结(留痕)</button>`:`<p class="note">如需更正:请 Owner 解锁重结,或明日记调整分录。</p>`)}
+  `,true);
+  const ci=document.getElementById("dcCash");
+  if(ci)ci.addEventListener("input",()=>{
+    const v=+ci.value||0;const df=Math.round((v-cashNet)*100)/100;
+    document.getElementById("dcDiff").innerHTML=df===0?'<span style="color:var(--olive)">现金对平 ✓</span>':`<span style="color:var(--danger)">差额 ${df>0?"+":""}${money(df)}(点错/漏记/多找?)</span>`;
+  });
+  const go=document.getElementById("dcGo");
+  if(go)go.onclick=()=>{
+    const staff=getStaff();if(!staff)return;
+    const v=ci.value;if(v==="")return toast("请填实点现金(没有现金填 0)");
+    const df=Math.round(((+v||0)-cashNet)*100)/100;
+    const rec={store,date:D,locked:true,totals:byPm,total,cashExpect:cashNet,cashCounted:+v||0,diff:df,staff,t:nowHM(),ts:Date.now()};
+    const fin=()=>{closeModal();toast(`已日结并锁定 ${STORE_NAME[store]||store} · ${D}${df!==0?" · 差额"+money(df):" · 现金对平"}`);renderAll();};
+    if(DB)DB.ref(DB_ROOT+"/closes/"+key).set(rec).then(fin);else{CLOSES[key]=rec;fin();}
+  };
+  const ul=document.getElementById("dcUnlock");
+  if(ul)ul.onclick=()=>{
+    const staff=getStaff();if(!staff)return;
+    const patch2={locked:false,unlockedBy:staff,unlockedAt:Date.now()};
+    const fin=()=>{closeModal();toast("已解锁,本店今日可重新录钱/重结");renderAll();};
+    if(DB)DB.ref(DB_ROOT+"/closes/"+key).update(patch2).then(fin);else{Object.assign(CLOSES[key],patch2);fin();}
+  };
+};
 window.openRefundRouter=(no)=>{
+  if(!moneyGate())return;
   const o=ORDERS[no];if(!o||!o.refundDue||o.refunded)return;
   const pm=o.payMethod||"";const amt=o.refundAmt!=null?o.refundAmt:(paidOf(o)||o.amount);
   const fin=(how)=>{const staff=getStaff();if(!staff)return;
     closeModal();
     patchOrder(no,{refunded:true,refundedAt:Date.now(),refundRoute:"done"},()=>{
-      logOp(no,staff,"已退款",`${money(amt)} · ${how}`);toast(`${no} 退款已完成(${how})`);});};
+      logOp(no,staff,"已退款",`${money(amt)} · ${how}`);
+      addLedger({orderNo:no,type:"退款",pm:o.payMethod||null,amt:-Math.abs(amt),staff,ref:how});
+      toast(`${no} 退款已完成(${how})`);});};
   const route=(r,lbl)=>{const staff=getStaff();if(!staff)return;
     closeModal();
     patchOrder(no,{refundRoute:r},()=>{logOp(no,staff,"退款转办",lbl);toast(`${no} ${lbl}`);});};
   let body="";
   if(pm==="现金"){
     body=`<button class="btn" id="rrA">当场已退现金 ${money(amt)}</button>
-      <button class="btn ghost" id="rrB" style="margin-top:8px">现金不足 → 转 Owner 备现金</button>`;
+      <button class="btn ghost" id="rrB" style="margin-top:8px">现金不足 → 通知经理备现金(仍由本店退)</button>`;
   }else{
     body=`<button class="btn" id="rrA">已确认退款(终端/平台已原路退)</button>
       <button class="btn ghost" id="rrB" style="margin-top:8px">推送客服协助退款</button>`;
@@ -1757,7 +1846,7 @@ window.openRefundRouter=(no)=>{
     <p class="note" style="margin:0 0 8px">${pm==="现金"?"店里现金够就当场退给客人;不够转 Owner 队列。":"店经理已在终端/平台退掉就选第一个;否则推给客服。"}</p>
     ${body}${staffField()}`,true);
   document.getElementById("rrA").onclick=()=>fin(pm==="现金"?"现金当场退":"终端已退·"+pmDisp(pm));
-  document.getElementById("rrB").onclick=()=>route(pm==="现金"?"owner":"cs",pm==="现金"?"已转 Owner 备现金":"已推送客服协助退款");
+  document.getElementById("rrB").onclick=()=>route(pm==="现金"?"owner":"cs",pm==="现金"?"已通知经理备现金,现金到店后由本店完成退款":"已推送客服协助退款");
 };
 window.undoPicked=(no)=>{
   const o=ORDERS[no];if(!o)return;
@@ -1796,10 +1885,10 @@ function openEdit(no){
     <div class="tot-line"><span>盒数合计</span><b id="eTotal"></b></div>
     <label class="f">订单总额 $(改数量会自动重算;促销/折扣可手动填实收)</label>
     <div class="row">
-      ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?`<div class="kv" style="background:var(--cream);border-radius:8px;padding:8px 10px;width:100%"><span>家族总额(锁定,拆分/改货不影响)</span><b>${money(famTotalOf(o))}</b></div><input type="hidden" id="eAmt" value="${o.amount!=null?o.amount:""}">`:`<input type="number" id="eAmt" min="0" step="0.01" value="${o.amount!=null?o.amount:""}">
-      <button class="btn small ghost" id="eAmtAuto" style="white-space:nowrap">按价目自动算</button>`}
+      ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?`<div class="kv" style="background:var(--cream);border-radius:8px;padding:8px 10px;width:100%"><span>家族总额(按全家数量自动计算,改数量会触发补收/退款)</span><b>${money(famTotalOf(o))}</b></div><input type="hidden" id="eAmt" value="${o.amount!=null?o.amount:""}">`:`<input type="number" id="eAmt" min="0" step="0.01" value="${o.amount!=null?o.amount:""}" ${ROLE&&ROLE.type==="owner"?"":"disabled"}>
+      ${ROLE&&ROLE.type==="owner"?`<button class="btn small ghost" id="eAmtAuto" style="white-space:nowrap">按价目自动算</button>`:`<span class="note" style="white-space:nowrap">改价需 Owner</span>`}`}
     </div>
-    <label class="f">已收金额 $</label>
+    ${(Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")||((paidOf(o)>0)&&!(ROLE&&ROLE.type==="owner")))?`<div class="kv" style="background:var(--cream);border-radius:8px;padding:8px 10px;margin-top:6px"><span>付款记录(已锁定${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?"·家族":""})</span><b>已收 ${money(paidOf(o))} · ${o.pay} · ${pmDisp(o.payMethod)||"—"}</b></div><div style="display:none">`:""}<label class="f">已收金额 $</label>
     <input type="number" id="ePaid" min="0" step="0.01" value="${paidOf(o)}">
     <div class="row">
       <div><label class="f">付款状态</label>
@@ -1813,6 +1902,7 @@ function openEdit(no){
       <label class="f">其它付款方式说明 *</label>
       <input type="text" id="ePayOther" value="${esc(o.payOther||"")}">
     </div>
+    ${(Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")||((paidOf(o)>0)&&!(ROLE&&ROLE.type==="owner")))?`</div>`:""}
     ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?`</div>`:""}
     <label class="f">修改来源 *</label>
     <select id="eSrc"><option value="">—</option><option>到店修改</option><option>致电修改</option><option>联系客服修改</option><option>其它</option></select>
@@ -1904,13 +1994,14 @@ function saveEdit(o){
   newPaid=isNaN(newPaid)?0:Math.round(newPaid*100)/100;
   const newPay=document.getElementById("ePay").value;
   const eDuePlanV=newPay==="部分付"?(document.getElementById("eDuePlan")?document.getElementById("eDuePlan").value:""):null;
-  if(newPay==="部分付"&&!eDuePlanV)return toast("部分付请选择尾款安排:取货时付 / 客服跟进");
+  let _duePlanV=eDuePlanV;
+  if(newPay==="部分付"&&!_duePlanV){_duePlanV=o.duePlan||"取货时付";}
   if(newPay==="已付"&&newAmt!=null)newPaid=newAmt;
   if(newPay==="未付")newPaid=0;
   const patch={name,phone:document.getElementById("ePhone").value.trim(),store:eStore,
     qty:{...eQty},box6:nb.b6,box2:nb.b2,boxes:nb.total,
     amount:newAmt,autoAmount:autoNow,manualPrice:newAmt!=null&&Math.abs(newAmt-autoNow)>0.005,paid:newPaid,
-    pay:newPay,duePlan:eDuePlanV,payMethod:payM,payOther:payM==="其它"?payOther:"",
+    pay:newPay,duePlan:_duePlanV,payMethod:payM,payOther:payM==="其它"?payOther:"",
     notes:document.getElementById("eNote").value.trim(),updatedAt:Date.now()};
   if(!o.batch){
     const nd=document.getElementById("eDate").value;
@@ -1994,33 +2085,32 @@ function saveEdit(o){
     });
   }
   if(_hasKids){
-    // 家族母单:总额锁死——只改货,不碰钱,不触发收退
-    ["amount","autoAmount","manualPrice","paid","pay","payMethod","payOther"].forEach(k=>delete patch[k]);
-    diffs.push("家族总额锁定,金额不变");
-    return askStaff("确认修改母单:"+o.no,staff=>{
-      patchOrder(o.no,patch,()=>{
-        logOp(o.no,staff,"修改订单",(diffs.length?diffs.join(";"):"无字段变化")+" · "+(window._eSrcV||""));
-        toast(o.no+" 已更新(家族总额不变)");
-        openDetail(o.no);
-      });
-    });
+    // 付款身份仍锁(状态/方式/已收不许手改);金额=全家数量自动重算,差额走正常补收/退款
+    ["paid","pay","payMethod","payOther"].forEach(k=>delete patch[k]);
+    for(let k=diffs.length-1;k>=0;k--)if(/^(已收|付款状态|付款方式|收款)/.test(diffs[k]))diffs.splice(k,1);
+    const kids=Object.values(ORDERS).filter(c=>c.parentNo===o.no&&c.status==="有效");
+    const famQ={...eQty};
+    kids.forEach(c=>Object.entries(c.qty||{}).forEach(([k,v])=>famQ[k]=(famQ[k]||0)+v));
+    const kidsAmt=kids.reduce((s,c)=>s+(+c.amount||0),0);
+    const famAuto=Math.round(calcAmount(famQ,(document.getElementById("ePayM")||{}).value||o.payMethod,o.channel)*100)/100;
+    patch.amount=Math.round((famAuto-kidsAmt)*100)/100;
+    patch.autoAmount=patch.amount;patch.manualPrice=false;
+    const ai2=diffs.findIndex(d=>d.startsWith("总额"));if(ai2>=0)diffs.splice(ai2,1);
+    if(patch.amount!==o.amount)diffs.push(`家族总额(按全家${Object.values(famQ).reduce((a,b)=>a+(+b||0),0)}盒重算)${money(famTotalOf(o))}→${money(famAuto)}`);
   }
-  if(_hasKids){
-    ["amount","autoAmount","manualPrice","paid","pay","payMethod","payOther"].forEach(k=>delete patch[k]);
-    diffs.push("家族总额锁定,金额不变");
-    return askStaff("确认修改母单:"+o.no,staff=>{
-      patchOrder(o.no,patch,()=>{
-        logOp(o.no,staff,"修改订单",(diffs.length?diffs.join(";"):"无字段变化")+" · "+(window._eSrcV||""));
-        toast(o.no+" 已更新(家族总额不变)");
-        openDetail(o.no);
-      });
-    });
+  if(!(ROLE&&ROLE.type==="owner")&&!o.batch&&!_hasKids){
+    patch.amount=Math.round(calcAmount(eQty,(document.getElementById("ePayM")||{}).value||o.payMethod,o.channel)*100)/100;
+    patch.manualPrice=false;
+  }
+  if(!_hasKids&&paidOf(o)>0&&!(ROLE&&ROLE.type==="owner")){
+    ["paid","pay","payMethod","payOther"].forEach(k=>delete patch[k]);
+    for(let k=diffs.length-1;k>=0;k--)if(/^(已收|付款状态|付款方式)/.test(diffs[k]))diffs.splice(k,1);
   }
   const wasPaid=o.pay==="已付";
   if(wasPaid && nb.total<(o.boxes||0)){
     const refAmt=(patch.amount!=null)?Math.max(0,Math.round((paidOf(o)-patch.amount)*100)/100):null;
     if(refAmt!=null&&refAmt>0){
-      patch.paid=patch.amount;patch.refundAmt=refAmt;patch.refundDue=true;
+      patch.refundAmt=refAmt;patch.refundDue=true; // 原始付款保留,不覆盖 paid
       const _promo=hasPromo(o);
       patch.refundRoute=_promo?"cs":(o.payMethod==="EMT"?"cs":"pending");
       if(_promo)patch.refundUrgent=true;
@@ -2048,7 +2138,7 @@ function saveEdit(o){
       <p class="note" style="margin:6px 0 0">选后两项:订单变「部分付」并挂红色「待收差额」标签,门店知道只差这部分,不会当成整单未付。</p>
       <div id="incPmWrap" style="display:none">
         <label class="f">差额付款方式(选「现金」自动按现金价重算差额)</label>
-        <select id="incPm">${LEGACY_PM(o.payMethod)?`<option selected>${esc(o.payMethod)}</option>`:""}${PAY_METHODS.map(m=>`<option ${m===o.payMethod?"selected":""}>${m}</option>`).join("")}</select>
+        <select id="incPm">${LEGACY_PM(o.payMethod)?`<option selected>${esc(o.payMethod)}</option>`:""}${PAY_METHODS.filter(x=>!(ROLE&&ROLE.type==="cs"&&x==="现金")).map(m=>`<option ${m===o.payMethod?"selected":""}>${m}</option>`).join("")}</select>
         <div id="incPmOtherWrap" style="display:none">
           <label class="f">其它说明 *</label><input type="text" id="incPmOther"></div>
       </div>
@@ -2084,8 +2174,9 @@ function saveEdit(o){
           if(!t)return toast("请填写其它说明"); pmLbl="其它:"+t;}
         patch.pay="已付"; patch.paid=patch.amount; patch.dueNote=null; patch.dueQty=null; patch.dueNegAmt=null;
         detail=`已补收 ${money(incAmt)}(${pmLbl})`+(pm!==o.payMethod?" · 与原单方式不同":"");
+        if(incAmt>0)addLedger({orderNo:o.no,type:"订单收款",pm:pmLbl,amt:Math.round(incAmt*100)/100,staff:null,ref:"改单补收"});
       } else if(iv==="store"){
-        patch.pay="部分付"; patch.dueNote=`到店补收差额${inc}盒`+(incAmt>0?` ${money(incAmt)}`:"");
+        patch.pay="部分付";patch.duePlan=(iv==="store"?"取货时付":"客服跟进"); patch.dueNote=`到店补收差额${inc}盒`+(incAmt>0?` ${money(incAmt)}`:"");
         patch.dueQty=Object.keys(posDelta).length?posDelta:null;
         patch.dueNegAmt=Math.round(calcAmount(negDelta,o.payMethod,o.channel)*100)/100||null;
         detail="到店取货时补收";
@@ -2101,6 +2192,26 @@ function saveEdit(o){
       diffs.push(`差额${inc}盒:${detail}`);
       closeModal();apply();
     };
+  } else if(o.pay==="部分付"||o.pay==="等待付款中"){
+    const _amt=(patch.amount!=null?patch.amount:o.amount)||0;
+    const bal=Math.round((_amt-paidOf(o))*100)/100;
+    if(bal<0){
+      patch.refundAmt=-bal;patch.refundDue=true;
+      patch.refundRoute=hasPromo(o)?"cs":(o.payMethod==="EMT"?"cs":"pending");
+      if(hasPromo(o))patch.refundUrgent=true;
+      patch.pay="已付";patch.dueNote=null;patch.dueQty=null;patch.dueNegAmt=null;patch.duePlan=null;
+      diffs.push(`总额低于已收,待退 ${money(-bal)}`);
+      apply();
+      if(patch.refundRoute==="pending")setTimeout(()=>openRefundRouter(o.no),300);
+    }else if(bal===0){
+      patch.pay="已付";patch.dueNote=null;patch.dueQty=null;patch.dueNegAmt=null;patch.duePlan=null;
+      diffs.push("差额归零,自动恢复「已付」");
+      apply();
+    }else{
+      patch.dueNote="待收差额 "+money(bal);
+      diffs.push(`待收差额更新为 ${money(bal)}`);
+      apply();
+    }
   } else apply();
 }
 
@@ -2108,6 +2219,7 @@ function saveEdit(o){
 /* refundFlow retired b0819-55: 所有退款统一走 openRefundRouter */
 function clearDue(no){ settleDue(no,false); }
 function settleDue(no,alsoPick){
+  if(!moneyGate())return;
   const o=ORDERS[no]; if(!o)return;
   const due0=dueAmt(o);
   const dueQ=o.dueQty||null, negA=o.dueNegAmt||0;
@@ -2122,7 +2234,7 @@ function settleDue(no,alsoPick){
     选付款方式后金额自动按该方式重算${o.manualPrice?"(此单为手动定价,不自动重算)":"——<b>现金=现金价,刷卡/转账=原价</b>"},也可手动改。</p>
     <label class="f">差额付款方式 *</label>
     <div class="seg" id="cdSeg" style="flex-direction:column">
-      ${PAY_METHODS.map(m=>`<button data-v="${m}">${m}</button>`).join("")}
+      ${PAY_METHODS.filter(x=>!(ROLE&&ROLE.type==="cs"&&x==="现金")).map(m=>`<button data-v="${m}">${m}</button>`).join("")}
     </div>
     <div id="cdOtherWrap" style="display:none"><label class="f">其它说明 *</label>
       <input type="text" id="cdOther"></div>
@@ -2162,6 +2274,7 @@ function settleDue(no,alsoPick){
     if(alsoPick){patch.pickedUp=true;patch.pickedAt=todayStr();}
     patchOrder(no,patch,()=>{
       logOp(no,staff,alsoPick?"取货并收差额":"差额收清",`收 ${money(collected)}(${pmLbl}),总额定为 ${money(newPaid)},恢复已付`);
+      if(collected>0)addLedger({orderNo:no,type:"订单收款",pm:pmLbl,amt:collected,staff,ref:null});
       closeModal();toast(`${no} ${alsoPick?"已取货,":""}差额已收清 ✓`);
       if(window._settleRefund===no){window._settleRefund=null;
         if(ORDERS[no]&&ORDERS[no].refundDue&&ORDERS[no].refundRoute==="pending")setTimeout(()=>openRefundRouter(no),300);}
@@ -2278,10 +2391,11 @@ function openAddNote(no){
   };
 }
 function openMarkRefund(no){
+  if(!moneyGate())return;
   const o=ORDERS[no];if(!o)return;
   if(o.refundUrgent&&ROLE&&ROLE.type==="store")return toast("优惠单退款需客服/Owner 核对处理");
   const amt0=(o.refundAmt!=null?o.refundAmt:(paidOf(o)||o.amount));
-  const canEdit=ROLE&&(ROLE.type==="cs"||ROLE.type==="owner");
+  const canEdit=ROLE&&(ROLE.type==="cs"||ROLE.type==="owner"||(ROLE.type==="store"&&o.refundRoute==="owner"&&o.payMethod==="现金"));
   openModal(mhead(`标记已退款:${no}(${esc(o.name)})`)+`
     ${o.refundUrgent?'<p class="note" style="color:var(--danger);margin:0 0 8px"><b>优惠单</b>:请按优惠规则重算实际应退金额</p>':""}
     <label class="f">退款金额 $</label>
@@ -2299,7 +2413,9 @@ function openMarkRefund(no){
     if(!ref&&m!=="现金")return toast("请填写退款凭证号(现金可空)");
     const staff=getStaff();if(!staff)return;
     patchOrder(no,{refunded:{by:staff,at:todayStr()+" "+nowHM(),method:m,ref:ref||"现金",amount:amt},refundDue:null,refundUrgent:null},
-      ()=>{logOp(no,staff,"已退款",`${money(amt)} · ${m}${ref?" · "+ref:""}`);closeModal();toast("已标记退款完成 ✓");renderPend();});
+      ()=>{logOp(no,staff,"已退款",`${money(amt)} · ${m}${ref?" · "+ref:""}`);
+        addLedger({orderNo:no,type:"退款",pm:m||null,amt:-Math.abs(amt),staff,ref:ref||"标记已退款"});
+        closeModal();toast("已标记退款完成 ✓");renderPend();});
   };
 }
 
@@ -2401,10 +2517,11 @@ function renderPend(){
   }).join(""):'<div class="note">没有等待付款的订单 🎉</div>';
 }
 function openMarkPaid(no){
+  if(!moneyGate())return;
   const o=ORDERS[no];if(!o)return;
   openModal(mhead(`标记已收款:${no}(${esc(o.name)} · ${money(o.amount)})`)+`
     <label class="f">付款方式 *</label>
-    <select id="mpM"><option value="">—</option><option>Square Online</option><option>Credit Card</option><option>现金</option><option>EMT</option><option>SL</option><option>AlphaPay(微信&支付宝)</option><option>其它</option></select>
+    <select id="mpM"><option value="">—</option><option>Square Online</option><option>Credit Card</option>${ROLE&&ROLE.type==="cs"?"":"<option>现金</option>"}<option>EMT</option><option>SL</option><option>AlphaPay(微信&支付宝)</option><option>其它</option></select>
     <label class="f" id="mpRefLbl">收款凭证号</label>
     <input type="text" id="mpRef">
     ${staffField()}
@@ -2427,6 +2544,7 @@ function openMarkPaid(no){
     patchOrder(no,{pay:"已付",payMethod:pm,backendNo:ref,paid:o.amount,paidAt:Date.now(),
       channel:pm==="Square Online"?"Square Online":o.channel},
       ()=>{logOp(no,staff,"标记已收款",`${money(o.amount)} · ${pm}${ref?" · "+ref:""}`);
+        addLedger({orderNo:no,type:"订单收款",pm,amt:+o.amount||0,staff,ref:ref||null});
         afterPaidUnlockKids(no,staff);
         closeModal();toast("已收款 ✓");});
   };
@@ -2520,7 +2638,7 @@ function openSplit(no){
   document.getElementById("spGo").onclick=()=>{
     const mv=boxCounts(sQty).total;
     if(mv===0)return toast("请选择拆出的数量");
-    if(mv>=o.boxes)return toast("不能全部拆走,全改日期请用「改期」");
+    if(mv>=o.boxes)return toast("不能全部拆走;全改日期请直接「修改订单」改取货日期");
     const nd=document.getElementById("spDate").value;
     if(!nd||nd<DATE_MIN||nd>DATE_MAX)return toast("日期须在 9/4 – 9/30");
     const staff=getStaff(); if(!staff)return;
@@ -3986,6 +4104,13 @@ document.querySelector("nav").addEventListener("click",e=>{
   renderAll();
 });
 function renderAll(){
+  try{ return _renderAllCore(); }catch(err){
+    var box=document.getElementById('orderList')||document.body;
+    box.innerHTML='<div style="background:#FCEBEB;color:#791F1F;padding:14px;border-radius:10px;margin:12px;font-size:13px;word-break:break-all"><b>渲染出错(截图此框给开发)</b><br>'+String(err&&err.message).replace(/</g,'&lt;')+'<br>'+String(err&&err.stack||'').slice(0,400).replace(/</g,'&lt;')+'</div>';
+    throw err;
+  }
+}
+function _renderAllCore(){
   autoReleaseReserves();
   renderPend();
   renderArrive();
@@ -4004,7 +4129,7 @@ document.getElementById("pkDate").value=initDate;
 document.getElementById("wDate").value=initDate;
 initData();renderAll();updateKeyStatus();
 if(!isConfigured)document.getElementById("loginHint").innerHTML=
-  "演示模式访问码:门店 1111 / 2222 / 3333 · 客服 5678 · Owner 0000";
+  "请输入访问码(门店/客服/Owner,向经理索取)";
 try{
   const saved=localStorage.getItem("mc_role");
   if(saved){ROLE=JSON.parse(saved);
