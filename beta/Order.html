@@ -788,7 +788,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-79";
+const APP_BUILD="b0819-80";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -2073,9 +2073,8 @@ function saveEdit(o){
   if(!o.batch){
     const nd=document.getElementById("eDate").value;
     if(nd<DATE_MIN||nd>DATE_MAX)return toast("取货日期须在 9/4 – 9/27");
-    {const ntv=(document.getElementById("eTime")||{}).value||"";
-     if(ntv&&PICKUP_WIN[newStoreV]&&!timeOk(newStoreV,ntv))return toast(`${STORE_NAME[newStoreV]}取货时间窗 ${PICKUP_WIN[newStoreV][0]}–${PICKUP_WIN[newStoreV][1]}`);
-     if((o.pickupTime||"")!==ntv){diffs.push("取货时间 "+(o.pickupTime||"—")+"→"+(ntv||"—"));patch.pickupTime=ntv||null;}}
+    const eTimeV=(document.getElementById("eTime")||{}).value||"";
+    if(eTimeV&&PICKUP_WIN[newStoreV]&&!timeOk(newStoreV,eTimeV))return toast(`${STORE_NAME[newStoreV]}取货时间窗 ${PICKUP_WIN[newStoreV][0]}–${PICKUP_WIN[newStoreV][1]}`);
     patch.pickupDate=nd;
   }
   const diffs=[];
@@ -2089,6 +2088,7 @@ function saveEdit(o){
       if(ov!==nv){const u=p.pc?"颗":"盒";diffs.push(`${p.n} ${ov}${u}→${nv}${u}`);}
     });
     if((o.boxes||0)!==nb.total||(piecesOf(o)||0)!==nb.pieces)diffs.push(`合计 ${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}→${nb.total}盒${nb.pieces?"+"+nb.pieces+"颗":""}`);
+    if((o.pickupTime||"")!==eTimeV){diffs.push("取货时间 "+(o.pickupTime||"—")+"→"+(eTimeV||"—"));patch.pickupTime=eTimeV||null;}
   }
   if(patch.pay!==o.pay)diffs.push(`付款状态 ${o.pay}→${patch.pay}`);
   if((patch.amount==null?null:patch.amount)!==(o.amount==null?null:o.amount))
