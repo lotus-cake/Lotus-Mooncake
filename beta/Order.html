@@ -595,12 +595,12 @@ const firebaseConfig = {
   messagingSenderId: "1061048356919",
   appId: "1:1061048356919:web:d91f819b897ff1710fefb2"
 };
-const DB_ROOT = "test";  // ★ 测试期用 test;正式上线前改回 "v1"
-const OWNER_PIN   = "0000"; // ★ Owner 访问码 — 部署前务必修改
+const DB_ROOT = "v1";  // ★ 正式账本(2026-08-25 上线)
+const OWNER_PIN   = "6390"; // ★ Owner 访问码 — 部署前务必修改
 const ACCESS_CODES = {       // ★ 各角色访问码 — 部署前全部修改
-  CAM:  "1111",   // Cambie 门店
-  BBY:  "2222",   // Burnaby 门店
-  ALD:  "3333",   // Alderbridge 门店
+  CAM:  "4726",   // Cambie 门店
+  BBY:  "8153",   // Burnaby 门店
+  ALD:  "2947",   // Alderbridge 门店
   CS:   "5678",   // 客服
   OWNER: OWNER_PIN
 };
@@ -755,7 +755,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-69";
+const APP_BUILD="b0819-70";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -4129,7 +4129,7 @@ document.getElementById("pkDate").value=initDate;
 document.getElementById("wDate").value=initDate;
 initData();renderAll();updateKeyStatus();
 if(!isConfigured)document.getElementById("loginHint").innerHTML=
-  "演示模式访问码:门店 1111 / 2222 / 3333 · 客服 5678 · Owner 0000";
+  "请输入访问码(门店/客服/Owner,向经理索取)";
 try{
   const saved=localStorage.getItem("mc_role");
   if(saved){ROLE=JSON.parse(saved);
