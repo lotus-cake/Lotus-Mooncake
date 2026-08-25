@@ -755,7 +755,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-67";
+const APP_BUILD="b0819-68";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1537,6 +1537,7 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
         if(cand.exception)o.exception=cand.exception;
         saveOrder(o,()=>{
           done=true;clearTimeout(dog);closeModal();
+          if(paidV>0)addLedger({orderNo:no,type:"订单收款",pm:payM==="其它"?(payOther||"其它"):payM,amt:Math.round(paidV*100)/100,staff,ref:"录单收款"});
           logOp(no,staff,"创建订单",`${total}盒 ${money(amt)}${o.manualPrice?"(手动定价)":""} · ${o.batch?"分批大单":fmtMD(date)} ${o.store} · ${o.pay}`+(cand.exception?" · 例外:"+cand.exception.reason:""));
           toast(`已保存 ${no} · ${total}盒 ${money(amt)}`);
           ["fName","fPhone","fRef","fNote","fPayOther","fPaid"].forEach(id=>document.getElementById(id).value="");
@@ -1672,7 +1673,10 @@ function openDetail(no){
   const pkList=o.batch?pkKeys.map(([k,r])=>`<div class="wlog" style="${r.voided?"opacity:.45;text-decoration:line-through":""}"><span>${fmtMD(r.date)} 取 ${itemsText(r.qty)}${r.staff?" · "+esc(r.staff):""}${r.voided?" · 已作废:"+esc(r.voidReason||""):""}</span><b>${r.boxes}盒</b>${(!r.voided&&ROLE&&(ROLE.type==="cs"||ROLE.type==="owner"))?`<button class="btn small ghost" style="margin-left:6px" onclick="event.stopPropagation();voidBatchPick('${o.no}','${k}')">作废</button>`:""}</div>`).join(""):"";
   const prodLines=PRODUCTS.filter(p=>o.qty&&o.qty[p.k]>0)
     .map(p=>`<div class="kv"><span>${p.n}</span><b>${o.qty[p.k]} 盒</b></div>`).join("");
-  const payLbl=(o.payMethod?(o.payMethod==="其它"?"其它:"+esc(o.payOther||""):esc(pmDisp(o.payMethod))):"—");
+  let payLbl=(o.payMethod?(o.payMethod==="其它"?"其它:"+esc(o.payOther||""):esc(pmDisp(o.payMethod))):"—");
+  const _lr=Object.values(LEDGER||{}).filter(r=>r&&r.orderNo===no).sort((a,b)=>(a.ts||0)-(b.ts||0));
+  const _pms=[...new Set(_lr.filter(r=>(+r.amt||0)>0).map(r=>String(r.pm||"").startsWith("其它")?"其它":(pmDisp(r.pm)||"")))].filter(x=>x&&x!=="—");
+  if(_pms.length>1)payLbl="多方式:"+_pms.join(" + ")+"(见付款记录)";
   const rem=o.batch?batchRemainQty(o):null;
   const kidsAll=Object.values(ORDERS).filter(c=>c.parentNo===o.no&&c.status==="有效");
   const dashHtml="";
@@ -1700,6 +1704,7 @@ function openDetail(no){
     <div class="kv"><span>已收</span><b>${money(paidOf(o))||"$0"}</b></div>
     ${dueAmt(o)>0?`<div class="kv"><span style="color:var(--danger)">待收</span><b style="color:var(--danger)">${money(dueAmt(o))}</b></div>`:""}
     <div class="kv"><span>付款</span><b>${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay} · ${payLbl}</b></div>
+    ${_lr.length?`<div class="kv" style="align-items:flex-start"><span>付款记录</span><b style="text-align:right;font-weight:500">${_lr.map(r=>`${esc(r.d||"")} ${esc(r.type||"")} · ${String(r.pm||"").startsWith("其它")?esc(r.pm):(pmDisp(r.pm)||"—")} <span style="color:${(+r.amt||0)<0?"var(--danger)":"var(--ok)"}">${(+r.amt||0)<0?"−":"+"}${money(Math.abs(+r.amt||0))}</span>${r.staff?" · "+esc(r.staff):""}`).join("<br>")}</b></div>`:(paidOf(o)>0&&!o.parentNo?`<div class="kv"><span>付款记录</span><b style="font-weight:400;color:var(--muted)">历史收款(台账上线前,无分笔流水)</b></div>`:"")}
     <div class="kv"><span>渠道</span><b>${esc(o.channel||"—")}${o.wxAcct?" · "+esc(o.wxAcct):""}${o.chStore?" · "+(STORE_NAME[o.chStore]||o.chStore):""}${o.chStaff?" · "+esc(o.chStaff):""}</b></div>
     <div class="kv"><span>渠道 / 单号</span><b>${esc(o.channel||"—")}${o.backendNo?" · "+esc(o.backendNo):""}</b></div>${o.parentNo?`</div>`:""}
     ${o.linkedNo?`<div class="kv"><span>关联订单</span><b>${o.linkedNo}</b></div>`:""}
