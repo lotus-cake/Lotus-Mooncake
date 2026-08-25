@@ -529,6 +529,10 @@ table.sum .z{color:#C9C6B4}
     <div class="kv"><span>促销三:买</span><input type="number" id="pmB3" min="0" style="width:64px"><span>送</span><input type="number" id="pmF3" min="0" style="width:64px"></div>
     <button class="btn small" id="btnSavePrice" style="margin-top:10px">保存价格</button>
     <p class="note">录单时:付款方式选「现金」的六粒盒自动用现金价;渠道选「员工」自动打员工折。促销价(买20送3等)用录单页的「改价」手动填实收。</p>
+    <div class="note" style="margin:12px 0 4px"><b>单颗 & GST 开关</b>(勾=该产品 +5% 税;政策变了翻开关即可,无需发版)</div>
+    <div class="kv"><span>单颗 单价 $</span><input type="number" id="prS1" min="0" step="0.01" inputmode="decimal"></div>
+    <div id="taxTable"></div>
+    <button class="btn small" id="btnSaveTax" style="margin-top:8px">保存单颗价 & 税设置</button>
   </div>
   <div class="card" id="capCard">
     <div class="kv"><span>六粒盒 销售上限(0=不限)</span><input type="number" id="cap6" min="0" inputmode="numeric"></div>
@@ -618,6 +622,12 @@ const PRODUCTS = [
   {k:"cp2",  n:"两粒陈皮红豆",box:2},
   {k:"mk2",  n:"两粒摩卡",   box:2},
   {k:"wl2",  n:"两粒乌龙",   box:2},
+  {k:"s_js", n:"单颗金沙",   box:0, pc:1},
+  {k:"s_mt", n:"单颗抹茶柚子",box:0, pc:1},
+  {k:"s_tr", n:"单颗黑松露", box:0, pc:1},
+  {k:"s_cp", n:"单颗陈皮红豆",box:0, pc:1},
+  {k:"s_mk", n:"单颗摩卡",   box:0, pc:1},
+  {k:"s_wl", n:"单颗乌龙",   box:0, pc:1},
 ];
 const WALKIN_PRODUCTS = PRODUCTS.concat([{k:"bb2", n:"两粒盲盒", box:2}]);
 const FLAVORS = [
@@ -629,20 +639,30 @@ const PAY_METHODS = ["Square Online","Credit Card","现金","EMT","SL","AlphaPay
 const pmDisp=m=>m==="微信"?"SL":m;
 const LEGACY_PM = m=>m&&!PAY_METHODS.includes(m); // 老单历史值(Square/SL WeChat)兼容
 const WALK_PAY = ["Credit Card","现金","AlphaPay(微信&支付宝)","SL","EMT","其它"];
-const DEFAULT_PRICES = {p6:88, p6cash:80, p2:28, bb2:28, emp:0.9,
+const DEFAULT_PRICES = {p6:88, p6cash:80, p2:28, bb2:28, s1:11.5, emp:0.9,
   promos:[{buy:10,free:1},{buy:20,free:3},{buy:30,free:5}]};
 let PRICES = {...DEFAULT_PRICES};
+const DEFAULT_TAX={s_js:1,s_mt:1,s_tr:1,s_cp:1,s_mk:1,s_wl:1};
+let TAX=null;
+function taxOn(k){const m=TAX||DEFAULT_TAX;return !!m[k];}
+const nickel=v=>Math.round(v*20)/20;
+const EPS=0.021;
 const money = v => (v==null||isNaN(v)) ? "" : "$"+(+v).toFixed(2).replace(/\.00$/,"");
 function calcDetail(qty,payMethod,channel){
-  const units=[],units6=[];
+  const lines=[],units6=[];
+  let pieces=0,box6=0,box2=0;
   PRODUCTS.forEach(p=>{
     const q=(qty&&qty[p.k])||0; if(!q)return;
-    const unit = p.box===6 ? (payMethod==="现金"?PRICES.p6cash:PRICES.p6) : PRICES.p2;
-    for(let i=0;i<q;i++){units.push(unit);if(p.box===6)units6.push(unit);}
+    if(p.box===6)box6+=q; else if(p.box===2)box2+=q;
+    if(p.pc)pieces+=q*p.pc;
+    const unit = p.box===6 ? (payMethod==="现金"?PRICES.p6cash:PRICES.p6)
+               : p.pc ? (PRICES.s1!=null?PRICES.s1:11.5)
+               : PRICES.p2;
+    for(let i=0;i<q;i++){const L={v:unit,tx:taxOn(p.k),six:p.box===6,freed:false};lines.push(L);if(L.six)units6.push(L);}
   });
-  const T=units.length,T6=units6.length;
-  let gross=units.reduce((s,v)=>s+v,0);
-  // 促销为六粒盒专属:门槛按六粒盒数,赠品免最便宜的六粒盒;两粒不参与
+  const T=lines.length,T6=units6.length;
+  let gross=lines.reduce((s,l)=>s+l.v,0);
+  // 促销为六粒盒专属:门槛按六粒盒数,赠品免最便宜的六粒盒(连同其税);两粒/单颗不参与
   let tier=null;
   (PRICES.promos||[]).forEach(t=>{
     if(t&&t.buy>0&&t.free>0&&T6>=t.buy+t.free){
@@ -651,13 +671,17 @@ function calcDetail(qty,payMethod,channel){
   });
   let promoDisc=0;
   if(tier){
-    units6.sort((a,b)=>a-b);
-    promoDisc=units6.slice(0,tier.free).reduce((s,v)=>s+v,0);
+    units6.sort((a,b)=>a.v-b.v);
+    units6.slice(0,tier.free).forEach(l=>{l.freed=true;promoDisc+=l.v;});
   }
-  let amt=gross-promoDisc;
-  if(channel==="员工")amt*=(PRICES.emp||0.9);
-  return {freeCount:(tier?tier.free:0),amt:Math.round(amt*100)/100, gross:Math.round(gross*100)/100,
-          promoDisc:Math.round(promoDisc*100)/100, tier, t6:T6};
+  const f=(channel==="员工")?(PRICES.emp||0.9):1;
+  const r2=v=>Math.round((v+Number.EPSILON)*100)/100;
+  const sub=r2((gross-promoDisc)*f);
+  const taxBase=lines.reduce((s,l)=>s+((l.tx&&!l.freed)?l.v:0),0)*f;
+  const gst=r2(taxBase*0.05);
+  const amt=r2(sub+gst);
+  return {freeCount:(tier?tier.free:0),amt,sub,gst,gross:Math.round(gross*100)/100,
+          promoDisc:Math.round(promoDisc*100)/100, tier, t6:T6, pieces, box6, box2};
 }
 function nextTierHint(d){
   const T6=d.t6||0;if(!T6)return "";
@@ -716,14 +740,16 @@ function walkinUnit(pk,pm){
 
 function flavorPieces(qty){
   const q=k=>(qty&&qty[k])||0;
-  return { js:q("mix6")+q("js6")*6+q("js2")*2, mt:q("mix6")+q("mt2")*2, tr:q("mix6")+q("tr2")*2,
-           cp:q("mix6")+q("cp2")*2, mk:q("mix6")+q("mk2")*2, wl:q("mix6")+q("wl2")*2 };
+  return { js:q("mix6")+q("js6")*6+q("js2")*2+q("s_js"), mt:q("mix6")+q("mt2")*2+q("s_mt"), tr:q("mix6")+q("tr2")*2+q("s_tr"),
+           cp:q("mix6")+q("cp2")*2+q("s_cp"), mk:q("mix6")+q("mk2")*2+q("s_mk"), wl:q("mix6")+q("wl2")*2+q("s_wl") };
 }
 function boxCounts(qty){
-  let b6=0,b2=0;
-  PRODUCTS.forEach(p=>{const v=(qty&&qty[p.k])||0; if(p.box===6)b6+=v; else b2+=v;});
-  return {b6,b2,total:b6+b2};
+  let b6=0,b2=0,pieces=0;
+  PRODUCTS.forEach(p=>{const v=(qty&&qty[p.k])||0; if(p.box===6)b6+=v; else if(p.box===2)b2+=v; else if(p.pc)pieces+=v*p.pc;});
+  return {b6,b2,pieces,total:b6+b2,all:b6+b2+pieces};
 }
+function cntText(c){return c.total+" 盒"+(c.pieces?(" + "+c.pieces+" 颗"):"");}
+function piecesOf(o){if(!o)return 0;if(o.pieces!=null)return o.pieces;return boxCounts(o.qty||{}).pieces;}
 const pad=n=>String(n).padStart(4,"0");
 const todayStr=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
 const nowHM=()=>{const d=new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");};
@@ -756,7 +782,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-72";
+const APP_BUILD="b0819-73";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -783,6 +809,7 @@ function initData(){
     DB.ref(DB_ROOT+"/selfloss").on("value",s=>{SELFLOSS=s.val()||{};});
     DB.ref(DB_ROOT+"/meta/caps").on("value",s=>{CAPS=Object.assign({b6:0,b2:0},s.val()||{});renderAll();});
     DB.ref(DB_ROOT+"/meta/prices").on("value",s=>{PRICES=Object.assign({},DEFAULT_PRICES,s.val()||{});renderAll();});
+    DB.ref(DB_ROOT+"/meta/tax").on("value",s=>{TAX=s.val();renderAll();});
     DB.ref(DB_ROOT+"/meta/aiKey").on("value",s=>{AIKEY=s.val()||"";updateKeyStatus();});
     DB.ref(DB_ROOT+"/todos").on("value",s=>{TODOS=s.val()||{};renderTodos();});
     DB.ref(DB_ROOT+"/walkin").on("value",s=>{WALKIN=s.val()||{};renderWalkin();});
@@ -847,7 +874,7 @@ function adjustMotherQty(momNo,delta,cb){
     const nq={...(m.qty||{})};
     Object.entries(delta).forEach(([k,v])=>{nq[k]=(nq[k]||0)+v;if(nq[k]<=0)delete nq[k];});
     const bc=boxCounts(nq);
-    Object.assign(m,{qty:nq,box6:bc.b6,box2:bc.b2,boxes:bc.total});
+    Object.assign(m,{qty:nq,box6:bc.b6,box2:bc.b2,boxes:bc.total,pieces:bc.pieces});
     renderAll();cb&&cb(m);
   }
 }
@@ -1113,7 +1140,7 @@ const ZHEN={
 "按产品(厨房)":"By Product (Kitchen)","按门店(装车)":"By Store (Loading)","产品配送汇总":"Product Delivery Summary","门店装车单":"Store Loading Sheets","本店合计":"Store total","回到今天":"Today",
 "门店当前现货":"Current Walk-in Stock","暂无现货":"No stock","分批大单待取余额":"Bulk orders - boxes remaining",
 "付款随母单":"Paid with parent","子单":"Sub-order","已拆分":"Split",
-"六粒混合":"Mix of 6","六粒金沙":"Classic 6 (Jinsha)","两粒金沙":"Jinsha 2","两粒抹茶柚子":"Matcha Yuzu 2","两粒黑松露":"Truffle 2","两粒陈皮红豆":"Tangerine Red Bean 2","两粒摩卡":"Mocha 2","两粒乌龙":"Oolong 2","两粒盲盒":"Mystery 2",
+"六粒混合":"Mix of 6","六粒金沙":"Classic 6 (Jinsha)","两粒金沙":"Jinsha 2","两粒抹茶柚子":"Matcha Yuzu 2","两粒黑松露":"Truffle 2","两粒陈皮红豆":"Tangerine Red Bean 2","两粒摩卡":"Mocha 2","两粒乌龙":"Oolong 2","两粒盲盒":"Mystery 2","单颗金沙":"Single Jinsha","单颗抹茶柚子":"Single Matcha Yuzu","单颗黑松露":"Single Truffle","单颗陈皮红豆":"Single Tangerine Red Bean","单颗摩卡":"Single Mocha","单颗乌龙":"Single Oolong",
 "六粒盒":"6-box","两粒盒":"2-box","售":"sold",
 "识别中…":"Scanning...","当场已退现金":"Cash refunded on spot","转 Owner 备现金":"To Owner (prepare cash)","已确认退款(终端/平台已原路退)":"Refund confirmed at terminal","推送客服协助退款":"Send to CS for refund","尾款安排":"Balance plan","取货时付":"Pay at pickup","客服跟进":"CS follow-up","撤销已取":"Undo pickup","该订单已完成取货,信息已锁定;需更正请联系客服":"Picked up - locked. Contact CS to amend","收起家族,只看命中的子单 ↑":"Collapse family ↑","保存中…":"Saving...","保存超时,请检查网络(左上角圆点需为绿色)后重试":"Save timed out - check network (top-left dot must be green) and retry","识别完成,请核对":"Scan done - please verify","已自动填入(金色高亮),请逐项核对后再保存。":"Auto-filled (gold highlight). Verify each field before saving."
 };
@@ -1279,19 +1306,29 @@ function typeEQty2(k,val,min){
 }
 function renderQtyTable(){
   const c=capState(),t=document.getElementById("qtyTable");
-  t.innerHTML=PRODUCTS.map(p=>{
-    const out=p.box===6?c.out6:c.out2, v=fQty[p.k]||0;
+  const row=p=>{
+    const out=p.box===6?c.out6:(p.box===2?c.out2:false), v=fQty[p.k]||0;
     return `<tr class="${out&&!v?"soldout":""}">
-      <td class="qname">${p.n}<span class="box-tag">${p.box}粒盒</span>${out?'<span class="soldout-tag">售罄</span>':""}</td>
+      <td class="qname">${p.n}<span class="box-tag">${p.pc?"单颗":`${p.box}粒盒`}</span>${out?'<span class="soldout-tag">售罄</span>':""}</td>
       <td><div class="stepper">
         <button onclick="stepQty('${p.k}',-1)" ${v?"":"disabled"} style="${v?"":"opacity:.35"}">−</button>
         <input class="qv qin" type="number" min="0" inputmode="numeric" value="${v||0}" onchange="typeQty('${p.k}',this.value)" style="width:52px;text-align:center;border:1px solid var(--line);border-radius:8px;padding:4px 2px">
         <button onclick="stepQty('${p.k}',1)" ${out?"disabled style='opacity:.35'":""}>+</button>
-      </div></td></tr>`;
+      </div></td></tr>`;};
+  t.innerHTML=QTY_GROUPS.map(g=>{
+    const ps=PRODUCTS.filter(g.f);
+    const cnt=ps.reduce((s,p)=>s+(fQty[p.k]||0),0);
+    return qgHead(g,cnt,"renderQtyTable")+(QG_OPEN[g.id]?ps.map(row).join(""):"");
   }).join("");
-  document.getElementById("fTotal").textContent=boxCounts(fQty).total+" 盒";
+  document.getElementById("fTotal").textContent=cntText(boxCounts(fQty));
   renderFAmount();
 }
+let QG_OPEN={g6:true,g2:false,g1:false};
+const QTY_GROUPS=[
+  {id:"g6",n:"六颗礼盒",f:p=>p.box===6},
+  {id:"g2",n:"两颗礼盒",f:p=>p.box===2},
+  {id:"g1",n:"单颗",f:p=>!!p.pc}];
+function qgHead(g,cnt,rf){return `<tr><td colspan="2" onclick="QG_OPEN.${g.id}=!QG_OPEN.${g.id};${rf}()" style="padding:9px 8px;font-weight:800;color:var(--olive);background:var(--cream);border-radius:8px;cursor:pointer;user-select:none">${QG_OPEN[g.id]?"▾":"▸"} ${g.n}${cnt?` <span style="color:var(--bronze)">· ${cnt}</span>`:""}</td></tr>`;}
 let fAmtManual=null;
 function fAutoAmt(){
   return calcAmount(fQty,document.getElementById("fPayM").value,document.getElementById("fChan").value);
@@ -1299,23 +1336,24 @@ function fAutoAmt(){
 function renderFAmount(){
   const d=calcDetail(fQty,document.getElementById("fPayM").value,document.getElementById("fChan").value);
   const el=document.getElementById("fAmount"),hint=document.getElementById("fAmtHint");
+  const gstN=d.gst>0?`<span style="color:var(--muted)">其中 GST ${money(d.gst)}(已含在总额内)</span><br>`:"";
   if(fAmtManual!=null){
     el.textContent=money(fAmtManual);el.style.color="var(--bronze)";
     hint.style.display="block";
-    hint.innerHTML=`手动定价(自动价 ${money(d.amt)})· <a href="javascript:void(0)" onclick="fAmtManual=null;renderFAmount()">恢复自动</a>`;
+    hint.innerHTML=`手动定价·含税一口价(自动价 ${money(d.amt)})· <a href="javascript:void(0)" onclick="fAmtManual=null;renderFAmount()">恢复自动</a>`;
   }else{
     el.textContent=money(d.amt)||"$0";el.style.color="";
+    let inner="";
     if(d.tier&&d.promoDisc>0){
-      hint.style.display="block";
-      {const emp=Math.round(((d.gross-d.promoDisc)-d.amt)*100)/100;
-      hint.innerHTML=`<b style="color:var(--ok)">已自动应用优惠:买${d.tier.buy}送${d.tier.free},免 ${money(d.promoDisc)}(六粒盒)${emp>0.001?` · 员工9折 −${money(emp)}`:""}</b>(原价 ${money(d.gross)})`+nextTierHint(d);}
+      const emp=Math.round(((d.gross-d.promoDisc)-d.sub)*100)/100;
+      inner=`<b style="color:var(--ok)">已自动应用优惠:买${d.tier.buy}送${d.tier.free},免 ${money(d.promoDisc)}(六粒盒)${emp>0.001?` · 员工9折 −${money(emp)}`:""}</b>(原价 ${money(d.gross)})`+nextTierHint(d);
     }else{
-      const emp=Math.round((d.gross-d.amt)*100)/100;
+      const emp=Math.round((d.gross-d.sub)*100)/100;
       const nt=nextTierHint(d);
-      if(emp>0.001||nt){hint.style.display="block";
-        hint.innerHTML=(emp>0.001?`<b style="color:var(--ok)">员工9折 −${money(emp)}</b>(原价 ${money(d.gross)})`:"")+nt;}
-      else hint.style.display="none";
+      if(emp>0.001||nt)inner=(emp>0.001?`<b style="color:var(--ok)">员工9折 −${money(emp)}</b>(原价 ${money(d.gross)})`:"")+nt;
     }
+    if(gstN||inner){hint.style.display="block";hint.innerHTML=gstN+inner;}
+    else hint.style.display="none";
   }
 }
 document.getElementById("btnPriceEdit").addEventListener("click",()=>{
@@ -1400,7 +1438,7 @@ function dupModal(matches,onAdd){
   const list=matches.map(o=>`<div class="ocard ${o.store}" style="cursor:default">
     <div class="l1"><span class="ono">${o.no}</span><span class="oname">${esc(o.name)}</span>
       <span class="badge ${o.store}">${o.store}</span>${o.batch?'<span class="badge batch">分批</span>':""}${(o.parentNo&&ORDERS[o.parentNo]&&ORDERS[o.parentNo].pay!=="已付")?'<span class="badge" style="background:var(--danger);color:#fff">母单未付·取货锁定</span>':""}</div>
-    <div class="oitems">${itemsText(o.qty)}(${o.boxes}盒)${o.batch?"":" · 取货 "+fmtMD(o.pickupDate)}</div></div>`).join("");
+    <div class="oitems">${itemsText(o.qty)}(${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""})${o.batch?"":" · 取货 "+fmtMD(o.pickupDate)}</div></div>`).join("");
   openModal(mhead("⚠ 发现疑似重复订单")+`
     <p class="note" style="margin:0 0 10px">同一客人已有以下订单,请确认这是<b>加单</b>还是<b>重复录入</b>:</p>${list}
     <div class="row" style="margin-top:12px">
@@ -1460,7 +1498,7 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
     if(!date)return toast("请选取货日期");
     if(date<DATE_MIN||date>DATE_MAX)return toast("取货日期须在 9/4 – 9/30");
   }
-  if(total===0)return toast("请选择至少一件产品");
+  if(total===0&&!boxCounts(fQty).pieces)return toast("请选择至少一件产品");
   if(payM==="其它"&&!payOther)return toast("选「其它」付款方式需填写说明");
   const s=soldTotals();
   if(CAPS.b6>0&&s.b6+b6>CAPS.b6)return toast(`六粒盒超出上限:仅剩 ${CAPS.b6-s.b6} 盒`);
@@ -1527,7 +1565,7 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
         const o={no,name,phone,store:fStoreVal,unpaidPlan:unpaidPlan||null,duePlan:duePlan||null,
           wxAcct:chanV==="微信"?wxAcct:null,
           chStore:chanV==="门店"?fChStoreVal:null,
-          chStaff:chanV==="员工"?chStaff:null,qty:{...fQty},box6:b6,box2:b2,boxes:total,
+          chStaff:chanV==="员工"?chStaff:null,qty:{...fQty},box6:b6,box2:b2,boxes:total,pieces:boxCounts(fQty).pieces,gstAmt:(fAmtManual!=null?null:calcDetail(fQty,payM,chanV).gst),
           amount:(ROLE&&ROLE.type==="owner")?amt:autoAmt,autoAmount:autoAmt,manualPrice:(ROLE&&ROLE.type==="owner")?(fAmtManual!=null):false,paid:paidV,
           pay:cand.pay,payMethod:payM,payOther:payM==="其它"?payOther:"",
           channel:document.getElementById("fChan").value,
@@ -1571,7 +1609,7 @@ function orderCard(o,forPickup){
       <div class="pkinfo">
         <div class="l1"><span class="ono">${o.no}</span><span class="oname">${esc(o.name)}</span>
           ${o.parentNo?"":`<span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>`}${o.parentNo?`<span class="badge" style="background:#E4E9D5">子单·属 ${o.parentNo}</span>`:""}${(o.parentNo&&ORDERS[o.parentNo]&&ORDERS[o.parentNo].pay!=="已付")?'<span class="badge" style="background:var(--danger);color:#fff">母单未付·取货锁定</span>':""}${!o.parentNo&&o.status!=="有效"&&(paidOf(o)>0||o.pay==="已付")?(o.refunded?'<span class="badge" style="background:#DCE8D8;color:#3F6B3F">已退款✓</span>':'<span class="badge duepay">待退款</span>'):""}${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}${o.dueNote?`<span class="badge due">待收:${esc(o.dueNote)}</span>`:""}${o.exception?'<span class="badge exc">例外</span>':""}</div>
-        <div class="oitems">${items}(${o.boxes}盒${o.parentNo?' · <span class="z">付款随母单</span>':(o.amount!=null?" · "+money(o.amount):"")})</div>
+        <div class="oitems">${items}(${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}${o.parentNo?' · <span class="z">付款随母单</span>':(o.amount!=null?" · "+money(o.amount):"")})</div>
         <div class="ometa">${esc(fmtPhone(o.phone)||"")} ${cleanNotes(o.notes)?" · "+esc(cleanNotes(o.notes)):""}</div>
       </div>
       <button class="pkbtn ${o.pickedUp?"done":""}" onclick="event.stopPropagation();togglePick('${o.no}')">${o.pickedUp?"已取 ✓":"未取"}</button>
@@ -1592,7 +1630,7 @@ function orderCard(o,forPickup){
       ${bat}${o.exception?'<span class="badge exc">例外</span>':""}
       ${o.pickedUp?'<span class="badge st-有效">已取</span>':""}
     </div>
-    <div class="oitems">${items} <b>(${o.boxes}盒${o.parentNo?"":(o.amount!=null?" · "+money(o.amount):"")})</b>${o.parentNo?'<span class="z"> · 付款随母单</span>':""}${o.manualPrice&&!o.parentNo?'<span class="badge batch" style="margin-left:6px">手动价</span>':""}</div>
+    <div class="oitems">${items} <b>(${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}${o.parentNo?"":(o.amount!=null?" · "+money(o.amount):"")})</b>${o.parentNo?'<span class="z"> · 付款随母单</span>':""}${o.manualPrice&&!o.parentNo?'<span class="badge batch" style="margin-left:6px">手动价</span>':""}</div>
     <div class="ometa">${o.batch?"分批取货,日期灵活":"取货 "+fmtMD(o.pickupDate)} · ${esc(fmtPhone(o.phone)||"无电话")} · ${payLabel}${link}${cleanNotes(o.notes)?" · "+esc(cleanNotes(o.notes)):""}</div>
     ${o.status!=="有效"?`<div class="sect">生命周期</div>
       <div class="kv"><span>创建</span><b>${esc(o.createdBy||"?")} · ${o.orderDate||""}</b></div>
@@ -1604,7 +1642,7 @@ function orderCard(o,forPickup){
       if(!kids.length)return "";
       const ks=kids.filter(c=>c.status==="有效");
       const kb=ks.reduce((s,c)=>s+(c.boxes||0),0),kp=ks.filter(c=>c.pickedUp).reduce((s,c)=>s+(c.boxes||0),0);
-      return `<div class="ometa" style="margin-top:2px"><b>子单在册 ${kb}盒(已取${kp}·待取${kb-kp}) · 母单自留 ${o.boxes}盒 · 合计 ${kb+o.boxes}盒</b></div><div class="ometa" style="margin-top:2px">已拆分 ${kids.length} 张子单:`+kids.map(c=>`<br>&nbsp;&nbsp;${c.no.slice(-1)} · ${esc(c.name)} ${esc(fmtPhone(c.phone)||"")} · ${c.boxes}盒 ${c.pickupDate?fmtMD(c.pickupDate):""} · ${c.status!=="有效"?c.status:(c.pickedUp?"已取✓":"待取")}`).join("")+`</div>`;})()}
+      return `<div class="ometa" style="margin-top:2px"><b>子单在册 ${kb}盒(已取${kp}·待取${kb-kp}) · 母单自留 ${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""} · 合计 ${kb+o.boxes}盒</b></div><div class="ometa" style="margin-top:2px">已拆分 ${kids.length} 张子单:`+kids.map(c=>`<br>&nbsp;&nbsp;${c.no.slice(-1)} · ${esc(c.name)} ${esc(fmtPhone(c.phone)||"")} · ${c.boxes}盒 ${c.pickupDate?fmtMD(c.pickupDate):""} · ${c.status!=="有效"?c.status:(c.pickedUp?"已取✓":"待取")}`).join("")+`</div>`;})()}
     ${dead?"":`<div class="oacts">
       <button class="primary" onclick="event.stopPropagation();openDetail('${o.no}')">详情</button>
       <button class="danger" onclick="event.stopPropagation();doCancel('${o.no}')">取消订单</button>
@@ -1702,10 +1740,11 @@ function openDetail(no){
     <div class="kv"><span>客人</span><b>${esc(o.name)}${o.phone?" · "+esc(fmtPhone(o.phone)):""}</b></div>
     <div class="kv"><span>取货</span><b>${o.batch?"分批取货,日期灵活":fmtMD(o.pickupDate)+" · "+STORE_NAME[o.store]}</b></div>
     ${prodLines}
-    <div class="kv"><span>盒数合计</span><b>${o.boxes} 盒</b></div>
+    <div class="kv"><span>盒数合计</span><b>${o.boxes} 盒${piecesOf(o)?` + ${piecesOf(o)} 颗`:""}</b></div>
     
     ${o.parentNo?`<div class="kv"><span>付款归属</span><b>付款随母单 ${o.parentNo}(金额/渠道见母单)</b></div><div style="display:none">`:""}
     <div class="kv"><span>订单总额</span><b>${(()=>{const ft=famTotalOf(o);return ft!=null?money(ft):"—";})()}${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?"(家族)":(o.manualPrice?"(手动价)":"")}</b></div>
+    ${o.gstAmt>0?`<div class="kv"><span>其中 GST(已含)</span><b>${money(o.gstAmt)}</b></div>`:""}
     <div class="kv"><span>已收</span><b>${money(paidOf(o))||"$0"}</b></div>
     ${dueAmt(o)>0?`<div class="kv"><span style="color:var(--danger)">待收</span><b style="color:var(--danger)">${money(dueAmt(o))}</b></div>`:""}
     <div class="kv"><span>付款</span><b>${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay} · ${payLbl}</b></div>
@@ -1937,18 +1976,22 @@ function openEdit(no){
   document.getElementById("eSave").onclick=()=>saveEdit(o);
 }
 function renderEQty(){
-  const o=ORDERS[eNo];
-  const picked=o&&o.batch?batchPickedQty(o):{};
-  document.getElementById("eQtyTable").innerHTML=PRODUCTS.map(p=>{
-    const v=eQty[p.k]||0, min=picked[p.k]||0;
-    return `<tr><td class="qname">${p.n}${min?`<span class="box-tag">已取${min}</span>`:""}</td>
+  const row=p=>{
+    const v=eQty[p.k]||0;
+    const min=0;
+    return `<tr>
+      <td class="qname">${p.n}<span class="box-tag">${p.pc?"单颗":`${p.box}粒盒`}</span></td>
       <td><div class="stepper">
         <button onclick="eStep('${p.k}',-1,${min})" ${v>min?"":"disabled style='opacity:.35'"}>−</button>
-        <input class="qv qin" type="number" min="${min}" inputmode="numeric" value="${v}" onchange="typeEQty2('${p.k}',this.value,${min})" style="width:52px;text-align:center;border:1px solid var(--line);border-radius:8px;padding:4px 2px">
+        <span class="qv">${v}</span>
         <button onclick="eStep('${p.k}',1,${min})">+</button>
-      </div></td></tr>`;
+      </div></td></tr>`;};
+  document.getElementById("eQtyTable").innerHTML=QTY_GROUPS.map(g=>{
+    const ps=PRODUCTS.filter(g.f);
+    const cnt=ps.reduce((s,p)=>s+(eQty[p.k]||0),0);
+    return qgHead(g,cnt,"renderEQty")+(QG_OPEN[g.id]?ps.map(row).join(""):"");
   }).join("");
-  document.getElementById("eTotal").textContent=boxCounts(eQty).total+" 盒";
+  document.getElementById("eTotal").textContent=cntText(boxCounts(eQty));
 }
 function eStep(k,d,min){ eQty[k]=Math.max(min||0,(eQty[k]||0)+d); if(!eQty[k])delete eQty[k]; renderEQty();
   if(!eAmtTouched){
@@ -1984,7 +2027,7 @@ function saveEdit(o){
   const payOther=(document.getElementById("ePayOther")||{value:""}).value.trim();
   if(payM==="其它"&&!payOther)return toast("选「其它」付款方式需填写说明");
   const nb=boxCounts(eQty);
-  if(nb.total===0)return toast("产品数量不能全为0");
+  if(nb.all===0)return toast("产品数量不能全为0");
   const s=soldTotals();
   const d6=nb.b6-(o.box6||0), d2=nb.b2-(o.box2||0);
   if(CAPS.b6>0&&d6>0&&s.b6+d6>CAPS.b6)return toast(`六粒盒超出上限:仅剩 ${CAPS.b6-s.b6} 盒`);
@@ -2001,8 +2044,8 @@ function saveEdit(o){
   if(newPay==="已付"&&newAmt!=null)newPaid=newAmt;
   if(newPay==="未付")newPaid=0;
   const patch={name,phone:document.getElementById("ePhone").value.trim(),store:eStore,
-    qty:{...eQty},box6:nb.b6,box2:nb.b2,boxes:nb.total,
-    amount:newAmt,autoAmount:autoNow,manualPrice:newAmt!=null&&Math.abs(newAmt-autoNow)>0.005,paid:newPaid,
+    qty:{...eQty},box6:nb.b6,box2:nb.b2,boxes:nb.total,pieces:nb.pieces,
+    amount:newAmt,autoAmount:autoNow,manualPrice:newAmt!=null&&Math.abs(newAmt-autoNow)>0.005,gstAmt:(newAmt!=null&&Math.abs(newAmt-autoNow)>0.005)?null:calcDetail(eQty,(document.getElementById("ePayM")||{}).value||o.payMethod,o.channel).gst,paid:newPaid,
     pay:newPay,duePlan:_duePlanV,payMethod:payM,payOther:payM==="其它"?payOther:"",
     notes:document.getElementById("eNote").value.trim(),updatedAt:Date.now()};
   if(!o.batch){
@@ -2020,7 +2063,7 @@ function saveEdit(o){
       const ov=(o.qty&&o.qty[p.k])||0, nv=patch.qty[p.k]||0;
       if(ov!==nv)diffs.push(`${p.n} ${ov}盒→${nv}盒`);
     });
-    if((o.boxes||0)!==nb.total)diffs.push(`合计 ${o.boxes}盒→${nb.total}盒`);
+    if((o.boxes||0)!==nb.total)diffs.push(`合计 ${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}→${nb.total}盒`);
   }
   if(patch.pay!==o.pay)diffs.push(`付款状态 ${o.pay}→${patch.pay}`);
   if((patch.amount==null?null:patch.amount)!==(o.amount==null?null:o.amount))
@@ -2094,14 +2137,16 @@ function saveEdit(o){
     const famQ={...eQty};
     kids.forEach(c=>Object.entries(c.qty||{}).forEach(([k,v])=>famQ[k]=(famQ[k]||0)+v));
     const kidsAmt=kids.reduce((s,c)=>s+(+c.amount||0),0);
-    const famAuto=Math.round(calcAmount(famQ,(document.getElementById("ePayM")||{}).value||o.payMethod,o.channel)*100)/100;
+    const famD=calcDetail(famQ,(document.getElementById("ePayM")||{}).value||o.payMethod,o.channel);
+    const famAuto=famD.amt;patch.gstAmt=famD.gst;
     patch.amount=Math.round((famAuto-kidsAmt)*100)/100;
     patch.autoAmount=patch.amount;patch.manualPrice=false;
     const ai2=diffs.findIndex(d=>d.startsWith("总额"));if(ai2>=0)diffs.splice(ai2,1);
-    if(patch.amount!==o.amount)diffs.push(`家族总额(按全家${Object.values(famQ).reduce((a,b)=>a+(+b||0),0)}盒重算)${money(famTotalOf(o))}→${money(famAuto)}`);
+    if(patch.amount!==o.amount)diffs.push(`家族总额(按全家${famD.box6+famD.box2}盒${famD.pieces?"+"+famD.pieces+"颗":""}重算)${money(famTotalOf(o))}→${money(famAuto)}`);
   }
   if(!(ROLE&&ROLE.type==="owner")&&!o.batch&&!_hasKids){
-    patch.amount=Math.round(calcAmount(eQty,(document.getElementById("ePayM")||{}).value||o.payMethod,o.channel)*100)/100;
+    {const _ed=calcDetail(eQty,(document.getElementById("ePayM")||{}).value||o.payMethod,o.channel);
+     patch.amount=_ed.amt;patch.gstAmt=_ed.gst;}
     patch.manualPrice=false;
   }
   if(!_hasKids&&paidOf(o)>0&&!(ROLE&&ROLE.type==="owner")){
@@ -2131,7 +2176,7 @@ function saveEdit(o){
     let curPm=o.payMethod||"";
     const liveInc=()=>eAmtTouched?Math.max(0,Math.round((patch.amount-base)*100)/100):incBy(curPm);
     openModal(mhead("盒数增加,差额收款")+`
-      <p style="font-size:14px;line-height:1.8">${o.no} 由 ${o.boxes}盒 增至 ${nb.total}盒(加 ${inc}盒,差额 <b id="incAmtShow">${money(liveInc())}</b>)。差额如何处理?</p>
+      <p style="font-size:14px;line-height:1.8">${o.no} 由 ${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""} 增至 ${nb.total}盒(加 ${inc}盒,差额 <b id="incAmtShow">${money(liveInc())}</b>)。差额如何处理?</p>
       <div class="seg" id="incSeg" style="flex-direction:column">
         <button data-v="paid">已补收差额(保持「已付」)</button>
         <button data-v="store">到店取货时补收差额</button>
@@ -2197,7 +2242,7 @@ function saveEdit(o){
   } else if(o.pay==="部分付"||o.pay==="等待付款中"){
     const _amt=(patch.amount!=null?patch.amount:o.amount)||0;
     const bal=Math.round((_amt-paidOf(o))*100)/100;
-    if(bal<0){
+    if(bal<-EPS){
       patch.refundAmt=-bal;patch.refundDue=true;
       patch.refundRoute=hasPromo(o)?"cs":(o.payMethod==="EMT"?"cs":"pending");
       if(hasPromo(o))patch.refundUrgent=true;
@@ -2205,7 +2250,7 @@ function saveEdit(o){
       diffs.push(`总额低于已收,待退 ${money(-bal)}`);
       apply();
       if(patch.refundRoute==="pending")setTimeout(()=>openRefundRouter(o.no),300);
-    }else if(bal===0){
+    }else if(bal<=EPS){
       patch.pay="已付";patch.dueNote=null;patch.dueQty=null;patch.dueNegAmt=null;patch.duePlan=null;
       diffs.push("差额归零,自动恢复「已付」");
       apply();
@@ -2226,10 +2271,10 @@ function settleDue(no,alsoPick){
   const due0=dueAmt(o);
   const dueQ=o.dueQty||null, negA=o.dueNegAmt||0;
   const byPm=pm=>{
-    if(o.manualPrice)return due0; // 手动定价单不自动重算
-    if(dueQ)return Math.max(0,Math.round((calcAmount(dueQ,pm,o.channel)-negA)*100)/100);
+    if(o.manualPrice)return pm==="现金"?nickel(due0):due0; // 手动定价单不自动重算
+    if(dueQ){const x=Math.max(0,Math.round((calcAmount(dueQ,pm,o.channel)-negA)*100)/100);return pm==="现金"?nickel(x):x;}
     // 整单未付/部分付:按当场付款方式重算全单(现金=现金价,其它=原价),扣已收
-    return Math.max(0,Math.round((calcAmount(o.qty||{},pm,o.channel)-paidOf(o))*100)/100);
+    {const x=Math.max(0,Math.round((calcAmount(o.qty||{},pm,o.channel)-paidOf(o))*100)/100);return pm==="现金"?nickel(x):x;}
   };
   openModal(mhead(alsoPick?`取货并收差额:${no}(${esc(o.name)})`:`收清差额:${no}`)+`
     <p class="note" style="margin:0 0 8px"><b style="color:var(--danger)">待收:${esc(o.dueNote||("差额 "+money(due0)))}</b><br>
@@ -2266,7 +2311,7 @@ function settleDue(no,alsoPick){
     // 多收退差:重算原始差额(未截断),负数=欠客人的,统一走退款路由
     {const pmCalc=(pm==="其它")?(o.payMethod||pm):pm;
      const raw=o.manualPrice?due0:(dueQ?Math.round((calcAmount(dueQ,pmCalc,o.channel)-negA)*100)/100:null);
-     if(raw!=null&&raw<0){const surplus=Math.round(-raw*100)/100;
+     if(raw!=null&&raw<-EPS){const surplus=Math.round(-raw*100)/100;
        patch.refundDue=true;patch.refundAmt=surplus;
        const _p=hasPromo(o);
        patch.refundRoute=_p?"cs":(o.payMethod==="EMT"?"cs":"pending");
@@ -2313,8 +2358,8 @@ function doCancel(no){
   }
   openModal(mhead(`取消订单:${no}(${esc(o.name)})`)+`
     <p style="font-size:14px;line-height:1.8">${o.parentNo
-      ?`确认取消子单 ${o.boxes}盒?<br><b style="color:var(--olive)">盒数将自动归还母单 ${o.parentNo};付款随母单,子单取消不产生退款。</b>`
-      :`确认取消 ${o.boxes}盒?订单保留为「已取消」,库存额度自动释放。${paidOf(o)>0||o.pay==="已付"?"<br><b style='color:var(--danger)'>该订单已付款,取消后将自动生成待退款记录。</b>":""}`}</p>
+      ?`确认取消子单 ${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}?<br><b style="color:var(--olive)">盒数将自动归还母单 ${o.parentNo};付款随母单,子单取消不产生退款。</b>`
+      :`确认取消 ${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}?订单保留为「已取消」,库存额度自动释放。${paidOf(o)>0||o.pay==="已付"?"<br><b style='color:var(--danger)'>该订单已付款,取消后将自动生成待退款记录。</b>":""}`}</p>
     <label class="f">取消来源 *</label>
     <select id="ccSrc"><option value="">—</option><option>客人电话取消</option><option>微信取消</option><option>客人到店取消</option><option>客服协助取消</option><option>其他</option></select>
     <input type="text" id="ccSrcTxt" placeholder="其他:请说明" style="display:none;margin-top:6px">
@@ -2345,16 +2390,16 @@ function doCancel(no){
       closeModal();
       patchOrder(no,patch,()=>{
         if(o.parentNo){
-          logOp(no,staff,"取消子单",`${o.boxes}盒 · ${srcV}${reason?" · "+reason:""} · 盒数归还母单,付款随母单不退款`);
+          logOp(no,staff,"取消子单",`${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""} · ${srcV}${reason?" · "+reason:""} · 盒数归还母单,付款随母单不退款`);
           const delta={};Object.entries(o.qty||{}).forEach(([k,v])=>delta[k]=(delta[k]||0)+v);
           adjustMotherQty(o.parentNo,delta,(m2)=>{
-            logOp(o.parentNo,staff,"子单归还",`${no} 取消,${o.boxes}盒归还母单,母单现 ${(m2&&m2.boxes)||"?"}盒`);
-            logOp(no,staff,"归还母单",`${o.boxes}盒已归还 ${o.parentNo}`);
-            toast(`${no} 已取消,${o.boxes}盒已归还母单 ${o.parentNo}`);
+            logOp(o.parentNo,staff,"子单归还",`${no} 取消,${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}归还母单,母单现 ${(m2&&m2.boxes)||"?"}盒`);
+            logOp(no,staff,"归还母单",`${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}已归还 ${o.parentNo}`);
+            toast(`${no} 已取消,${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}已归还母单 ${o.parentNo}`);
             setTimeout(()=>openDetail(o.parentNo),80);
           });
         }else{
-          logOp(no,staff,"取消订单",`${o.boxes}盒 · ${srcV}${reason?" · "+reason:""}${paid?` · 待退款→${promo?"客服(优惠单·紧急确认)":({cs:"客服",owner:"Owner",pending:"现场分流"}[patch.refundRoute]||patch.refundRoute)}`:""}`);
+          logOp(no,staff,"取消订单",`${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""} · ${srcV}${reason?" · "+reason:""}${paid?` · 待退款→${promo?"客服(优惠单·紧急确认)":({cs:"客服",owner:"Owner",pending:"现场分流"}[patch.refundRoute]||patch.refundRoute)}`:""}`);
           toast(no+" 已取消"+(paid?",进入退款处理":""));
           if(paid&&patch.refundRoute==="pending")setTimeout(()=>openRefundRouter(no),150);
         }
@@ -2448,7 +2493,7 @@ function renderRefundList(){
         <span class="badge">${({cs:"客服处理",owner:"Owner处理",store:"门店现金"})[o.refundRoute]||""}</span></div>
       <div class="note" style="margin:2px 0 6px">
         应退 <b>${money(paidOf(o)||o.amount)}</b> · ${esc(o.payMethod||"—")}${o.wxAcct?" "+esc(o.wxAcct):""}${o.backendNo?" · 凭证 "+esc(o.backendNo):""}<br>
-        ${esc(fmtPhone(o.phone)||"无电话")} · ${o.boxes}盒 ${itemsText(o.qty)}<br>
+        ${esc(fmtPhone(o.phone)||"无电话")} · ${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""} ${itemsText(o.qty)}<br>
         取消:${esc(o.cancelAcct||"")}|${esc(o.cancelBy||"")} · ${esc(o.cancelSrc||"")}${o.cancelReason?" · "+esc(o.cancelReason):""} · ${o.cancelAt||""}
       </div>
       <div class="row" style="gap:6px">
@@ -2509,7 +2554,7 @@ function renderPend(){
       <div class="ohead"><b class="ono">${o.no}</b> <b>${esc(o.name)}</b>
         <span class="badge">${o.batch?"分批大单":fmtMD(o.pickupDate)+" "+(STORE_NAME[o.store]||o.store)}</span>
         ${due?'<span class="badge duepay">⚠ 逾期未付</span>':""}</div>
-      <div class="note" style="margin:2px 0 6px">${itemsText(o.qty)}(${o.boxes}盒 · ${money(o.amount)}) · ${esc(fmtPhone(o.phone)||"无电话")}
+      <div class="note" style="margin:2px 0 6px">${itemsText(o.qty)}(${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""} · ${money(o.amount)}) · ${esc(fmtPhone(o.phone)||"无电话")}
         ${ch.length?`<br>最近催收:${esc(ch[0].t)}(${esc(ch[0].staff)} ${new Date(ch[0].ts).toLocaleDateString("zh",{month:"numeric",day:"numeric"})})`:""}</div>
       <div class="row" style="gap:6px">
         <button class="btn small" onclick="openMarkPaid('${o.no}')">标记已收款</button>
@@ -2527,9 +2572,11 @@ function openMarkPaid(no){
     <label class="f" id="mpRefLbl">收款凭证号</label>
     <input type="text" id="mpRef">
     ${staffField()}
+    <div class="note" id="mpCashN" style="display:none">现金请收 ${money(nickel(+o.amount||0))}(就近取整到 5 分)</div>
     <button class="btn" style="margin-top:14px" id="mpGo">确认已收款 ${money(o.amount)}</button>`,true);
   const mSel=document.getElementById("mpM");
   mSel.addEventListener("change",()=>{
+    {const cn=document.getElementById("mpCashN");if(cn)cn.style.display=mSel.value==="现金"?"":"none";}
     const hide=NO_REF(mSel.value);
     document.getElementById("mpRefLbl").style.display=hide?"none":"";
     document.getElementById("mpRef").style.display=hide?"none":"";
@@ -2543,10 +2590,11 @@ function openMarkPaid(no){
     if(pm==="Square Online"&&!ref)return toast("Square Online 必须填写 Square 订单号");
     if(pm==="Credit Card"&&!ref)return toast("Credit Card 必须填写收据号");
     const staff=getStaff();if(!staff)return;
-    patchOrder(no,{pay:"已付",payMethod:pm,backendNo:ref,paid:o.amount,paidAt:Date.now(),
+    const bk=(pm==="现金")?nickel(+o.amount||0):Math.round((+o.amount||0)*100)/100;
+    patchOrder(no,{pay:"已付",payMethod:pm,backendNo:ref,paid:bk,paidAt:Date.now(),
       channel:pm==="Square Online"?"Square Online":o.channel},
-      ()=>{logOp(no,staff,"标记已收款",`${money(o.amount)} · ${pm}${ref?" · "+ref:""}`);
-        addLedger({orderNo:no,type:"订单收款",pm,amt:+o.amount||0,staff,ref:ref||null});
+      ()=>{logOp(no,staff,"标记已收款",`${money(bk)} · ${pm}${ref?" · "+ref:""}`);
+        addLedger({orderNo:no,type:"订单收款",pm,amt:bk,staff,ref:ref||null});
         afterPaidUnlockKids(no,staff);
         closeModal();toast("已收款 ✓");});
   };
@@ -2660,7 +2708,7 @@ function openSplit(no){
     const spN=(document.getElementById("spName")||{}).value||o.name;
     const spP=(document.getElementById("spPhone")||{}).value||o.phone;
     const child={...o,no:newNo,name:(spN||"").trim()||o.name,phone:(spP||"").trim(),pickupDate:nd,store:ss,qty:{...sQty},
-      box6:mb.b6,box2:mb.b2,boxes:mb.total,status:"有效",pickedUp:false,
+      box6:mb.b6,box2:mb.b2,boxes:mb.total,pieces:mb.pieces,status:"有效",pickedUp:false,
       amount:0,autoAmount:0,manualPrice:false,paid:0,
       parentNo:base,payNote:"付款随原单 "+base,splitAt:Date.now(),
       notes:cleanNotes(o.notes),createdAt:Date.now(),createdBy:staff};
@@ -2668,7 +2716,7 @@ function openSplit(no){
     if(o._ownerSplitExc){child.notes+=" · Owner例外拆分";delete o._ownerSplitExc;}
     delete child.pickups; delete child.history; delete child.chase; delete child.reserves;
     // #4b 先存子单,成功才改原单;任何失败大声报错且原单不动
-    saveOrder(child,()=>patchOrder(no,{qty:remain,box6:rb.b6,box2:rb.b2,boxes:rb.total,
+    saveOrder(child,()=>patchOrder(no,{qty:remain,box6:rb.b6,box2:rb.b2,boxes:rb.total,pieces:rb.pieces,
       },
       ()=>{
         logOp(no,staff,"拆分订单",`拆出 ${itemsText(sQty)}(${mb.total}盒)→ ${newNo}(${fmtMD(nd)} ${ss}),原单剩 ${rb.total}盒;两边金额已按标准价重算`);
@@ -2787,7 +2835,7 @@ window.walkTakeChild=(no)=>{
     const bc=boxCounts(qty);
     const picker=document.getElementById("wtcPicker").value.trim();
     const child={no:no+"-"+suf,parentNo:no,name:picker||o.name,phone:o.phone,store,pickupDate:d,
-      qty,box6:bc.b6,box2:bc.b2,boxes:bc.total,amount:calcAmount(qty,o.payMethod,o.channel),
+      qty,box6:bc.b6,box2:bc.b2,boxes:bc.total,pieces:bc.pieces,amount:calcAmount(qty,o.payMethod,o.channel),
       pay:o.pay,payNote:"付款随原单 "+no,splitAt:Date.now(),status:"有效",
       pickedUp:true,pickedAt:d,channel:o.channel||null,createdAt:Date.now(),createdBy:staff};
     closeModal();
@@ -2947,7 +2995,7 @@ function openCrossPick(no){
   const anyShort=shortRows.some(r=>!r.ok);
   openModal(mhead(`跨门店代取:${no}(${esc(o.name)})`)+`
     <p class="note" style="margin:0 0 8px">原订单门店 <b>${STORE_NAME[orig]}</b> → 客人在 <b>${STORE_NAME[my]}</b> 取走。
-      规则:<b>${STORE_NAME[my]} 现货扣 ${o.boxes}盒</b>;${STORE_NAME[orig]} 原预留自动释放为可售现货。</p>
+      规则:<b>${STORE_NAME[my]} 现货扣 ${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}</b>;${STORE_NAME[orig]} 原预留自动释放为可售现货。</p>
     ${shortRows.map(r=>`<div class="kv"><span>${r.n} × ${r.need}</span><b class="${r.ok?"okrow":"warnrow"}">本店现货 ${r.have}${r.ok?" ✓":" ⚠不足"}</b></div>`).join("")}
     ${anyShort?'<p class="note" style="color:var(--danger)">有产品现货不足——若货已给客人可继续,余量将为负提醒补账。</p>':""}
     ${staffField()}
@@ -2964,8 +3012,8 @@ function openCrossPick(no){
     if(DB)DB.ref(DB_ROOT+"/walkin/"+orig+"/receipts/x"+Date.now()).set(rrec);
     else{WALKIN[orig]=WALKIN[orig]||{receipts:{},sales:{}};(WALKIN[orig].receipts=WALKIN[orig].receipts||{})["x"+Date.now()]=rrec;}
     patchOrder(no,{pickedUp:true,crossPick:{store:my,by:staff,acct:acctLabel(),at:d+" "+nowHM()}},()=>{
-      logOp(no,staff,"跨门店代取",`原店 ${STORE_NAME[orig]} → 实取 ${STORE_NAME[my]} ${o.boxes}盒 · ${STORE_NAME[my]}现货−${o.boxes} · ${STORE_NAME[orig]}预留释放+${o.boxes}`);
-      const msg=`【跨门店取货通知】\n原订单门店:${STORE_NAME[orig]}\n实际取货门店:${STORE_NAME[my]}\n客人:${o.name}\n电话:${fmtPhone(o.phone)||"—"}\nOrder:${no}\n产品:${itemsText(o.qty)}(${o.boxes}盒)\n客人已于 ${STORE_NAME[my]} 完成取货。\n${STORE_NAME[my]} 已扣减现货 ${o.boxes}盒;${STORE_NAME[orig]} 该单原预留 ${o.boxes}盒已自动释放为门店现货。\n操作人:${STORE_NAME[my]}|${staff}`;
+      logOp(no,staff,"跨门店代取",`原店 ${STORE_NAME[orig]} → 实取 ${STORE_NAME[my]} ${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""} · ${STORE_NAME[my]}现货−${o.boxes} · ${STORE_NAME[orig]}预留释放+${o.boxes}`);
+      const msg=`【跨门店取货通知】\n原订单门店:${STORE_NAME[orig]}\n实际取货门店:${STORE_NAME[my]}\n客人:${o.name}\n电话:${fmtPhone(o.phone)||"—"}\nOrder:${no}\n产品:${itemsText(o.qty)}(${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""})\n客人已于 ${STORE_NAME[my]} 完成取货。\n${STORE_NAME[my]} 已扣减现货 ${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""};${STORE_NAME[orig]} 该单原预留 ${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}已自动释放为门店现货。\n操作人:${STORE_NAME[my]}|${staff}`;
       openModal(mhead("代取完成 · 发给客服群")+`
         <textarea style="min-height:180px" id="cpMsg">${esc(msg)}</textarea>
         <button class="btn" style="margin-top:10px" onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('cpMsg').value).catch(()=>{});toast('已复制');closeModal();">一键复制并关闭</button>`,true);
@@ -3183,7 +3231,7 @@ function openSale(pk){
     <button class="btn" style="margin-top:12px" id="slGo">完成销售</button>`);
   let pm="";
   const slPrev=()=>{document.getElementById("slQv").textContent=slQty;
-    document.getElementById("slAmtPrev").textContent=pm?`合计 ${money(walkinUnit(pk,pm)*slQty)}`:"";};
+    {const u=walkinUnit(pk,pm);let a0=u*slQty,g0=0;if(taxOn(pk)){g0=Math.round(a0*0.05*100)/100;a0=Math.round((a0+g0)*100)/100;}if(pm==="现金")a0=nickel(a0);document.getElementById("slAmtPrev").textContent=pm?`合计 ${money(a0)}${g0?"(含GST "+money(g0)+")":""}`:"";}};
   document.getElementById("slQm").onclick=()=>{slQty=Math.max(1,slQty-1);slPrev();};
   document.getElementById("slQp").onclick=()=>{slQty=Math.min(20,slQty+1);slPrev();};
   document.getElementById("slSeg").addEventListener("click",e=>{
@@ -3198,9 +3246,11 @@ function openSale(pk){
     if(pm==="其它"){other=document.getElementById("slOther").value.trim();
       if(!other)return toast("请填写其它说明");}
     const staff=getStaff();if(!staff)return;
-    const amt=walkinUnit(pk,pm)*slQty;
+    const u=walkinUnit(pk,pm);let amt=u*slQty,gstW=0;
+    if(taxOn(pk)){gstW=Math.round(amt*0.05*100)/100;amt=Math.round((amt+gstW)*100)/100;}
+    if(pm==="现金")amt=nickel(amt);
     addSale(wStoreVal,{date:document.getElementById("wDate").value||todayStr(),
-      time:nowHM(),product:pk,qty:slQty,pm,other,amt,staff,ts:Date.now()});
+      time:nowHM(),product:pk,qty:slQty,pm,other,amt,gst:gstW||0,staff,ts:Date.now()});
     closeModal();toast(`${pn} ×${slQty} 已售出 ${money(amt)}`);
   };
 }
@@ -3221,7 +3271,7 @@ document.getElementById("bStore").addEventListener("click",e=>{
   renderBatchPage();
 });
 function batchStats(o){
-  const total=o.boxes||0;
+  const total=(o.boxes||0)+(piecesOf(o)||0);
   const taken=Object.values(o.pickups||{}).reduce((s,r)=>s+(r.voided?0:(+r.boxes||0)),0);
   const remain=Math.max(0,total-taken);
   const resOpen=Object.values(o.reserves||{}).filter(r=>r.status==="open");
@@ -3259,8 +3309,9 @@ function familyKPI(o){
   if(o.batch&&(Object.keys(o.pickups||{}).length||Object.keys(o.reserves||{}).length)){const bs=batchStats(o);
     return {total:bs.total,taken:bs.taken,waiting:bs.reserved,free:bs.avail,freeLbl:"未分配",ok:bs.taken+bs.reserved+bs.avail===bs.total};}
   const kids=Object.values(ORDERS).filter(c=>c.parentNo===o.no&&c.status==="有效");
-  const kb=kids.reduce((s,c)=>s+(c.boxes||0),0),kp=kids.filter(c=>c.pickedUp).reduce((s,c)=>s+(c.boxes||0),0);
-  const own=o.boxes||0,ownTaken=o.pickedUp?own:0;
+  const U=x=>(x.boxes||0)+(piecesOf(x)||0);
+  const kb=kids.reduce((s,c)=>s+U(c),0),kp=kids.filter(c=>c.pickedUp).reduce((s,c)=>s+U(c),0);
+  const own=U(o),ownTaken=o.pickedUp?own:0;
   const ownOpen=o.pickedUp?0:own;
   // 有取货日期=已分配的腿(待取);无日期才是未分配
   const ownWait=o.pickupDate?ownOpen:0, ownFree=o.pickupDate?0:ownOpen;
@@ -3304,7 +3355,7 @@ window.openFamily=(no)=>{
     <div class="l1"><span class="ono">${o.no}</span><span class="oname">母单自留</span>
       <span class="badge ${o.store}">${STORE_NAME[o.store]||o.store}</span>
       <span class="badge">${o.pickedUp?"已取✓":"待取"}</span></div>
-    <div class="oitems">${itemsText(o.qty)}(${o.boxes}盒) · ${o.pickupDate?fmtMD(o.pickupDate):"—"}</div></div>`;
+    <div class="oitems">${itemsText(o.qty)}(${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}) · ${o.pickupDate?fmtMD(o.pickupDate):"—"}</div></div>`;
   openModal(mhead(`家族操作:${no}(${esc(o.name)})`)+`
     <p class="note" style="margin:0 0 8px">逐单操作:点卡片进详情核销/修改;「安排取货」= 拆一张新子单。</p>
     ${own}${kids.map(legCard).join("")}
@@ -3546,12 +3597,24 @@ function copyTodo(id){
 }
 
 /* ---------------- 设置 ---------------- */
+function renderTaxTable(){
+  const t=document.getElementById("taxTable");if(!t)return;
+  t.innerHTML=WALKIN_PRODUCTS.map(p=>`<div class="kv"><span>${p.n}</span><input type="checkbox" id="tx_${p.k}" ${taxOn(p.k)?"checked":""} style="width:20px;height:20px;accent-color:var(--olive)"></div>`).join("");
+}
+document.getElementById("btnSaveTax").addEventListener("click",()=>{
+  const v=parseFloat(document.getElementById("prS1").value);
+  if(isNaN(v)||v<0)return toast("单颗价无效");
+  const map={};WALKIN_PRODUCTS.forEach(p=>{const c=document.getElementById("tx_"+p.k);map[p.k]=c&&c.checked?1:0;});
+  if(DB){DB.ref(DB_ROOT+"/meta/prices/s1").set(Math.round(v*100)/100);DB.ref(DB_ROOT+"/meta/tax").set(map);}
+  PRICES.s1=Math.round(v*100)/100;TAX=map;
+  toast("单颗价与税设置已保存 ✓");renderAll();
+});
 document.getElementById("btnSavePrice").addEventListener("click",()=>{
   needPin(()=>{
     const g=id=>{const v=parseFloat(document.getElementById(id).value);return isNaN(v)?0:v;};
     const promos=[{buy:g("pmB1"),free:g("pmF1")},{buy:g("pmB2"),free:g("pmF2")},{buy:g("pmB3"),free:g("pmF3")}]
       .filter(t=>t.buy>0&&t.free>0);
-    PRICES={p6:g("pr6"),p6cash:g("pr6c"),p2:g("pr2"),bb2:g("prbb"),emp:g("prEmp")||0.9,promos};
+    PRICES={p6:g("pr6"),p6cash:g("pr6c"),p2:g("pr2"),bb2:g("prbb"),emp:g("prEmp")||0.9,s1:(g("prS1")||PRICES.s1||11.5),promos};
     if(DB)DB.ref(DB_ROOT+"/meta/prices").set(PRICES);
     renderAll();toast("价格与促销已保存");
   });
@@ -3625,7 +3688,7 @@ function renderAlerts(){
   const D=todayStr(),a=[];
   // 过期未取
   const overdue=liveOrders().filter(o=>!o.batch&&o.pickupDate&&o.pickupDate<D&&!o.pickedUp);
-  overdue.slice(0,6).forEach(o=>a.push({t:`过期未取:${o.no} ${esc(o.name)}(${fmtMD(o.pickupDate)} ${STORE_NAME[o.store]},${o.boxes}盒)`,fn:`openDetail('${o.no}')`}));
+  overdue.slice(0,6).forEach(o=>a.push({t:`过期未取:${o.no} ${esc(o.name)}(${fmtMD(o.pickupDate)} ${STORE_NAME[o.store]},${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""})`,fn:`openDetail('${o.no}')`}));
   if(overdue.length>6)a.push({t:`…还有 ${overdue.length-6} 张过期未取`,fn:""});
   // 今日未取
   const tu=liveOrders().filter(o=>!o.batch&&o.pickupDate===D&&!o.pickedUp).length;
@@ -3960,7 +4023,7 @@ function renderSettings(){
   const c=capState();
   const fill=(id,v)=>{const el=document.getElementById(id);if(el&&document.activeElement!==el)el.value=v;};
   fill("cap6",CAPS.b6||0);fill("cap2",CAPS.b2||0);
-  fill("pr6",PRICES.p6);fill("pr6c",PRICES.p6cash);fill("pr2",PRICES.p2);fill("prbb",PRICES.bb2);fill("prEmp",PRICES.emp);
+  fill("pr6",PRICES.p6);fill("pr6c",PRICES.p6cash);fill("pr2",PRICES.p2);fill("prbb",PRICES.bb2);fill("prEmp",PRICES.emp);fill("prS1",PRICES.s1!=null?PRICES.s1:11.5);renderTaxTable();
   const pr=PRICES.promos||[];
   [0,1,2].forEach(i=>{fill("pmB"+(i+1),(pr[i]||{}).buy||0);fill("pmF"+(i+1),(pr[i]||{}).free||0);});
   document.getElementById("sold6t").textContent=`${c.sold6} / ${c.left6===null?"不限":c.left6}`;
@@ -4046,7 +4109,7 @@ JSON字段:
 name(姓名), phone(电话,尽量格式化为xxx-xxx-xxxx),
 store("CAM"=Cambie,"BBY"=Burnaby/本拿比,"ALD"=Alderbridge/Richmond/列治文,识别不出填null),
 pickupDate("YYYY-MM-DD",只写月日则年份为2026,识别不出填null),
-qty(对象,只含数量>0的产品),注意商品别名: js6=六粒金沙(别名:经典/Classic/经典流心礼盒/金沙礼盒), mix6=六粒混合(别名:Mix/混合/混合礼盒,每味各一;注意:经典不是混合), js2=两粒金沙, mt2=两粒抹茶柚子(别名:抹茶), tr2=两粒黑松露(别名:松露), cp2=两粒陈皮红豆, mk2=两粒摩卡(别名:咖啡), wl2=两粒乌龙; 单价$80=六粒盒现金价,可佐证是六粒装,
+qty(对象,只含数量>0的产品),注意商品别名: js6=六粒金沙(别名:经典/Classic/经典流心礼盒/金沙礼盒), mix6=六粒混合(别名:Mix/混合/混合礼盒,每味各一;注意:经典不是混合), js2=两粒金沙, mt2=两粒抹茶柚子(别名:抹茶), tr2=两粒黑松露(别名:松露), cp2=两粒陈皮红豆, mk2=两粒摩卡(别名:咖啡), wl2=两粒乌龙; 单颗散装系列(每颗$11.5): s_js=单颗金沙, s_mt=单颗抹茶柚子, s_tr=单颗黑松露, s_cp=单颗陈皮红豆, s_mk=单颗摩卡, s_wl=单颗乌龙; 单价$80=六粒盒现金价,可佐证是六粒装,
 pay("已付"/"未付"/"部分付"/"到店付",不确定填null), paidAmt(数字,部分付时的已收金额,没有填null),
 payMethod("现金"/"Credit Card"/"Square Online"/"EMT"/"微信"/"AlphaPay(微信&支付宝)"/"其它",不确定填null),
 receiptNo(纸质收据编号,没有填null),
