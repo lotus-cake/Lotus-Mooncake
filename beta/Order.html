@@ -744,7 +744,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-64";
+const APP_BUILD="b0819-65";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1919,13 +1919,14 @@ function saveEdit(o){
   newPaid=isNaN(newPaid)?0:Math.round(newPaid*100)/100;
   const newPay=document.getElementById("ePay").value;
   const eDuePlanV=newPay==="部分付"?(document.getElementById("eDuePlan")?document.getElementById("eDuePlan").value:""):null;
-  if(newPay==="部分付"&&!eDuePlanV)return toast("部分付请选择尾款安排:取货时付 / 客服跟进");
+  let _duePlanV=eDuePlanV;
+  if(newPay==="部分付"&&!_duePlanV){_duePlanV=o.duePlan||"取货时付";}
   if(newPay==="已付"&&newAmt!=null)newPaid=newAmt;
   if(newPay==="未付")newPaid=0;
   const patch={name,phone:document.getElementById("ePhone").value.trim(),store:eStore,
     qty:{...eQty},box6:nb.b6,box2:nb.b2,boxes:nb.total,
     amount:newAmt,autoAmount:autoNow,manualPrice:newAmt!=null&&Math.abs(newAmt-autoNow)>0.005,paid:newPaid,
-    pay:newPay,duePlan:eDuePlanV,payMethod:payM,payOther:payM==="其它"?payOther:"",
+    pay:newPay,duePlan:_duePlanV,payMethod:payM,payOther:payM==="其它"?payOther:"",
     notes:document.getElementById("eNote").value.trim(),updatedAt:Date.now()};
   if(!o.batch){
     const nd=document.getElementById("eDate").value;
@@ -2100,7 +2101,7 @@ function saveEdit(o){
         detail=`已补收 ${money(incAmt)}(${pmLbl})`+(pm!==o.payMethod?" · 与原单方式不同":"");
         if(incAmt>0)addLedger({orderNo:o.no,type:"订单收款",pm:pmLbl,amt:Math.round(incAmt*100)/100,staff:null,ref:"改单补收"});
       } else if(iv==="store"){
-        patch.pay="部分付"; patch.dueNote=`到店补收差额${inc}盒`+(incAmt>0?` ${money(incAmt)}`:"");
+        patch.pay="部分付";patch.duePlan=(iv==="store"?"取货时付":"客服跟进"); patch.dueNote=`到店补收差额${inc}盒`+(incAmt>0?` ${money(incAmt)}`:"");
         patch.dueQty=Object.keys(posDelta).length?posDelta:null;
         patch.dueNegAmt=Math.round(calcAmount(negDelta,o.payMethod,o.channel)*100)/100||null;
         detail="到店取货时补收";
