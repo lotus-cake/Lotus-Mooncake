@@ -376,6 +376,7 @@ table.sum .z{color:#C9C6B4}
 
 <!-- ============ 设置 ============ -->
 <div class="page on" id="pg-odash">
+<div class="card"><b>门店自损审批</b><div class="note" style="margin:2px 0 6px">门店报损:原因+照片;批准后自动 $0 出库扣该店现货</div><div id="slBox"><div class="note">加载中…</div></div></div>
   <h2>总览</h2>
 <div class="card" id="alertCard">
     <div class="note" style="margin:0 0 8px"><b style="color:var(--danger)">⚠ 异常提醒</b></div>
@@ -446,6 +447,8 @@ table.sum .z{color:#C9C6B4}
 </div>
 
 <div class="page" id="pg-ofin">
+<div class="card"><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><b>门店对账(按动账日)</b><span style="display:flex;gap:6px;align-items:center"><input type="date" id="rcDate" style="padding:4px 6px;border:1px solid var(--line);border-radius:8px"><button class="btn small ghost" onclick="rcCSV()">导出CSV</button></span></div><div class="note" style="margin-top:4px">点任意方式行可展开当日逐笔台账</div></div>
+<div id="rcBox"></div>
   <h2>财务</h2>
 <div class="card">
     <div class="note" style="margin:0 0 8px"><b>财务速览</b></div>
@@ -663,7 +666,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-70";
+const APP_BUILD="b0819-71";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -700,6 +703,9 @@ function initData(){
     DB.ref(DB_ROOT+"/prod/meta/yields").on("value",s=>{YIELDS=s.val()||{};renderSettings();});
     DB.ref(DB_ROOT+"/prod/meta/costs").on("value",s=>{COSTS=s.val()||{};renderSettings();});
     DB.ref(DB_ROOT+"/prod/meta/params").on("value",s=>{PARAMS=s.val()||{};renderSettings();});
+    DB.ref(DB_ROOT+"/ledger").on("value",s=>{LEDGER=s.val()||{};if(typeof renderRecon==="function")renderRecon();});
+    DB.ref(DB_ROOT+"/closes").on("value",s=>{CLOSES=s.val()||{};if(typeof renderRecon==="function")renderRecon();});
+    DB.ref(DB_ROOT+"/selfloss").on("value",s=>{SELFLOSS=s.val()||{};if(typeof renderSelfLoss==="function")renderSelfLoss();});
     DB.ref(".info/connected").on("value",s=>{document.getElementById("connBar").style.display=s.val()===false?"block":"none";});
     document.getElementById("dbInfo").textContent="已连接 Firebase:"+firebaseConfig.projectId+" / 节点 "+DB_ROOT;
   }else{
@@ -2851,6 +2857,108 @@ try{
     }catch(_){}
   });
 })();
+</script>
+
+<script>
+window.LEDGER=window.LEDGER||{};window.CLOSES=window.CLOSES||{};window.SELFLOSS=window.SELFLOSS||{};
+if(typeof todayStr!=="function"){window.todayStr=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};}
+if(typeof nowHM!=="function"){window.nowHM=()=>{const d=new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")};}
+if(typeof esc!=="function"){window.esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+const _fm=v=>{const n=Math.round((+v||0)*100)/100;return (n<0?"−$":"$")+Math.abs(n);};
+const _PMS=["现金","Credit Card","Square Online","EMT","AlphaPay(微信&支付宝)","SL","其它"];
+const _norm=p=>{p=String(p||"—");if(p==="微信")return"SL";if(p.indexOf("其它")===0)return"其它";return _PMS.indexOf(p)>=0?p:"其它";};
+const _pname=k=>{const P=(typeof WALKIN_PRODUCTS!=="undefined"&&WALKIN_PRODUCTS)||(typeof PRODUCTS!=="undefined"&&PRODUCTS)||[];const p=P.find(x=>x.k===k);return p?p.n:k;};
+function rcDate(){const e=document.getElementById("rcDate");return (e&&e.value)||todayStr();}
+window.renderRecon=function(){
+  const box=document.getElementById("rcBox"); if(!box)return;
+  const d=rcDate();
+  const rows=Object.values(LEDGER||{}).filter(r=>r&&r.d===d);
+  const cell={};
+  rows.forEach(r=>{const st=r.store||"HQ";const pm=_norm(r.pm);cell[st]=cell[st]||{};const c=cell[st][pm]=cell[st][pm]||{inn:0,out:0};const a=+r.amt||0;if(a>=0)c.inn+=a;else c.out+=-a;});
+  const rnd=v=>Math.round(v*100)/100;
+  let html="";
+  ["CAM","BBY","ALD"].forEach(st=>{
+    const ck=(CLOSES||{})[st+"_"+d];
+    const flat=ck&&Math.abs(+ck.diff||0)<0.005;
+    const chip=!ck?'<span class="badge" style="background:#F3E0C0">未日结</span>'
+      :(ck.locked?('<span class="badge" style="background:'+(flat?'#DCE3C8':'var(--danger)')+(flat?'':';color:#fff')+'">已日结·'+(flat?'平':('差额'+_fm(ck.diff)))+'</span>')
+      :'<span class="badge" style="background:#F3E0C0">已解锁待重结</span>');
+    const conf=ck&&ck.ownerConfirmed?(' <span class="badge" style="background:#DCE3C8">✓双签 '+esc(ck.ownerConfirmed.by||"")+'</span>'):"";
+    let net=0,body="";
+    _PMS.forEach(pm=>{const c=(cell[st]||{})[pm];if(!c)return;const n=rnd(c.inn-c.out);net=rnd(net+n);
+      body+='<div class="kv" style="cursor:pointer" onclick="rcDrill(\''+st+'\',\''+pm.replace(/'/g,"\\'")+'\')"><span>'+esc(pm)+' ›</span><b>收 '+_fm(rnd(c.inn))+(c.out?(' · 退 '+_fm(rnd(c.out))):'')+' · 净 '+_fm(n)+'</b></div>';});
+    const cash=ck?('<div class="kv"><span>应有现金/实点/差额</span><b>'+_fm(ck.cashExpect)+' / '+_fm(ck.cashCounted)+' / <span style="color:'+(flat?'var(--ok)':'var(--danger)')+'">'+_fm(ck.diff)+'</span></b></div>'):"";
+    const btn=ck&&ck.locked&&!ck.ownerConfirmed?('<button class="btn small" style="margin-top:6px" onclick="rcConfirm(\''+st+'\')">Owner 确认双签</button>'):"";
+    html+='<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px"><b>'+(STORE_NAME[st]||st)+'</b><span>'+chip+conf+'</span></div>'+(body||'<div class="note">当日无钱账流水</div>')+'<div class="kv"><span><b>净收款合计</b></span><b>'+_fm(net)+'</b></div>'+cash+btn+'</div>';
+  });
+  const hq=cell["HQ"];let hqB="",hqN=0;
+  if(hq){_PMS.forEach(pm=>{const c=hq[pm];if(!c)return;const n=rnd(c.inn-c.out);hqN=rnd(hqN+n);
+    hqB+='<div class="kv" style="cursor:pointer" onclick="rcDrill(\'HQ\',\''+pm.replace(/'/g,"\\'")+'\')"><span>'+esc(pm)+' ›</span><b>净 '+_fm(n)+'</b></div>';});}
+  html+='<div class="card"><b>客服 / Owner 账户</b><div class="note" style="margin:4px 0 6px">客服代收入账可能比银行晚一天(动账日=录入日)</div>'+(hqB||'<div class="note">当日无流水</div>')+(hq?('<div class="kv"><span><b>净合计</b></span><b>'+_fm(hqN)+'</b></div>'):'')+'</div>';
+  box.innerHTML=html;
+};
+window.rcDrill=function(st,pm){
+  const d=rcDate();
+  const rows=Object.values(LEDGER||{}).filter(r=>r&&r.d===d&&((st==="HQ")?!r.store:r.store===st)&&_norm(r.pm)===pm).sort((a,b)=>(a.ts||0)-(b.ts||0));
+  const list=rows.map(r=>'<div class="kv"><span>'+esc(r.t||"")+' '+esc(r.type||"")+(r.orderNo?(' · '+esc(r.orderNo)):'')+(r.staff?(' · '+esc(r.staff)):'')+'</span><b style="color:'+((+r.amt||0)<0?'var(--danger)':'var(--ok)')+'">'+((+r.amt||0)<0?'−':'+')+_fm(Math.abs(+r.amt||0)).slice((+r.amt||0)<0?0:0)+'</b></div>').join("")||'<div class="note">无</div>';
+  openModal(mhead((st==="HQ"?"客服/Owner":(STORE_NAME[st]||st))+" · "+pm+" · "+d)+list,true);
+};
+window.rcConfirm=function(st){
+  const d=rcDate(); const key=st+"_"+d; const ck=(CLOSES||{})[key];
+  if(!ck||!ck.locked)return toast("该店当日尚未日结锁定");
+  askStaff("Owner 确认对账("+(STORE_NAME[st]||st)+" "+d+")",s=>{
+    const patch={ownerConfirmed:{by:s,ts:Date.now()}};
+    if(DB)DB.ref(DB_ROOT+"/closes/"+key).update(patch);
+    else{CLOSES[key]=Object.assign({},CLOSES[key],patch);}
+    toast("已双签确认"); renderRecon();
+  });
+};
+window.rcCSVText=function(d){
+  const rows=Object.values(LEDGER||{}).filter(r=>r&&r.d===d).sort((a,b)=>(a.ts||0)-(b.ts||0));
+  const q=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"';
+  let csv="日期,时间,账户,门店,类型,订单号,方式,金额,经手人,凭证\n";
+  rows.forEach(r=>{csv+=[r.d,r.t,r.acct||"",r.store||"",r.type,r.orderNo||"",r.pm||"",(+r.amt||0),r.staff||"",r.ref||""].map(q).join(",")+"\n";});
+  return csv;
+};
+window.rcCSV=function(){
+  const d=rcDate();
+  try{const a=document.createElement("a");
+    a.href="data:text/csv;charset=utf-8,\uFEFF"+encodeURIComponent(rcCSVText(d));
+    a.download="lotus_ledger_"+d+".csv"; document.body.appendChild(a); a.click(); a.remove();
+    toast("已导出 "+d+" 台账 CSV");}catch(_){toast("此设备不支持直接下载");}
+};
+window.renderSelfLoss=function(){
+  const box=document.getElementById("slBox"); if(!box)return;
+  const ent=Object.entries(SELFLOSS||{}).sort((a,b)=>(b[1].ts||0)-(a[1].ts||0));
+  const pend=ent.filter(([,q])=>q&&q.status==="pending");
+  const done=ent.filter(([,q])=>q&&q.status!=="pending").slice(0,5);
+  let html=pend.map(([id,q])=>'<div style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:6px 0">'
+    +'<div style="display:flex;justify-content:space-between"><b>'+esc(STORE_NAME[q.store]||q.store)+' · '+esc(_pname(q.pk))+' ×'+q.qty+'</b><span class="note">'+esc(q.d||"")+' '+esc(q.t||"")+'</span></div>'
+    +'<div class="note" style="margin:2px 0">原因:'+esc(q.reason||"")+' · '+esc(q.staff||"")+'</div>'
+    +(q.photo?('<img src="'+q.photo+'" style="max-width:120px;border-radius:8px;cursor:pointer" onclick="openModal(mhead(\'自损照片\')+\'<img src=&quot;'+q.photo+'&quot; style=&quot;max-width:100%&quot;>\',true)">'):'<span class="note" style="color:var(--danger)">无照片</span>')
+    +'<div style="display:flex;gap:8px;margin-top:6px"><button class="btn small" onclick="slApprove(\''+id+'\')">批准 · $0出库</button><button class="btn small warn" onclick="slReject(\''+id+'\')">驳回</button></div></div>').join("");
+  if(!pend.length)html='<div class="note">没有待审批的门店自损</div>';
+  if(done.length)html+='<div class="note" style="margin-top:6px">近期:'+done.map(([,q])=>esc(STORE_NAME[q.store]||q.store)+' '+esc(_pname(q.pk))+'×'+q.qty+(q.status==="approved"?"✓":"✗")).join(" · ")+'</div>';
+  box.innerHTML=html;
+};
+window.slApprove=function(id){
+  const q=(SELFLOSS||{})[id]; if(!q||q.status!=="pending")return;
+  askStaff("Owner 批准自损("+(STORE_NAME[q.store]||q.store)+")",s=>{
+    addSale(q.store,{d:todayStr(),t:nowHM(),pk:q.pk,qty:q.qty,amt:0,pm:"—",src:"自损",staff:s,ref:id});
+    const patch={status:"approved",aprvBy:s,aprvAt:Date.now()};
+    if(DB)DB.ref(DB_ROOT+"/selfloss/"+id).update(patch); else Object.assign(SELFLOSS[id],patch);
+    toast("已批准并 $0 出库"); renderSelfLoss();
+  });
+};
+window.slReject=function(id){
+  const q=(SELFLOSS||{})[id]; if(!q||q.status!=="pending")return;
+  askStaff("驳回自损",s=>{
+    const patch={status:"rejected",aprvBy:s,aprvAt:Date.now()};
+    if(DB)DB.ref(DB_ROOT+"/selfloss/"+id).update(patch); else Object.assign(SELFLOSS[id],patch);
+    toast("已驳回(不扣库存)"); renderSelfLoss();
+  });
+};
+(function(){const e=document.getElementById("rcDate");if(e){e.value=todayStr();e.addEventListener("change",renderRecon);}renderRecon();renderSelfLoss();})();
 </script>
 </body>
 </html>
