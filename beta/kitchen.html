@@ -373,12 +373,15 @@ const FLAVORS=[
 const FN=k=>(FLAVORS.find(f=>f.k===k)||{}).n||k;
 const PRODUCTS=[
   {k:"mix6",n:"六粒混合",box:6},{k:"js6",n:"六粒金沙",box:6},
+  {k:"s_js",n:"单颗金沙",box:0,pc:1},{k:"s_mt",n:"单颗抹茶柚子",box:0,pc:1},{k:"s_tr",n:"单颗黑松露",box:0,pc:1},
+  {k:"s_cp",n:"单颗陈皮红豆",box:0,pc:1},{k:"s_mk",n:"单颗摩卡",box:0,pc:1},{k:"s_wl",n:"单颗乌龙",box:0,pc:1},
   {k:"js2",n:"两粒金沙",box:2},{k:"mt2",n:"两粒抹茶柚子",box:2},
   {k:"tr2",n:"两粒黑松露",box:2},{k:"cp2",n:"两粒陈皮红豆",box:2},
   {k:"mk2",n:"两粒摩卡",box:2},{k:"wl2",n:"两粒乌龙",box:2},
   {k:"bb2",n:"两粒盲盒",box:2}];
 const PN=k=>(PRODUCTS.find(p=>p.k===k)||{}).n||k;
 const BOX_BOM={mix6:{js:1,mt:1,tr:1,cp:1,mk:1,wl:1},js6:{js:6},
+  s_js:{js:1},s_mt:{mt:1},s_tr:{tr:1},s_cp:{cp:1},s_mk:{mk:1},s_wl:{wl:1},
   js2:{js:2},mt2:{mt:2},tr2:{tr:2},cp2:{cp:2},mk2:{mk:2},wl2:{wl:2}};
 const MATS=[
   {k:"tray",n:"月饼底托",per:"颗×1"},{k:"bag",n:"包装袋",per:"颗×1"},
@@ -459,8 +462,8 @@ const fmtMD=s=>{if(!s)return"";const[,m,d]=s.split("-");const dt=new Date(s+"T12
 const esc=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 function flavorPieces(qty){
   const q=k=>(qty&&qty[k])||0;
-  return {js:q("mix6")+q("js6")*6+q("js2")*2, mt:q("mix6")+q("mt2")*2, tr:q("mix6")+q("tr2")*2,
-          cp:q("mix6")+q("cp2")*2, mk:q("mix6")+q("mk2")*2, wl:q("mix6")+q("wl2")*2};
+  return {js:q("mix6")+q("js6")*6+q("js2")*2+q("s_js"), mt:q("mix6")+q("mt2")*2+q("s_mt"), tr:q("mix6")+q("tr2")*2+q("s_tr"),
+          cp:q("mix6")+q("cp2")*2+q("s_cp"), mk:q("mix6")+q("mk2")*2+q("s_mk"), wl:q("mix6")+q("wl2")*2+q("s_wl")};
 }
 
 /* ---------------- 数据 ---------------- */
@@ -471,7 +474,7 @@ const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,...PARAMS})[k
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 const NF=n=>(+n).toLocaleString("en-US");
 const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
-const APP_BUILD="b0819-72";
+const APP_BUILD="b0819-73";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
