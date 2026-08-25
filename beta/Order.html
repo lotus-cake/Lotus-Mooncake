@@ -788,7 +788,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-81";
+const APP_BUILD="b0819-82";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1723,7 +1723,7 @@ function renderOrders(){
 }
 
 /* ---------------- 订单详情 / 修改 ---------------- */
-let eQty={},eStore="",eNo="",eAmtTouched=false,eChanCtx="";
+let eQty={},eStore="",eNo="",eAmtTouched=false,eChanCtx="",ePickTimeV=null;
 function openDetail(no){
   const o=ORDERS[no]; if(!o)return;
   const dead=o.status!=="有效";
@@ -1927,7 +1927,7 @@ window.undoPicked=(no)=>{
 };
 function openEdit(no){
   const o=ORDERS[no]; if(!o||o.status!=="有效")return;
-  eNo=no; eQty={...(o.qty||{})}; eStore=o.store;
+  eNo=no; eQty={...(o.qty||{})}; eStore=o.store; ePickTimeV=null;
   openModal(mhead(`${no} 修改订单`)+`
     <div class="row">
       <div><label class="f">姓名</label><input type="text" id="eName" value="${esc(o.name)}"></div>
@@ -1977,6 +1977,7 @@ function openEdit(no){
   renderEQty();
   eAmtTouched=!!o.manualPrice; eChanCtx=o.channel||"";
   document.getElementById("eAmt").addEventListener("input",()=>{eAmtTouched=true;});
+  {const _et=document.getElementById("eTime");if(_et){ePickTimeV=_et.value||"";_et.oninput=()=>{ePickTimeV=_et.value||"";};}}
   document.getElementById("eStoreSeg").addEventListener("click",e=>{
     const b=e.target.closest("button"); if(!b)return;
     eStore=b.dataset.v;
@@ -1994,7 +1995,7 @@ function openEdit(no){
    if(ep&&w)ep.addEventListener("change",()=>{w.style.display=ep.value==="部分付"?"":"none";});}
   document.getElementById("eSrc").addEventListener("change",function(){
     document.getElementById("eSrcTxt").style.display=this.value==="其它"?"":"none";});
-  document.getElementById("eSave").onclick=()=>saveEdit(o);
+  document.getElementById("eSave").onclick=()=>{const _et=document.getElementById("eTime");if(_et)ePickTimeV=_et.value||"";saveEdit(o);};
 }
 function renderEQty(){
   const row=p=>{
@@ -2073,8 +2074,7 @@ function saveEdit(o){
   if(!o.batch){
     const nd=document.getElementById("eDate").value;
     if(nd<DATE_MIN||nd>DATE_MAX)return toast("取货日期须在 9/4 – 9/27");
-    const eTimeV=(document.getElementById("eTime")||{}).value||"";
-    if(eTimeV&&PICKUP_WIN[newStoreV]&&!timeOk(newStoreV,eTimeV))return toast(`${STORE_NAME[newStoreV]}取货时间窗 ${PICKUP_WIN[newStoreV][0]}–${PICKUP_WIN[newStoreV][1]}`);
+
     patch.pickupDate=nd;
   }
   const diffs=[];
@@ -2088,8 +2088,8 @@ function saveEdit(o){
       if(ov!==nv){const u=p.pc?"颗":"盒";diffs.push(`${p.n} ${ov}${u}→${nv}${u}`);}
     });
     if((o.boxes||0)!==nb.total||(piecesOf(o)||0)!==nb.pieces)diffs.push(`合计 ${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}→${nb.total}盒${nb.pieces?"+"+nb.pieces+"颗":""}`);
-    {const _ptv=(document.getElementById("eTime")||{}).value||"";if((o.pickupTime||"")!==_ptv){diffs.push("取货时间 "+(o.pickupTime||"—")+"→"+(_ptv||"—"));patch.pickupTime=_ptv||null;}}
   }
+  if(ePickTimeV!==null){if(ePickTimeV&&PICKUP_WIN[newStoreV]&&!timeOk(newStoreV,ePickTimeV))return toast(`${STORE_NAME[newStoreV]}取货时间窗 ${PICKUP_WIN[newStoreV][0]}–${PICKUP_WIN[newStoreV][1]}`);if((o.pickupTime||"")!==ePickTimeV){diffs.push("取货时间 "+(o.pickupTime||"—")+"→"+(ePickTimeV||"—"));patch.pickupTime=ePickTimeV||null;}}
   if(patch.pay!==o.pay)diffs.push(`付款状态 ${o.pay}→${patch.pay}`);
   if((patch.amount==null?null:patch.amount)!==(o.amount==null?null:o.amount))
     diffs.push(`总额 ${money(o.amount)||"—"}→${money(patch.amount)||"—"}${patch.manualPrice?"(手动)":""}`);
