@@ -744,7 +744,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-63";
+const APP_BUILD="b0819-64";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -2116,6 +2116,26 @@ function saveEdit(o){
       diffs.push(`差额${inc}盒:${detail}`);
       closeModal();apply();
     };
+  } else if(o.pay==="部分付"||o.pay==="等待付款中"){
+    const _amt=(patch.amount!=null?patch.amount:o.amount)||0;
+    const bal=Math.round((_amt-paidOf(o))*100)/100;
+    if(bal<0){
+      patch.refundAmt=-bal;patch.refundDue=true;
+      patch.refundRoute=hasPromo(o)?"cs":(o.payMethod==="EMT"?"cs":"pending");
+      if(hasPromo(o))patch.refundUrgent=true;
+      patch.pay="已付";patch.dueNote=null;patch.dueQty=null;patch.dueNegAmt=null;patch.duePlan=null;
+      diffs.push(`总额低于已收,待退 ${money(-bal)}`);
+      apply();
+      if(patch.refundRoute==="pending")setTimeout(()=>openRefundRouter(o.no),300);
+    }else if(bal===0){
+      patch.pay="已付";patch.dueNote=null;patch.dueQty=null;patch.dueNegAmt=null;patch.duePlan=null;
+      diffs.push("差额归零,自动恢复「已付」");
+      apply();
+    }else{
+      patch.dueNote="待收差额 "+money(bal);
+      diffs.push(`待收差额更新为 ${money(bal)}`);
+      apply();
+    }
   } else apply();
 }
 
