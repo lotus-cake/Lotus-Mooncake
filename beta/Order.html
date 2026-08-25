@@ -246,8 +246,11 @@ table.sum .z{color:#C9C6B4}
       <button data-v="CAM">Cambie</button><button data-v="BBY">Burnaby</button><button data-v="ALD">Alderbridge</button><button data-v="MULTI" id="fStoreMulti" style="display:none">多店取货</button>
     </div>
     <div id="fDateWrap">
-      <label class="f">取货日期 *(9/4 – 9/30)</label>
-      <input type="date" id="fDate" min="2026-09-04" max="2026-09-30" value="2026-09-04">
+      <label class="f">取货日期 *(9/4 – 9/27)</label>
+      <input type="date" id="fDate" min="2026-09-04" max="2026-09-27" value="2026-09-04">
+      <label class="f" style="margin-top:8px">取货时间(可选)</label>
+      <input type="time" id="fTime" step="600">
+      <div class="note" id="fTimeWin"></div>
     </div>
   </div>
 
@@ -611,7 +614,9 @@ const ACCESS_CODES = {       // ★ 各角色访问码 — 部署前全部修改
   OWNER: OWNER_PIN
 };
 const PROXY_URL   = "";     // 识别中转地址(后续配置)
-const DATE_MIN = "2026-09-04", DATE_MAX = "2026-09-30", PREPAY_FROM = "2026-09-24";
+const DATE_MIN = "2026-09-04", DATE_MAX = "2026-09-27", PREPAY_FROM = "2026-09-24";
+const PICKUP_WIN={CAM:["11:30","19:00"],ALD:["11:30","19:00"],BBY:["13:00","20:00"]};
+function timeOk(st,t){if(!t)return true;const w=PICKUP_WIN[st];if(!w)return true;return t>=w[0]&&t<=w[1];}
 /* ================================================================ */
 
 const PRODUCTS = [
@@ -783,7 +788,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-78";
+const APP_BUILD="b0819-79";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1305,6 +1310,14 @@ function typeEQty2(k,val,min){
   if(n)eQty[k]=n;else delete eQty[k];
   renderEQty();
 }
+function updPickWin(){
+  const el=document.getElementById("fTime"),h=document.getElementById("fTimeWin");if(!el)return;
+  const st=(typeof fStoreVal!=="undefined"&&fStoreVal)||"";
+  const w=PICKUP_WIN[st];
+  if(w){el.min=w[0];el.max=w[1];if(h)h.textContent=`${STORE_NAME[st]||st} 取货窗口 ${w[0]}–${w[1]}`;}
+  else{el.removeAttribute("min");el.removeAttribute("max");if(h)h.textContent="CAM/ALD 11:30–19:00 · BBY 13:00–20:00";}
+}
+setTimeout(updPickWin,0);
 function renderQtyTable(){
   const c=capState(),t=document.getElementById("qtyTable");
   const row=p=>{
@@ -1377,6 +1390,7 @@ document.getElementById("fStore").addEventListener("click",e=>{
   const b=e.target.closest("button"); if(!b)return;
   fStoreVal=b.dataset.v;
   document.querySelectorAll("#fStore button").forEach(x=>x.classList.toggle("on",x===b));
+  updPickWin();
 });
 const REF_HINT={"Square Online":["Square Receipt(必填)","SQ-xxxx"],"EMT":["Square Receipt(建议填)","EMT Ref"],"Credit Card":["Square Receipt(必填)","收据上的编号"],"AlphaPay(微信&支付宝)":["Square Receipt(建议填)","AP-xxxx"],"其它":["凭证号(选填)","可留空"]};
 const NO_REF=m=>m==="SL"||m==="现金"||m==="微信";
@@ -1440,7 +1454,7 @@ function dupModal(matches,onAdd){
   const list=matches.map(o=>`<div class="ocard ${o.store}" style="cursor:default">
     <div class="l1"><span class="ono">${o.no}</span><span class="oname">${esc(o.name)}</span>
       <span class="badge ${o.store}">${o.store}</span>${o.batch?'<span class="badge batch">分批</span>':""}${(o.parentNo&&ORDERS[o.parentNo]&&ORDERS[o.parentNo].pay!=="已付")?'<span class="badge" style="background:var(--danger);color:#fff">母单未付·取货锁定</span>':""}</div>
-    <div class="oitems">${itemsText(o.qty)}(${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""})${o.batch?"":" · 取货 "+fmtMD(o.pickupDate)}</div></div>`).join("");
+    <div class="oitems">${itemsText(o.qty)}(${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""})${o.batch?"":" · 取货 "+(fmtMD(o.pickupDate)+(o.pickupTime?" "+o.pickupTime:""))}</div></div>`).join("");
   openModal(mhead("⚠ 发现疑似重复订单")+`
     <p class="note" style="margin:0 0 10px">同一客人已有以下订单,请确认这是<b>加单</b>还是<b>重复录入</b>:</p>${list}
     <div class="row" style="margin-top:12px">
@@ -1498,7 +1512,9 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
   if(!fStoreVal)return toast("请选取货门店");
   if(!fBatch){
     if(!date)return toast("请选取货日期");
-    if(date<DATE_MIN||date>DATE_MAX)return toast("取货日期须在 9/4 – 9/30");
+    if(date<DATE_MIN||date>DATE_MAX)return toast("取货日期须在 9/4 – 9/27");
+    {const tv=(document.getElementById("fTime")||{}).value||"";
+     if(tv&&fStoreVal&&PICKUP_WIN[fStoreVal]&&!timeOk(fStoreVal,tv))return toast(`${STORE_NAME[fStoreVal]}取货时间窗 ${PICKUP_WIN[fStoreVal][0]}–${PICKUP_WIN[fStoreVal][1]}`);}
   }
   if(total===0&&!boxCounts(fQty).pieces)return toast("请选择至少一件产品");
   if(payM==="其它"&&!payOther)return toast("选「其它」付款方式需填写说明");
@@ -1567,7 +1583,7 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
         const o={no,name,phone,store:fStoreVal,unpaidPlan:unpaidPlan||null,duePlan:duePlan||null,
           wxAcct:chanV==="微信"?wxAcct:null,
           chStore:chanV==="门店"?fChStoreVal:null,
-          chStaff:chanV==="员工"?chStaff:null,qty:{...fQty},box6:b6,box2:b2,boxes:total,pieces:boxCounts(fQty).pieces,gstOn:(fTaxOff?null:1),gstAmt:(fAmtManual!=null?null:calcDetail(fQty,payM,chanV,fTaxOff).gst),
+          chStaff:chanV==="员工"?chStaff:null,qty:{...fQty},box6:b6,box2:b2,boxes:total,pieces:boxCounts(fQty).pieces,gstOn:(fTaxOff?null:1),pickupTime:((document.getElementById("fTime")||{}).value||null),gstAmt:(fAmtManual!=null?null:calcDetail(fQty,payM,chanV,fTaxOff).gst),
           amount:(ROLE&&ROLE.type==="owner")?amt:autoAmt,autoAmount:autoAmt,manualPrice:(ROLE&&ROLE.type==="owner")?(fAmtManual!=null):false,paid:paidV,
           pay:cand.pay,payMethod:payM,payOther:payM==="其它"?payOther:"",
           channel:document.getElementById("fChan").value,
@@ -1583,7 +1599,7 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
           logOp(no,staff,"创建订单",`${total}盒 ${money(amt)}${o.manualPrice?"(手动定价)":""} · ${o.batch?"分批大单":fmtMD(date)} ${o.store} · ${o.pay}`+(cand.exception?" · 例外:"+cand.exception.reason:""));
           toast(`已保存 ${no} · ${total}盒 ${money(amt)}`);
           ["fName","fPhone","fRef","fNote","fPayOther","fPaid"].forEach(id=>document.getElementById(id).value="");
-          Object.keys(fQty).forEach(k=>delete fQty[k]);fTaxOff=true;{const _t=document.getElementById("fTax");if(_t)_t.checked=false;}
+          Object.keys(fQty).forEach(k=>delete fQty[k]);fTaxOff=true;{const _t=document.getElementById("fTax");if(_t)_t.checked=false;}{const _pt=document.getElementById("fTime");if(_pt)_pt.value="";}
           fAmtManual=null;
           document.getElementById("fPay").value="未付";document.getElementById("fPayM").value="";
           document.getElementById("fPayOtherWrap").style.display="none";
@@ -1633,7 +1649,7 @@ function orderCard(o,forPickup){
       ${o.pickedUp?'<span class="badge st-有效">已取</span>':""}
     </div>
     <div class="oitems">${items} <b>(${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}${o.parentNo?"":(o.amount!=null?" · "+money(o.amount):"")})</b>${o.parentNo?'<span class="z"> · 付款随母单</span>':""}${o.manualPrice&&!o.parentNo?'<span class="badge batch" style="margin-left:6px">手动价</span>':""}</div>
-    <div class="ometa">${o.batch?"分批取货,日期灵活":"取货 "+fmtMD(o.pickupDate)} · ${esc(fmtPhone(o.phone)||"无电话")} · ${payLabel}${link}${cleanNotes(o.notes)?" · "+esc(cleanNotes(o.notes)):""}</div>
+    <div class="ometa">${o.batch?"分批取货,日期灵活":"取货 "+(fmtMD(o.pickupDate)+(o.pickupTime?" "+o.pickupTime:""))} · ${esc(fmtPhone(o.phone)||"无电话")} · ${payLabel}${link}${cleanNotes(o.notes)?" · "+esc(cleanNotes(o.notes)):""}</div>
     ${o.status!=="有效"?`<div class="sect">生命周期</div>
       <div class="kv"><span>创建</span><b>${esc(o.createdBy||"?")} · ${o.orderDate||""}</b></div>
       ${(()=>{const h=Object.values(o.history||{}).find(x=>(x.action||"").includes("取消")||(x.action||"").includes("改期(原单)"));
@@ -1740,7 +1756,7 @@ function openDetail(no){
       ${o.pickedUp?'<span class="badge st-有效">已取货</span>':""}
     </div>
     <div class="kv"><span>客人</span><b>${esc(o.name)}${o.phone?" · "+esc(fmtPhone(o.phone)):""}</b></div>
-    <div class="kv"><span>取货</span><b>${o.batch?"分批取货,日期灵活":fmtMD(o.pickupDate)+" · "+STORE_NAME[o.store]}</b></div>
+    <div class="kv"><span>取货</span><b>${o.batch?"分批取货,日期灵活":(fmtMD(o.pickupDate)+(o.pickupTime?" "+o.pickupTime:""))+" · "+STORE_NAME[o.store]}</b></div>
     ${prodLines}
     <div class="kv"><span>盒数合计</span><b>${o.boxes} 盒${piecesOf(o)?` + ${piecesOf(o)} 颗`:""}</b></div>
     
@@ -1922,7 +1938,9 @@ function openEdit(no){
       ${["CAM","BBY","ALD"].map(s=>`<button data-v="${s}" class="${s===o.store?"on":""}">${STORE_NAME[s]}</button>`).join("")}
     </div>
     ${o.batch?`<p class="note">分批大单:下方数量为客人<b>应得总额度</b>,不能低于已取数量。</p>`
-      :`<label class="f">取货日期</label><input type="date" id="eDate" min="${DATE_MIN}" max="${DATE_MAX}" value="${o.pickupDate}">`}
+      :`<label class="f">取货日期</label><input type="date" id="eDate" min="${DATE_MIN}" max="${DATE_MAX}" value="${o.pickupDate}">
+       <label class="f">取货时间</label><input type="time" id="eTime" step="600" value="${o.pickupTime||""}">
+       <div class="note">CAM/ALD 11:30–19:00 · BBY 13:00–20:00</div>`}
     <label class="f">产品数量</label>
     <table class="qtbl" id="eQtyTable"></table>
     <div class="tot-line"><span>盒数合计</span><b id="eTotal"></b></div>
@@ -2054,14 +2072,17 @@ function saveEdit(o){
     notes:document.getElementById("eNote").value.trim(),updatedAt:Date.now()};
   if(!o.batch){
     const nd=document.getElementById("eDate").value;
-    if(nd<DATE_MIN||nd>DATE_MAX)return toast("取货日期须在 9/4 – 9/30");
+    if(nd<DATE_MIN||nd>DATE_MAX)return toast("取货日期须在 9/4 – 9/27");
+    {const ntv=(document.getElementById("eTime")||{}).value||"";
+     if(ntv&&PICKUP_WIN[newStoreV]&&!timeOk(newStoreV,ntv))return toast(`${STORE_NAME[newStoreV]}取货时间窗 ${PICKUP_WIN[newStoreV][0]}–${PICKUP_WIN[newStoreV][1]}`);
+     if((o.pickupTime||"")!==ntv){diffs.push("取货时间 "+(o.pickupTime||"—")+"→"+(ntv||"—"));patch.pickupTime=ntv||null;}}
     patch.pickupDate=nd;
   }
   const diffs=[];
   if(patch.name!==o.name)diffs.push(`姓名 ${o.name}→${patch.name}`);
   if(patch.phone!==(o.phone||""))diffs.push(`电话 ${o.phone||"无"}→${patch.phone||"无"}`);
   if(patch.store!==o.store)diffs.push(`门店 ${o.store}→${patch.store}`);
-  if(!o.batch&&patch.pickupDate!==o.pickupDate)diffs.push(`日期 ${fmtMD(o.pickupDate)}→${fmtMD(patch.pickupDate)}`);
+  if(!o.batch&&patch.pickupDate!==o.pickupDate)diffs.push(`日期 ${(fmtMD(o.pickupDate)+(o.pickupTime?" "+o.pickupTime:""))}→${fmtMD(patch.pickupDate)}`);
   if(sigOf(patch.qty)!==sigOf(o.qty)){
     PRODUCTS.forEach(p=>{
       const ov=(o.qty&&o.qty[p.k])||0, nv=patch.qty[p.k]||0;
@@ -2557,7 +2578,7 @@ function renderPend(){
     const ch=noteStream(o).filter(e=>e.kind==="催收");
     return `<div class="ocard" style="${due?"border-left:4px solid #A63B2E":""}">
       <div class="ohead"><b class="ono">${o.no}</b> <b>${esc(o.name)}</b>
-        <span class="badge">${o.batch?"分批大单":fmtMD(o.pickupDate)+" "+(STORE_NAME[o.store]||o.store)}</span>
+        <span class="badge">${o.batch?"分批大单":(fmtMD(o.pickupDate)+(o.pickupTime?" "+o.pickupTime:""))+" "+(STORE_NAME[o.store]||o.store)}</span>
         ${due?'<span class="badge duepay">⚠ 逾期未付</span>':""}</div>
       <div class="note" style="margin:2px 0 6px">${itemsText(o.qty)}(${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""} · ${money(o.amount)}) · ${esc(fmtPhone(o.phone)||"无电话")}
         ${ch.length?`<br>最近催收:${esc(ch[0].t)}(${esc(ch[0].staff)} ${new Date(ch[0].ts).toLocaleDateString("zh",{month:"numeric",day:"numeric"})})`:""}</div>
@@ -2695,7 +2716,7 @@ function openSplit(no){
     if(mv===0)return toast("请选择拆出的数量");
     if(mv>=o.boxes)return toast("不能全部拆走;全改日期请直接「修改订单」改取货日期");
     const nd=document.getElementById("spDate").value;
-    if(!nd||nd<DATE_MIN||nd>DATE_MAX)return toast("日期须在 9/4 – 9/30");
+    if(!nd||nd<DATE_MIN||nd>DATE_MAX)return toast("日期须在 9/4 – 9/27");
     const staff=getStaff(); if(!staff)return;
     const remain={...o.qty};
     Object.keys(sQty).forEach(k=>{remain[k]-=sQty[k]; if(!remain[k])delete remain[k];});
@@ -2713,7 +2734,7 @@ function openSplit(no){
     const spN=(document.getElementById("spName")||{}).value||o.name;
     const spP=(document.getElementById("spPhone")||{}).value||o.phone;
     const child={...o,no:newNo,name:(spN||"").trim()||o.name,phone:(spP||"").trim(),pickupDate:nd,store:ss,qty:{...sQty},
-      box6:mb.b6,box2:mb.b2,boxes:mb.total,pieces:mb.pieces,gstOn:o.gstOn||null,status:"有效",pickedUp:false,
+      box6:mb.b6,box2:mb.b2,boxes:mb.total,pieces:mb.pieces,gstOn:o.gstOn||null,pickupTime:o.pickupTime||null,status:"有效",pickedUp:false,
       amount:0,autoAmount:0,manualPrice:false,paid:0,
       parentNo:base,payNote:"付款随原单 "+base,splitAt:Date.now(),
       notes:cleanNotes(o.notes),createdAt:Date.now(),createdBy:staff};
@@ -3362,7 +3383,7 @@ window.openFamily=(no)=>{
     <div class="l1"><span class="ono">${o.no}</span><span class="oname">母单自留</span>
       <span class="badge ${o.store}">${STORE_NAME[o.store]||o.store}</span>
       <span class="badge">${o.pickedUp?"已取✓":"待取"}</span></div>
-    <div class="oitems">${itemsText(o.qty)}(${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}) · ${o.pickupDate?fmtMD(o.pickupDate):"—"}</div></div>`;
+    <div class="oitems">${itemsText(o.qty)}(${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}) · ${o.pickupDate?(fmtMD(o.pickupDate)+(o.pickupTime?" "+o.pickupTime:"")):"—"}</div></div>`;
   openModal(mhead(`家族操作:${no}(${esc(o.name)})`)+`
     <p class="note" style="margin:0 0 8px">逐单操作:点卡片进详情核销/修改;「安排取货」= 拆一张新子单。</p>
     ${own}${kids.map(legCard).join("")}
@@ -3695,7 +3716,7 @@ function renderAlerts(){
   const D=todayStr(),a=[];
   // 过期未取
   const overdue=liveOrders().filter(o=>!o.batch&&o.pickupDate&&o.pickupDate<D&&!o.pickedUp);
-  overdue.slice(0,6).forEach(o=>a.push({t:`过期未取:${o.no} ${esc(o.name)}(${fmtMD(o.pickupDate)} ${STORE_NAME[o.store]},${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""})`,fn:`openDetail('${o.no}')`}));
+  overdue.slice(0,6).forEach(o=>a.push({t:`过期未取:${o.no} ${esc(o.name)}(${(fmtMD(o.pickupDate)+(o.pickupTime?" "+o.pickupTime:""))} ${STORE_NAME[o.store]},${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""})`,fn:`openDetail('${o.no}')`}));
   if(overdue.length>6)a.push({t:`…还有 ${overdue.length-6} 张过期未取`,fn:""});
   // 今日未取
   const tu=liveOrders().filter(o=>!o.batch&&o.pickupDate===D&&!o.pickedUp).length;
@@ -3705,7 +3726,7 @@ function renderAlerts(){
     if(o.batch||!o.pickupDate)return false;
     const dd=(new Date(o.pickupDate)-new Date(D))/86400000;
     return dd>=0&&dd<=3&&dueAmt(o)>0;});
-  soon.slice(0,5).forEach(o=>a.push({t:`临近取货未收齐:${o.no} ${esc(o.name)} 待收 ${money(dueAmt(o))}(${fmtMD(o.pickupDate)})`,fn:`openDetail('${o.no}')`}));
+  soon.slice(0,5).forEach(o=>a.push({t:`临近取货未收齐:${o.no} ${esc(o.name)} 待收 ${money(dueAmt(o))}(${(fmtMD(o.pickupDate)+(o.pickupTime?" "+o.pickupTime:""))})`,fn:`openDetail('${o.no}')`}));
   // 交接差异(今日)
   ["CAM","BBY","ALD"].forEach(st=>{
     const sh=shippedFor(D,st),rc=recvFor(D,st);
@@ -4145,7 +4166,7 @@ function applyOCR(r){
     document.querySelectorAll("#fStore button").forEach(x=>x.classList.toggle("on",x.dataset.v===r.store));}
   if(r.pickupDate&&/^\d{4}-\d{2}-\d{2}$/.test(r.pickupDate)){
     document.getElementById("fDate").value=r.pickupDate;hl(document.getElementById("fDate"));}
-  Object.keys(fQty).forEach(k=>delete fQty[k]);fTaxOff=true;{const _t=document.getElementById("fTax");if(_t)_t.checked=false;}
+  Object.keys(fQty).forEach(k=>delete fQty[k]);fTaxOff=true;{const _t=document.getElementById("fTax");if(_t)_t.checked=false;}{const _pt=document.getElementById("fTime");if(_pt)_pt.value="";}
   if(r.qty)PRODUCTS.forEach(p=>{const v=parseInt(r.qty[p.k]);if(v>0)fQty[p.k]=v;});
   if(r.pay)document.getElementById("fPay").value=r.pay;
   if(r.payMethod&&PAY_METHODS.includes(r.payMethod)){
