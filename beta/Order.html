@@ -259,7 +259,7 @@ table.sum .z{color:#C9C6B4}
       <span>金额合计 <button class="btn small ghost" id="btnPriceEdit" style="padding:4px 10px;font-size:12px;margin-left:6px">改价</button></span>
       <b id="fAmount">$0</b></div>
     <div class="note" id="fAmtHint" style="display:none;margin-top:2px"></div>
-    <div class="kv" style="margin-top:6px;background:var(--cream);border-radius:8px;padding:8px 10px"><span><b>本单 GST</b>(取消勾=和店内其它商品在收银机一起收税)</span><input type="checkbox" id="fTax" checked style="width:22px;height:22px;accent-color:var(--olive)" onchange="fTaxOff=!this.checked;renderFAmount()"></div>
+    <div class="kv" style="margin-top:6px;background:var(--cream);border-radius:8px;padding:8px 10px"><span><b>本单加 GST</b>(勾=对可税产品加5%:单颗/两粒;六粒0税率。合并收银不勾)</span><input type="checkbox" id="fTax" style="width:22px;height:22px;accent-color:var(--olive)" onchange="fTaxOff=!this.checked;renderFAmount()"></div>
   </div>
 
   <div class="card">
@@ -530,7 +530,7 @@ table.sum .z{color:#C9C6B4}
     <div class="kv"><span>促销三:买</span><input type="number" id="pmB3" min="0" style="width:64px"><span>送</span><input type="number" id="pmF3" min="0" style="width:64px"></div>
     <button class="btn small" id="btnSavePrice" style="margin-top:10px">保存价格</button>
     <p class="note">录单时:付款方式选「现金」的六粒盒自动用现金价;渠道选「员工」自动打员工折。促销价(买20送3等)用录单页的「改价」手动填实收。</p>
-    <div class="note" style="margin:12px 0 4px"><b>单颗 & GST 开关</b>(勾=该产品 +5% 税;政策变了翻开关即可,无需发版)</div>
+    <div class="note" style="margin:12px 0 4px"><b>单颗价 & 可税产品</b>(勾=该产品属可税;录单勾了「本单加GST」才实际+5%。默认:单颗与两粒可税,六粒0税率)</div>
     <div class="kv"><span>单颗 单价 $</span><input type="number" id="prS1" min="0" step="0.01" inputmode="decimal"></div>
     <div id="taxTable"></div>
     <button class="btn small" id="btnSaveTax" style="margin-top:8px">保存单颗价 & 税设置</button>
@@ -643,7 +643,7 @@ const WALK_PAY = ["Credit Card","现金","AlphaPay(微信&支付宝)","SL","EMT"
 const DEFAULT_PRICES = {p6:88, p6cash:80, p2:28, bb2:28, s1:11.5, emp:0.9,
   promos:[{buy:10,free:1},{buy:20,free:3},{buy:30,free:5}]};
 let PRICES = {...DEFAULT_PRICES};
-const DEFAULT_TAX={s_js:1,s_mt:1,s_tr:1,s_cp:1,s_mk:1,s_wl:1};
+const DEFAULT_TAX={s_js:1,s_mt:1,s_tr:1,s_cp:1,s_mk:1,s_wl:1,js2:1,mt2:1,tr2:1,cp2:1,mk2:1,wl2:1,bb2:1};
 let TAX=null;
 function taxOn(k){const m=TAX||DEFAULT_TAX;return !!m[k];}
 const nickel=v=>Math.round(v*20)/20;
@@ -783,7 +783,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-77";
+const APP_BUILD="b0819-78";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1203,7 +1203,7 @@ function hasPromo(o){
   if(o.channel==="员工")return true;
   const fq={...(o.qty||{})};
   Object.values(ORDERS).forEach(c=>{if(c.parentNo===o.no&&c.status==="有效")Object.entries(c.qty||{}).forEach(([k,v])=>fq[k]=(fq[k]||0)+v);});
-  const d=calcDetail(fq,o.payMethod,o.channel,o.taxOff);
+  const d=calcDetail(fq,o.payMethod,o.channel,(o.gstOn?0:1));
   return !!(d&&d.freeCount>0);
 }
 function refundRoute(o){
@@ -1331,7 +1331,7 @@ const QTY_GROUPS=[
   {id:"g1",n:"单颗",f:p=>!!p.pc}];
 function qgHead(g,cnt,rf){return `<tr><td colspan="2" onclick="QG_OPEN.${g.id}=!QG_OPEN.${g.id};${rf}()" style="padding:9px 8px;font-weight:800;color:var(--olive);background:var(--cream);border-radius:8px;cursor:pointer;user-select:none">${QG_OPEN[g.id]?"▾":"▸"} ${g.n}${cnt?` <span style="color:var(--bronze)">· ${cnt}</span>`:""}</td></tr>`;}
 let fAmtManual=null;
-let fTaxOff=false;
+let fTaxOff=true;
 function fAutoAmt(){
   return calcAmount(fQty,document.getElementById("fPayM").value,document.getElementById("fChan").value,fTaxOff);
 }
@@ -1567,7 +1567,7 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
         const o={no,name,phone,store:fStoreVal,unpaidPlan:unpaidPlan||null,duePlan:duePlan||null,
           wxAcct:chanV==="微信"?wxAcct:null,
           chStore:chanV==="门店"?fChStoreVal:null,
-          chStaff:chanV==="员工"?chStaff:null,qty:{...fQty},box6:b6,box2:b2,boxes:total,pieces:boxCounts(fQty).pieces,taxOff:(fTaxOff?1:null),gstAmt:(fAmtManual!=null?null:calcDetail(fQty,payM,chanV,fTaxOff).gst),
+          chStaff:chanV==="员工"?chStaff:null,qty:{...fQty},box6:b6,box2:b2,boxes:total,pieces:boxCounts(fQty).pieces,gstOn:(fTaxOff?null:1),gstAmt:(fAmtManual!=null?null:calcDetail(fQty,payM,chanV,fTaxOff).gst),
           amount:(ROLE&&ROLE.type==="owner")?amt:autoAmt,autoAmount:autoAmt,manualPrice:(ROLE&&ROLE.type==="owner")?(fAmtManual!=null):false,paid:paidV,
           pay:cand.pay,payMethod:payM,payOther:payM==="其它"?payOther:"",
           channel:document.getElementById("fChan").value,
@@ -1583,7 +1583,7 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
           logOp(no,staff,"创建订单",`${total}盒 ${money(amt)}${o.manualPrice?"(手动定价)":""} · ${o.batch?"分批大单":fmtMD(date)} ${o.store} · ${o.pay}`+(cand.exception?" · 例外:"+cand.exception.reason:""));
           toast(`已保存 ${no} · ${total}盒 ${money(amt)}`);
           ["fName","fPhone","fRef","fNote","fPayOther","fPaid"].forEach(id=>document.getElementById(id).value="");
-          Object.keys(fQty).forEach(k=>delete fQty[k]);fTaxOff=false;{const _t=document.getElementById("fTax");if(_t)_t.checked=true;}
+          Object.keys(fQty).forEach(k=>delete fQty[k]);fTaxOff=true;{const _t=document.getElementById("fTax");if(_t)_t.checked=false;}
           fAmtManual=null;
           document.getElementById("fPay").value="未付";document.getElementById("fPayM").value="";
           document.getElementById("fPayOtherWrap").style.display="none";
@@ -1735,7 +1735,7 @@ function openDetail(no){
       <span class="badge st-${o.status}">${o.status==="已取消"?"Cancel":o.status}</span>
       ${o.parentNo?"":`<span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>`}${o.parentNo?`<span class="badge" style="background:#E4E9D5">子单·属 ${o.parentNo}</span>`:""}${(o.parentNo&&ORDERS[o.parentNo]&&ORDERS[o.parentNo].pay!=="已付")?'<span class="badge" style="background:var(--danger);color:#fff">母单未付·取货锁定</span>':""}${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}
       ${o.batch?'<span class="badge batch">分批大单</span>':""}
-      ${o.manualPrice?'<span class="badge batch">手动价</span>':""}${o.taxOff?'<span class="badge batch">免税单·合并收银</span>':""}
+      ${o.manualPrice?'<span class="badge batch">手动价</span>':""}
       ${o.exception?'<span class="badge exc">例外:'+esc(o.exception.reason)+'</span>':""}
       ${o.pickedUp?'<span class="badge st-有效">已取货</span>':""}
     </div>
@@ -1940,7 +1940,7 @@ function openEdit(no){
         <select id="eDuePlan"><option value="">—</option><option ${o.duePlan==="取货时付"?"selected":""}>取货时付</option><option ${o.duePlan==="客服跟进"?"selected":""}>客服跟进</option></select></div></div>
       <div><label class="f">付款方式</label>
         <select id="ePayM"><option value="">—</option>${LEGACY_PM(o.payMethod)?`<option selected>${esc(o.payMethod)}</option>`:""}${PAY_METHODS.map(v=>`<option ${v===o.payMethod?"selected":""}>${v}</option>`).join("")}</select>
-        <div class="kv" style="margin-top:6px"><span>本单 GST</span><input type="checkbox" id="eTax" ${o.taxOff?"":"checked"} style="width:20px;height:20px;accent-color:var(--olive)"></div></div>
+        <div class="kv" style="margin-top:6px"><span>本单加 GST</span><input type="checkbox" id="eTax" ${o.gstOn?"checked":""} style="width:20px;height:20px;accent-color:var(--olive)"></div></div>
     </div>
     <div id="ePayOtherWrap" style="display:${o.payMethod==="其它"?"block":"none"}">
       <label class="f">其它付款方式说明 *</label>
@@ -2049,7 +2049,7 @@ function saveEdit(o){
   if(newPay==="未付")newPaid=0;
   const patch={name,phone:document.getElementById("ePhone").value.trim(),store:eStore,
     qty:{...eQty},box6:nb.b6,box2:nb.b2,boxes:nb.total,pieces:nb.pieces,
-    amount:newAmt,autoAmount:autoNow,manualPrice:newAmt!=null&&Math.abs(newAmt-autoNow)>0.005,gstAmt:(newAmt!=null&&Math.abs(newAmt-autoNow)>0.005)?null:calcDetail(eQty,(document.getElementById("ePayM")||{}).value||o.payMethod,o.channel,eTaxOff).gst,taxOff:(eTaxOff?1:null),paid:newPaid,
+    amount:newAmt,autoAmount:autoNow,manualPrice:newAmt!=null&&Math.abs(newAmt-autoNow)>0.005,gstAmt:(newAmt!=null&&Math.abs(newAmt-autoNow)>0.005)?null:calcDetail(eQty,(document.getElementById("ePayM")||{}).value||o.payMethod,o.channel,eTaxOff).gst,gstOn:(eTaxOff?null:1),paid:newPaid,
     pay:newPay,duePlan:_duePlanV,payMethod:payM,payOther:payM==="其它"?payOther:"",
     notes:document.getElementById("eNote").value.trim(),updatedAt:Date.now()};
   if(!o.batch){
@@ -2133,7 +2133,7 @@ function saveEdit(o){
       });
     });
   }
-  if(!!eTaxOff!==!!o.taxOff)diffs.push("本单税:"+(o.taxOff?"免":"收")+"→"+(eTaxOff?"免(合并收银)":"收"));
+  if((eTaxOff?0:1)!==(o.gstOn?1:0))diffs.push("本单GST:"+(o.gstOn?"加":"不加")+"→"+(eTaxOff?"不加":"加"));
   if(_hasKids){
     // 付款身份仍锁(状态/方式/已收不许手改);金额=全家数量自动重算,差额走正常补收/退款
     ["paid","pay","payMethod","payOther"].forEach(k=>delete patch[k]);
@@ -2277,9 +2277,9 @@ function settleDue(no,alsoPick){
   const dueQ=o.dueQty||null, negA=o.dueNegAmt||0;
   const byPm=pm=>{
     if(o.manualPrice)return pm==="现金"?nickel(due0):due0; // 手动定价单不自动重算
-    if(dueQ){const x=Math.max(0,Math.round((calcAmount(dueQ,pm,o.channel,o.taxOff)-negA)*100)/100);return pm==="现金"?nickel(x):x;}
+    if(dueQ){const x=Math.max(0,Math.round((calcAmount(dueQ,pm,o.channel,(o.gstOn?0:1))-negA)*100)/100);return pm==="现金"?nickel(x):x;}
     // 整单未付/部分付:按当场付款方式重算全单(现金=现金价,其它=原价),扣已收
-    {const x=Math.max(0,Math.round((calcAmount(o.qty||{},pm,o.channel,o.taxOff)-paidOf(o))*100)/100);return pm==="现金"?nickel(x):x;}
+    {const x=Math.max(0,Math.round((calcAmount(o.qty||{},pm,o.channel,(o.gstOn?0:1))-paidOf(o))*100)/100);return pm==="现金"?nickel(x):x;}
   };
   openModal(mhead(alsoPick?`取货并收差额:${no}(${esc(o.name)})`:`收清差额:${no}`)+`
     <p class="note" style="margin:0 0 8px"><b style="color:var(--danger)">待收:${esc(o.dueNote||("差额 "+money(due0)))}</b><br>
@@ -2315,7 +2315,7 @@ function settleDue(no,alsoPick){
     const patch={pay:"已付",paid:newPaid,amount:newPaid,dueNote:null,dueQty:null,dueNegAmt:null};
     // 多收退差:重算原始差额(未截断),负数=欠客人的,统一走退款路由
     {const pmCalc=(pm==="其它")?(o.payMethod||pm):pm;
-     const raw=o.manualPrice?due0:(dueQ?Math.round((calcAmount(dueQ,pmCalc,o.channel,o.taxOff)-negA)*100)/100:null);
+     const raw=o.manualPrice?due0:(dueQ?Math.round((calcAmount(dueQ,pmCalc,o.channel,(o.gstOn?0:1))-negA)*100)/100:null);
      if(raw!=null&&raw<-EPS){const surplus=Math.round(-raw*100)/100;
        patch.refundDue=true;patch.refundAmt=surplus;
        const _p=hasPromo(o);
@@ -2708,12 +2708,12 @@ function openSplit(no){
     if(!newNo)return toast("该单拆分次数已达上限(26)");
     // #4a 两边按定价引擎重算金额
     const wasManual=o.manualPrice||(o.autoAmount!=null&&o.amount!==o.autoAmount);
-    const childAuto=calcAmount(sQty,o.payMethod,o.channel,o.taxOff);
-    const origAuto=calcAmount(remain,o.payMethod,o.channel,o.taxOff);
+    const childAuto=calcAmount(sQty,o.payMethod,o.channel,(o.gstOn?0:1));
+    const origAuto=calcAmount(remain,o.payMethod,o.channel,(o.gstOn?0:1));
     const spN=(document.getElementById("spName")||{}).value||o.name;
     const spP=(document.getElementById("spPhone")||{}).value||o.phone;
     const child={...o,no:newNo,name:(spN||"").trim()||o.name,phone:(spP||"").trim(),pickupDate:nd,store:ss,qty:{...sQty},
-      box6:mb.b6,box2:mb.b2,boxes:mb.total,pieces:mb.pieces,taxOff:o.taxOff||null,status:"有效",pickedUp:false,
+      box6:mb.b6,box2:mb.b2,boxes:mb.total,pieces:mb.pieces,gstOn:o.gstOn||null,status:"有效",pickedUp:false,
       amount:0,autoAmount:0,manualPrice:false,paid:0,
       parentNo:base,payNote:"付款随原单 "+base,splitAt:Date.now(),
       notes:cleanNotes(o.notes),createdAt:Date.now(),createdBy:staff};
@@ -2840,7 +2840,7 @@ window.walkTakeChild=(no)=>{
     const bc=boxCounts(qty);
     const picker=document.getElementById("wtcPicker").value.trim();
     const child={no:no+"-"+suf,parentNo:no,name:picker||o.name,phone:o.phone,store,pickupDate:d,
-      qty,box6:bc.b6,box2:bc.b2,boxes:bc.total,pieces:bc.pieces,taxOff:o.taxOff||null,amount:calcAmount(qty,o.payMethod,o.channel,o.taxOff),
+      qty,box6:bc.b6,box2:bc.b2,boxes:bc.total,pieces:bc.pieces,gstOn:o.gstOn||null,amount:calcAmount(qty,o.payMethod,o.channel,(o.gstOn?0:1)),
       pay:o.pay,payNote:"付款随原单 "+no,splitAt:Date.now(),status:"有效",
       pickedUp:true,pickedAt:d,channel:o.channel||null,createdAt:Date.now(),createdBy:staff};
     closeModal();
@@ -3227,7 +3227,7 @@ function openSale(pk){
       <span class="z" style="margin-left:8px" id="slAmtPrev"></span>
     </div>
     <label class="f">付款方式</label>
-    <div class="kv" style="margin:2px 0 6px"><span>本单 GST(取消勾=和其它商品在收银机一起收税)</span><input type="checkbox" id="wTax" checked style="width:20px;height:20px;accent-color:var(--olive)"></div>
+    <div class="kv" style="margin:2px 0 6px"><span>本单加 GST(勾=可税产品+5%;合并收银不勾)</span><input type="checkbox" id="wTax" style="width:20px;height:20px;accent-color:var(--olive)"></div>
     <div class="seg" id="slSeg" style="flex-direction:column">
       ${WALK_PAY.map(m=>`<button data-v="${m}">${m}</button>`).join("")}
     </div>
@@ -3257,7 +3257,7 @@ function openSale(pk){
     if(taxOn(pk)&&wOn){gstW=Math.round(amt*0.05*100)/100;amt=Math.round((amt+gstW)*100)/100;}
     if(pm==="现金")amt=nickel(amt);
     addSale(wStoreVal,{date:document.getElementById("wDate").value||todayStr(),
-      time:nowHM(),product:pk,qty:slQty,pm,other,amt,gst:gstW||0,taxOff:(taxOn(pk)&&!wOn)?1:null,staff,ts:Date.now()});
+      time:nowHM(),product:pk,qty:slQty,pm,other,amt,gst:gstW||0,gstOn:(wOn&&taxOn(pk))?1:null,staff,ts:Date.now()});
     closeModal();toast(`${pn} ×${slQty} 已售出 ${money(amt)}`);
   };
 }
@@ -4145,7 +4145,7 @@ function applyOCR(r){
     document.querySelectorAll("#fStore button").forEach(x=>x.classList.toggle("on",x.dataset.v===r.store));}
   if(r.pickupDate&&/^\d{4}-\d{2}-\d{2}$/.test(r.pickupDate)){
     document.getElementById("fDate").value=r.pickupDate;hl(document.getElementById("fDate"));}
-  Object.keys(fQty).forEach(k=>delete fQty[k]);fTaxOff=false;{const _t=document.getElementById("fTax");if(_t)_t.checked=true;}
+  Object.keys(fQty).forEach(k=>delete fQty[k]);fTaxOff=true;{const _t=document.getElementById("fTax");if(_t)_t.checked=false;}
   if(r.qty)PRODUCTS.forEach(p=>{const v=parseInt(r.qty[p.k]);if(v>0)fQty[p.k]=v;});
   if(r.pay)document.getElementById("fPay").value=r.pay;
   if(r.payMethod&&PAY_METHODS.includes(r.payMethod)){
