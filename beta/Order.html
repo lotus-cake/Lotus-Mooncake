@@ -689,6 +689,16 @@ function famTotalOf(o){
 }
 /* ===== 钱账本:每笔钱动一条流水,只增不改 ===== */
 let LEDGER={};
+let CLOSES={};
+function dayLockedFor(){ // 门店角色+本店今日已锁 → true
+  if(!(ROLE&&ROLE.type==="store"))return false;
+  const c=CLOSES[ROLE.store+"_"+todayStr()];
+  return !!(c&&c.locked);
+}
+function moneyGate(){
+  if(dayLockedFor()){toast("本店今日已日结锁定:更正请 Owner 解锁重结,或明日记调整分录");return false;}
+  return true;
+}
 function addLedger(e){
   const row=Object.assign({d:todayStr(),t:nowHM(),acct:acctLabel(),store:(ROLE&&ROLE.type==="store"?ROLE.store:null),ts:Date.now()},e);
   if(DB)DB.ref(DB_ROOT+"/ledger").push(row);
@@ -744,7 +754,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-65";
+const APP_BUILD="b0819-66";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -766,6 +776,8 @@ function initData(){
     firebase.auth().signInAnonymously().catch(e=>{AUTHED=false;setConn(false,"连接失败:"+e.message);toast("云端连接失败:"+e.message+"(检查 Firebase 匿名登录是否启用)");});
     DB=firebase.database();
     DB.ref(DB_ROOT+"/orders").on("value",s=>{ORDERS=s.val()||{};renderAll();});
+    DB.ref(DB_ROOT+"/ledger").on("value",s=>{LEDGER=s.val()||{};});
+    DB.ref(DB_ROOT+"/closes").on("value",s=>{CLOSES=s.val()||{};renderAll();});
     DB.ref(DB_ROOT+"/meta/caps").on("value",s=>{CAPS=Object.assign({b6:0,b2:0},s.val()||{});renderAll();});
     DB.ref(DB_ROOT+"/meta/prices").on("value",s=>{PRICES=Object.assign({},DEFAULT_PRICES,s.val()||{});renderAll();});
     DB.ref(DB_ROOT+"/meta/aiKey").on("value",s=>{AIKEY=s.val()||"";updateKeyStatus();});
@@ -868,6 +880,7 @@ function addReceipt(store,rec){
          (WALKIN[store].receipts=WALKIN[store].receipts||{})["r"+Date.now()]=rec; renderWalkin(); }
 }
 function addSale(store,sale){
+  if((+sale.amt||0)>0&&!moneyGate())return;
   if(!sale.acct)sale.acct=acctLabel();
   if((+sale.amt||0)>0)addLedger({orderNo:sale.orderNo||null,store,type:"现货销售",pm:sale.pm,amt:+sale.amt,staff:sale.staff||null,ref:null});
   if(DB) DB.ref(DB_ROOT+"/walkin/"+store+"/sales").push(sale);
@@ -1747,7 +1760,60 @@ window.voidBatchPick=(no,key)=>{
     setTimeout(()=>openDetail(no),50);
   };
 };
+window.openDayClose=()=>{
+  const st=(ROLE&&ROLE.type==="store")?ROLE.store:null;
+  const isOwner=ROLE&&ROLE.type==="owner";
+  if(!st&&!isOwner)return toast("日结在门店码下进行");
+  const store=st||window._dcStore||"CAM";
+  const D=todayStr();
+  const key=store+"_"+D;
+  const cur=CLOSES[key];
+  const rows=Object.values(LEDGER||{}).filter(r=>r.d===D&&(r.store===store||(!r.store&&String(r.acct||"").includes(STORE_NAME[store]||store))));
+  const byPm={};
+  rows.forEach(r=>{const pm=pmDisp(r.pm||"—");byPm[pm]=byPm[pm]||{inn:0,out:0};
+    if((+r.amt||0)>=0)byPm[pm].inn+=+r.amt;else byPm[pm].out+=-r.amt;});
+  const lines=Object.entries(byPm).map(([pm,v])=>{
+    const net=Math.round((v.inn-v.out)*100)/100;
+    return `<div class="kv"><span>${esc(pm)}</span><b>收 ${money(Math.round(v.inn*100)/100)}${v.out?` · 退 ${money(Math.round(v.out*100)/100)}`:""} · 净 ${money(net)}</b></div>`;}).join("")||'<p class="note">今日本店暂无钱账流水</p>';
+  const cashNet=Math.round((((byPm["现金"]||{}).inn||0)-((byPm["现金"]||{}).out||0))*100)/100;
+  const total=Math.round(Object.values(byPm).reduce((s,v)=>s+v.inn-v.out,0)*100)/100;
+  openModal(mhead(`日结 · ${STORE_NAME[store]||store} · ${D}`)+`
+    ${cur&&cur.locked?`<p class="note" style="color:var(--danger)">本日已锁定(${esc(cur.staff||"")} ${cur.t||""});实点现金 ${money(cur.cashCounted)} · 差额 ${money(cur.diff)}</p>`:""}
+    ${lines}
+    <div class="kv"><span><b>净收款合计</b></span><b>${money(total)}</b></div>
+    <div class="kv"><span>应有现金增量</span><b>${money(cashNet)}</b></div>
+    ${!cur||!cur.locked?`
+    <label class="f">实点现金 $ *</label>
+    <input type="number" id="dcCash" step="0.01" placeholder="点钞后填入">
+    <p class="note" id="dcDiff" style="margin:4px 0"></p>
+    ${staffField()}
+    <button class="btn" id="dcGo" style="width:100%">提交日结并锁定(今日本店不可再录钱)</button>`
+    :(isOwner?`${staffField()}<button class="btn warn" id="dcUnlock" style="width:100%">Owner 解锁重结(留痕)</button>`:`<p class="note">如需更正:请 Owner 解锁重结,或明日记调整分录。</p>`)}
+  `,true);
+  const ci=document.getElementById("dcCash");
+  if(ci)ci.addEventListener("input",()=>{
+    const v=+ci.value||0;const df=Math.round((v-cashNet)*100)/100;
+    document.getElementById("dcDiff").innerHTML=df===0?'<span style="color:var(--olive)">现金对平 ✓</span>':`<span style="color:var(--danger)">差额 ${df>0?"+":""}${money(df)}(点错/漏记/多找?)</span>`;
+  });
+  const go=document.getElementById("dcGo");
+  if(go)go.onclick=()=>{
+    const staff=getStaff();if(!staff)return;
+    const v=ci.value;if(v==="")return toast("请填实点现金(没有现金填 0)");
+    const df=Math.round(((+v||0)-cashNet)*100)/100;
+    const rec={store,date:D,locked:true,totals:byPm,total,cashExpect:cashNet,cashCounted:+v||0,diff:df,staff,t:nowHM(),ts:Date.now()};
+    const fin=()=>{closeModal();toast(`已日结并锁定 ${STORE_NAME[store]||store} · ${D}${df!==0?" · 差额"+money(df):" · 现金对平"}`);renderAll();};
+    if(DB)DB.ref(DB_ROOT+"/closes/"+key).set(rec).then(fin);else{CLOSES[key]=rec;fin();}
+  };
+  const ul=document.getElementById("dcUnlock");
+  if(ul)ul.onclick=()=>{
+    const staff=getStaff();if(!staff)return;
+    const patch2={locked:false,unlockedBy:staff,unlockedAt:Date.now()};
+    const fin=()=>{closeModal();toast("已解锁,本店今日可重新录钱/重结");renderAll();};
+    if(DB)DB.ref(DB_ROOT+"/closes/"+key).update(patch2).then(fin);else{Object.assign(CLOSES[key],patch2);fin();}
+  };
+};
 window.openRefundRouter=(no)=>{
+  if(!moneyGate())return;
   const o=ORDERS[no];if(!o||!o.refundDue||o.refunded)return;
   const pm=o.payMethod||"";const amt=o.refundAmt!=null?o.refundAmt:(paidOf(o)||o.amount);
   const fin=(how)=>{const staff=getStaff();if(!staff)return;
@@ -2144,6 +2210,7 @@ function saveEdit(o){
 /* refundFlow retired b0819-55: 所有退款统一走 openRefundRouter */
 function clearDue(no){ settleDue(no,false); }
 function settleDue(no,alsoPick){
+  if(!moneyGate())return;
   const o=ORDERS[no]; if(!o)return;
   const due0=dueAmt(o);
   const dueQ=o.dueQty||null, negA=o.dueNegAmt||0;
@@ -2315,6 +2382,7 @@ function openAddNote(no){
   };
 }
 function openMarkRefund(no){
+  if(!moneyGate())return;
   const o=ORDERS[no];if(!o)return;
   if(o.refundUrgent&&ROLE&&ROLE.type==="store")return toast("优惠单退款需客服/Owner 核对处理");
   const amt0=(o.refundAmt!=null?o.refundAmt:(paidOf(o)||o.amount));
@@ -2440,6 +2508,7 @@ function renderPend(){
   }).join(""):'<div class="note">没有等待付款的订单 🎉</div>';
 }
 function openMarkPaid(no){
+  if(!moneyGate())return;
   const o=ORDERS[no];if(!o)return;
   openModal(mhead(`标记已收款:${no}(${esc(o.name)} · ${money(o.amount)})`)+`
     <label class="f">付款方式 *</label>
@@ -3059,7 +3128,7 @@ function renderWalkin(){
       const who=(s.acct||s.staff)?` · ${esc(s.acct||"")}${s.acct&&s.staff?"|":""}${esc(s.staff||"")}`:"";
       const srcTag=s.src==="batch"?"分批取走":s.src==="crosspick"?"跨店代取":esc(s.pm||"");
       return `<div class="wlog"><span>${s.time||""} ${pn}${(s.qty||1)>1?" ×"+s.qty:""}${s.amt!=null&&s.amt>0?" "+money(s.amt):""}${who}</span><b>${srcTag}${s.other?":"+esc(s.other):""}</b></div>`;
-    }).join("")+`<div class="wlog" style="border-bottom:none"><span><b>今日现货销售额</b></span><b style="color:var(--olive)">${money(dayRev)}</b></div>`
+    }).join("")+`<div style="margin:8px 0"><button class="btn" style="width:100%" onclick="openDayClose()">🔒 日结(汇总今日·锁定本店钱账)</button></div><div class="wlog" style="border-bottom:none"><span><b>今日现货销售额</b></span><b style="color:var(--olive)">${money(dayRev)}</b></div>`
     :`<div class="note">今日暂无现货销售</div>`);
 }
 document.getElementById("btnRecv").addEventListener("click",()=>{
