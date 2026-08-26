@@ -270,7 +270,7 @@ table.sum .z{color:#C9C6B4}
       <div><label class="f">付款状态</label>
         <select id="fPay"><option>未付</option><option>等待付款中</option><option>部分付</option><option>已付</option></select></div>
       <div id="fPayMWrap"><label class="f">付款方式</label>
-        <select id="fPayM"><option value="">—</option><option>Square Online</option><option>Credit Card</option><option>现金</option><option>EMT</option><option>SL</option><option>AlphaPay(微信&支付宝)</option><option>其它</option></select></div>
+        <select id="fPayM"><option value="">—</option><option>Square Online</option><option>Credit Card</option><option>Gift Card</option><option>现金</option><option>EMT</option><option>SL</option><option>AlphaPay(微信&支付宝)</option><option>其它</option></select></div>
     </div>
     <div id="fUnpaidWrap" style="display:none;margin-left:10px;border-left:3px solid var(--line);padding-left:10px">
       <label class="f">未付安排</label>
@@ -641,10 +641,10 @@ const FLAVORS = [
   {k:"cp",n:"陈皮红豆"},{k:"mk",n:"摩卡"},{k:"wl",n:"乌龙"},
 ];
 const STORE_NAME = {CAM:"Cambie", BBY:"Burnaby", ALD:"Alderbridge", MULTI:"多店取货"};
-const PAY_METHODS = ["Square Online","Credit Card","现金","EMT","SL","AlphaPay(微信&支付宝)","其它"];
+const PAY_METHODS = ["Square Online","Credit Card","Gift Card","现金","EMT","SL","AlphaPay(微信&支付宝)","其它"];
 const pmDisp=m=>m==="微信"?"SL":m;
 const LEGACY_PM = m=>m&&!PAY_METHODS.includes(m); // 老单历史值(Square/SL WeChat)兼容
-const WALK_PAY = ["Credit Card","现金","AlphaPay(微信&支付宝)","SL","EMT","其它"];
+const WALK_PAY = ["Credit Card","Gift Card","现金","AlphaPay(微信&支付宝)","SL","EMT","其它"];
 const DEFAULT_PRICES = {p6:88, p6cash:80, p2:28, bb2:28, s1:11.5, emp:0.9,
   promos:[{buy:10,free:1},{buy:20,free:3},{buy:30,free:5}]};
 let PRICES = {...DEFAULT_PRICES};
@@ -788,7 +788,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-83";
+const APP_BUILD="b0819-84";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1392,7 +1392,7 @@ document.getElementById("fStore").addEventListener("click",e=>{
   document.querySelectorAll("#fStore button").forEach(x=>x.classList.toggle("on",x===b));
   updPickWin();
 });
-const REF_HINT={"Square Online":["Square Receipt(必填)","SQ-xxxx"],"EMT":["Square Receipt(建议填)","EMT Ref"],"Credit Card":["Square Receipt(必填)","收据上的编号"],"AlphaPay(微信&支付宝)":["Square Receipt(建议填)","AP-xxxx"],"其它":["凭证号(选填)","可留空"]};
+const REF_HINT={"Square Online":["Square Receipt(必填)","SQ-xxxx"],"EMT":["Square Receipt(建议填)","EMT Ref"],"Credit Card":["Square Receipt(必填)","收据上的编号"],"Gift Card":["Gift Card 号后4位(建议填)","GC-1234"],"AlphaPay(微信&支付宝)":["Square Receipt(建议填)","AP-xxxx"],"其它":["凭证号(选填)","可留空"]};
 const NO_REF=m=>m==="SL"||m==="现金"||m==="微信";
 let fChStoreVal="";
 function payUIRefresh(){
@@ -2474,7 +2474,7 @@ function openMarkRefund(no){
     <label class="f">退款金额 $</label>
     <input type="number" id="rfAmt" step="0.01" value="${amt0}" ${canEdit?"":"readonly style='background:#F4F1E8'"}>
     <label class="f">退款方式 *</label>
-    <select id="rfM"><option value="">—</option>${["Square Online","Credit Card","现金","EMT","SL","AlphaPay(微信&支付宝)","其它"].map(v=>`<option ${v===o.payMethod?"selected":""}>${v}</option>`).join("")}</select>
+    <select id="rfM"><option value="">—</option>${["Square Online","Credit Card","Gift Card","现金","EMT","SL","AlphaPay(微信&支付宝)","其它"].map(v=>`<option ${v===o.payMethod?"selected":""}>${v}</option>`).join("")}</select>
     <label class="f">退款凭证号(现金可留空)</label>
     <input type="text" id="rfRef" placeholder="退款单号 / Reference">
     ${staffField()}
@@ -2594,7 +2594,7 @@ function openMarkPaid(no){
   const o=ORDERS[no];if(!o)return;
   openModal(mhead(`标记已收款:${no}(${esc(o.name)} · ${money(o.amount)})`)+`
     <label class="f">付款方式 *</label>
-    <select id="mpM"><option value="">—</option><option>Square Online</option><option>Credit Card</option>${ROLE&&ROLE.type==="cs"?"":"<option>现金</option>"}<option>EMT</option><option>SL</option><option>AlphaPay(微信&支付宝)</option><option>其它</option></select>
+    <select id="mpM"><option value="">—</option><option>Square Online</option><option>Credit Card</option><option>Gift Card</option>${ROLE&&ROLE.type==="cs"?"":"<option>现金</option>"}<option>EMT</option><option>SL</option><option>AlphaPay(微信&支付宝)</option><option>其它</option></select>
     <label class="f" id="mpRefLbl">收款凭证号</label>
     <input type="text" id="mpRef">
     ${staffField()}
@@ -4139,7 +4139,7 @@ store("CAM"=Cambie,"BBY"=Burnaby/本拿比,"ALD"=Alderbridge/Richmond/列治文,
 pickupDate("YYYY-MM-DD",只写月日则年份为2026,识别不出填null),
 qty(对象,只含数量>0的产品),注意商品别名: js6=六粒金沙(别名:经典/Classic/经典流心礼盒/金沙礼盒), mix6=六粒混合(别名:Mix/混合/混合礼盒,每味各一;注意:经典不是混合), js2=两粒金沙, mt2=两粒抹茶柚子(别名:抹茶), tr2=两粒黑松露(别名:松露), cp2=两粒陈皮红豆, mk2=两粒摩卡(别名:咖啡), wl2=两粒乌龙; 单颗散装系列(每颗$11.5): s_js=单颗金沙, s_mt=单颗抹茶柚子, s_tr=单颗黑松露, s_cp=单颗陈皮红豆, s_mk=单颗摩卡, s_wl=单颗乌龙; 单价$80=六粒盒现金价,可佐证是六粒装,
 pay("已付"/"未付"/"部分付"/"到店付",不确定填null), paidAmt(数字,部分付时的已收金额,没有填null),
-payMethod("现金"/"Credit Card"/"Square Online"/"EMT"/"微信"/"AlphaPay(微信&支付宝)"/"其它",不确定填null),
+payMethod("现金"/"Credit Card"/"Gift Card"/"Square Online"/"EMT"/"微信"/"AlphaPay(微信&支付宝)"/"其它",不确定填null),
 receiptNo(纸质收据编号,没有填null),
 notes(其他备注文字), uncertain(数组,列出你不确定、需要人工核对的字段和原因,中文)。
 看不清或没写的字段一律填null,禁止猜测编造。`;
