@@ -288,6 +288,8 @@ table.sum tr.today td{background:#FBF3DF;font-weight:700}
     <button class="btn small" id="btnPrmSave" style="margin-top:10px">保存参数</button>
   </div>
   <div class="card">
+    <div class="note" style="margin:0 0 4px"><b>配方体检</b>(对照数据库真账;缺=红)</div>
+    <div id="rcCheck" style="margin-bottom:14px"></div>
     <div class="note" style="margin:0 0 4px"><b>配方 BOM</b>(录了克数,对应工序填份数就自动扣原料)</div>
     <select id="rcSel" style="margin-top:6px"></select>
     <div id="rcBody" style="margin-top:6px"></div>
@@ -418,6 +420,22 @@ const RECIPE_DEFS=[
   ...FLAVORS.map(f=>({k:"paste_"+f.k,n:f.n+"馅(每份配方)"})),
   ...FLAVORS.map(f=>({k:"lava_"+f.k,n:f.n+"流心(每份配方)"})),
   ...FLAVORS.map(f=>({k:"skin_"+f.k,n:f.n+"曲奇皮(每份配方)"}))];
+function renderRcCheck(){
+  const el=document.getElementById("rcCheck");if(!el)return;
+  let okN=0;
+  const rows=RECIPE_DEFS.map(d=>{
+    const bom=RECIPES[d.k]||{},nL=Object.keys(bom).length;
+    const y=YIELDS[d.k]||{},hasOut=+y.out>0;
+    const isPaste=d.k.startsWith("paste_"),hasGpp=!isPaste||(+y.gpp>0);
+    const full=nL>0&&hasOut&&hasGpp;if(full)okN++;
+    const col=nL===0?"var(--danger)":(full?"var(--ok)":"#B08830");
+    const st=nL===0?"✗ 未录 BOM":(full?("✓ "+nL+" 项"+(isPaste?(" · "+y.gpp+"g/颗"):"")):("⚠ BOM "+nL+" 项,缺"+(!hasOut?"产出":"")+((!hasOut&&!hasGpp)?"+":"")+(!hasGpp?"克/颗":"")));
+    const semiHint=(d.k==="lava_tr"||d.k==="lava_mk"||d.k==="lava_wl")&&nL===0?'<span style="color:var(--muted)">(可用:半成品·流心液+风味料)</span>':"";
+    return `<div class="kv"><span>${d.n}${semiHint}</span><b style="color:${col}">${st}</b></div>`;
+  }).join("");
+  el.innerHTML=`<div class="kv"><span><b>总览</b></span><b>${okN}/${RECIPE_DEFS.length} 齐备</b></div>`+rows+
+    `<div class="note" style="margin-top:4px">参数:每模 ${PRM("perMold")} 颗 · 内芯 ${PRM("coreG")} g · 分馅默认 ${PRM("fenG")} g/颗(馅配方可各自覆盖)</div>`;
+}
 const RECIPE_STAGE={paste:"paste_",lava:"lava_",skin:"skin_"};
 function recipeFor(stage,flavor){
   const rk=RECIPE_STAGE[stage]?RECIPE_STAGE[stage]+flavor:null;
@@ -476,7 +494,7 @@ const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,...PARAMS})[k
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 const NF=n=>(+n).toLocaleString("en-US");
 const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
-const APP_BUILD="b0819-85";
+const APP_BUILD="b0819-86";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1778,6 +1796,7 @@ function renderTh(){
 }
 let rcRows=[],rcLoaded="";
 function renderRecipeEditor(){
+  renderRcCheck();
   const sel=document.getElementById("rcSel");if(!sel)return;
   if(!sel.dataset.init){
     sel.innerHTML=RECIPE_DEFS.map(r=>`<option value="${r.k}">${r.n}</option>`).join("");
