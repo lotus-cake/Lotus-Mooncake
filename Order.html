@@ -788,7 +788,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-84";
+const APP_BUILD="b0819-85";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1626,7 +1626,7 @@ function orderCard(o,forPickup){
     return `<div class="ocard ${o.store} pkcard ${o.pickedUp?"fin":""}" onclick="openDetail('${o.no}')">
       <div class="pkinfo">
         <div class="l1"><span class="ono">${o.no}</span><span class="oname">${esc(o.name)}</span>
-          ${o.parentNo?"":`<span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>`}${o.parentNo?`<span class="badge" style="background:#E4E9D5">子单·属 ${o.parentNo}</span>`:""}${(o.parentNo&&ORDERS[o.parentNo]&&ORDERS[o.parentNo].pay!=="已付")?'<span class="badge" style="background:var(--danger);color:#fff">母单未付·取货锁定</span>':""}${!o.parentNo&&o.status!=="有效"&&(paidOf(o)>0||o.pay==="已付")?(o.refunded?'<span class="badge" style="background:#DCE8D8;color:#3F6B3F">已退款✓</span>':'<span class="badge duepay">待退款</span>'):""}${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}${o.dueNote?`<span class="badge due">待收:${esc(o.dueNote)}</span>`:""}${o.exception?'<span class="badge exc">例外</span>':""}</div>
+          ${o.parentNo?"":`<span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>`}${o.parentNo?`<span class="badge" style="background:#E4E9D5">子单·属 ${o.parentNo}</span>`:""}${(o.parentNo&&ORDERS[o.parentNo]&&ORDERS[o.parentNo].pay!=="已付")?'<span class="badge" style="background:var(--danger);color:#fff">母单未付·取货锁定</span>':""}${!o.parentNo&&o.status!=="有效"&&(paidOf(o)>0||o.pay==="已付")?(o.refunded?'<span class="badge" style="background:#DCE8D8;color:#3F6B3F">已退款✓</span>':'<span class="badge duepay">待退款</span>'):""}${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}${(o.dueNote&&dueAmt(o)>EPS)?`<span class="badge due">待收:${esc(o.dueNote)}</span>`:""}${o.exception?'<span class="badge exc">例外</span>':""}</div>
         <div class="oitems">${items}(${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}${o.parentNo?' · <span class="z">付款随母单</span>':(o.amount!=null?" · "+money(o.amount):"")})</div>
         <div class="ometa">${esc(fmtPhone(o.phone)||"")} ${cleanNotes(o.notes)?" · "+esc(cleanNotes(o.notes)):""}</div>
       </div>
@@ -1644,7 +1644,7 @@ function orderCard(o,forPickup){
       <span class="badge ${o.store}">${STORE_NAME[o.store]||o.store}</span>
       <span class="badge st-${o.status}">${o.status==="已取消"?"Cancel":o.status}</span>
       ${o.parentNo?"":`<span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>`}${o.parentNo?`<span class="badge" style="background:#E4E9D5">子单·属 ${o.parentNo}</span>`:""}${(o.parentNo&&ORDERS[o.parentNo]&&ORDERS[o.parentNo].pay!=="已付")?'<span class="badge" style="background:var(--danger);color:#fff">母单未付·取货锁定</span>':""}${!o.parentNo&&o.status!=="有效"&&(paidOf(o)>0||o.pay==="已付")?(o.refunded?'<span class="badge" style="background:#DCE8D8;color:#3F6B3F">已退款✓</span>':'<span class="badge duepay">待退款</span>'):""}${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}
-      ${o.dueNote?`<span class="badge due">待收:${esc(o.dueNote)}</span>`:""}
+      ${(o.dueNote&&dueAmt(o)>EPS)?`<span class="badge due">待收:${esc(o.dueNote)}</span>`:""}
       ${bat}${o.exception?'<span class="badge exc">例外</span>':""}
       ${o.pickedUp?'<span class="badge st-有效">已取</span>':""}
     </div>
@@ -1742,7 +1742,7 @@ function openDetail(no){
   const kidsAll=Object.values(ORDERS).filter(c=>c.parentNo===o.no&&c.status==="有效");
   const dashHtml="";
   openModal(mhead(`${no} 订单详情`)+dashHtml+`
-    ${o.dueNote?`<div class="ai-banner" style="border-color:#E5C9C9;margin-bottom:10px">
+    ${(o.dueNote&&dueAmt(o)>EPS)?`<div class="ai-banner" style="border-color:#E5C9C9;margin-bottom:10px">
       <b style="color:var(--danger)">待收:${esc(o.dueNote)}</b>
       <button class="btn small" style="margin-left:10px" onclick="clearDue('${no}')">已收清差额</button>
     </div>`:""}
@@ -2617,7 +2617,7 @@ function openMarkPaid(no){
     if(pm==="Credit Card"&&!ref)return toast("Credit Card 必须填写收据号");
     const staff=getStaff();if(!staff)return;
     const bk=(pm==="现金")?nickel(+o.amount||0):Math.round((+o.amount||0)*100)/100;
-    patchOrder(no,{pay:"已付",payMethod:pm,backendNo:ref,paid:bk,paidAt:Date.now(),
+    patchOrder(no,{pay:"已付",payMethod:pm,backendNo:ref,paid:bk,paidAt:Date.now(),dueNote:null,dueQty:null,dueNegAmt:null,duePlan:null,
       channel:pm==="Square Online"?"Square Online":o.channel},
       ()=>{logOp(no,staff,"标记已收款",`${money(bk)} · ${pm}${ref?" · "+ref:""}`);
         addLedger({orderNo:no,type:"订单收款",pm,amt:bk,staff,ref:ref||null});
