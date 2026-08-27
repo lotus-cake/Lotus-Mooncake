@@ -410,8 +410,10 @@ let RECIPES={};     // v1/prod/recipes {recipeKey:{matKey:每份用量}}
 function allRaw(){
   return [...DEFAULT_RAW,...Object.entries(RAWCUSTOM).map(([k,v])=>({k,n:v.n,u:v.u||"g",gr:v.gr||v.g||"aux"}))];
 }
-const RAWN=k=>{const m=allRaw().find(x=>x.k===k);return m?m.n:k;};
-const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
+const SEMI_INGS=[{k:"semi_lava",n:"金沙流心液(共用池)",u:"g"}];
+const SEMI=k=>SEMI_INGS.find(x=>x.k===k);
+const RAWN=k=>{const s=SEMI(k);if(s)return "半成品·"+s.n;const m=allRaw().find(x=>x.k===k);return m?m.n:k;};
+const RAWU=k=>{const s=SEMI(k);if(s)return s.u;const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const RECIPE_DEFS=[
   ...FLAVORS.map(f=>({k:"paste_"+f.k,n:f.n+"馅(每份配方)"})),
   ...FLAVORS.map(f=>({k:"lava_"+f.k,n:f.n+"流心(每份配方)"})),
@@ -474,7 +476,7 @@ const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,...PARAMS})[k
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 const NF=n=>(+n).toLocaleString("en-US");
 const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
-const APP_BUILD="b0819-82";
+const APP_BUILD="b0819-83";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -589,7 +591,7 @@ function calcStock(recsOverride){
   (recsOverride||Object.values(RECS)).slice().sort((a,b)=>(a.ts||0)-(b.ts||0)).forEach(r=>{
     if(r.voided)return;
     const f=r.flavor,g=+r.good||0,i=+r.inQ||0;
-    if(r.rawUse)Object.entries(r.rawUse).forEach(([k,v])=>{S.raw[k]=(S.raw[k]||0)-(+v||0);});
+    if(r.rawUse)Object.entries(r.rawUse).forEach(([k,v])=>{if(k==="semi_lava")S.lava.js=(S.lava.js||0)-(+v||0);else S.raw[k]=(S.raw[k]||0)-(+v||0);});
     switch(r.stage){
       case"paste": S.paste[f]+=g; break;
       case"bakeyolk": S.raw.yolkraw=(S.raw.yolkraw||0)-g; S.raw.yolk=(S.raw.yolk||0)+Math.round(g*PRM("yolkBagG")*10)/10; break;
@@ -982,7 +984,7 @@ function overdraw(rec){
   const S=calcStock(),out=[];
   const f=rec.flavor,g=rec.good,i=rec.inQ||0;
   const chk=(need,have,name)=>{if(need>have)out.push(`${name}:需要 ${need},现有 ${have}`);};
-  if(rec.rawUse)Object.entries(rec.rawUse).forEach(([k,v])=>chk(v,S.raw[k]||0,RAWN(k)+"("+RAWU(k)+")"));
+  if(rec.rawUse)Object.entries(rec.rawUse).forEach(([k,v])=>chk(v,(k==="semi_lava"?(S.lava.js||0):(S.raw[k]||0)),RAWN(k)+"("+RAWU(k)+")"));
   if(rec.stage==="rawuse")chk(g,S.raw[rec.raw]||0,RAWN(rec.raw)+"("+RAWU(rec.raw)+")");
   switch(rec.stage){
     case"fen":chk(i,S.paste[f]||0,FN(f)+"馅料(克)");break;
@@ -1087,13 +1089,13 @@ function renderRecForm(keepNums){
     const expTxt=(()=>{
       if(!portions)return"";
       if(curStage==="paste"&&y.g)return `<b>预计产出 ≈ ${Math.round(y.g*portions)} 克</b> · `;
-      if(curStage!=="paste"&&y.out)return `<b>预计产出 ≈ ${Math.round(y.out*portions)} 颗</b>(少于此数记配方耗损)· `;
+      if(curStage!=="paste"&&y.out)return `<b>预计产出 ≈ ${Math.round(y.out*portions)} ${curStage==="lava"?"克":"颗"}</b>(少于此数记配方耗损)· `;
       return "";})();
     hd.style.display="block";
     hd.innerHTML=expTxt+"按配方"+(portions?`×${portions}份将自动扣:`:"每份用料:")+"<br>"+
       Object.entries(rc.bom).map(([k,v])=>{
         const need=portions?Math.round(v*portions*100)/100:v;
-        const have=S2.raw[k]||0,lack=portions&&need>have;
+        const have=(k==="semi_lava"?(S2.lava.js||0):(S2.raw[k]||0)),lack=portions&&need>have;
         return `${RAWN(k)} ${need}${RAWU(k)}${lack?` <b style="color:var(--danger)">(现有${have})</b>`:""}`;
       }).join(" · ");
   };
@@ -1803,7 +1805,7 @@ function renderRecipeEditor(){
     drawRcRows();
     const rk=sel.value, y=YIELDS[rk]||{};
     const isPaste=rk.startsWith("paste_");
-    document.getElementById("rcYLabel").textContent=isPaste?"每份标准产出(克)":"每份标准产出(颗)";
+    document.getElementById("rcYLabel").textContent=(isPaste||sel.value.startsWith("lava_"))?"每份标准产出(克)":"每份标准产出(颗)";
     document.getElementById("rcGppWrap").style.display=isPaste?"":"none";
     document.getElementById("rcYOut").value=isPaste?(y.g||""):(y.out||"");
     document.getElementById("rcGpp").value=y.gpp||"";
@@ -1819,7 +1821,7 @@ function drawRcRows(){
   const el=document.getElementById("rcBody");if(!el)return;
   el.innerHTML=rcRows.length?rcRows.map((r,i)=>`
     <div class="kv" data-ri="${i}" style="gap:6px">
-      <select style="flex:1">${allRaw().map(m=>`<option value="${m.k}" ${m.k===r.k?"selected":""}>${m.n}(${m.u})</option>`).join("")}</select>
+      <select style="flex:1"><optgroup label="半成品">${SEMI_INGS.map(m=>`<option value="${m.k}" ${m.k===r.k?"selected":""}>${m.n}(${m.u})</option>`).join("")}</optgroup><optgroup label="原料">${allRaw().map(m=>`<option value="${m.k}" ${m.k===r.k?"selected":""}>${m.n}(${m.u})</option>`).join("")}</optgroup></select>
       <input type="number" min="0" step="0.1" value="${r.q||""}" placeholder="每份用量" style="width:100px;text-align:center">
       <button class="vbtn" onclick="syncRcRows();rcRows.splice(${i},1);drawRcRows()">✕</button>
     </div>`).join(""):'<div class="note">该配方还没有材料行 — 点「＋加一行」</div>';
@@ -1859,7 +1861,7 @@ document.getElementById("btnImp").addEventListener("click",()=>{
     RAWCUSTOM[k]=v;
     if(DB)DB.ref(DB_ROOT+"/prod/rawmats/"+k).set(v);
   });
-  const known=new Set(allRaw().map(m=>m.k));
+  const known=new Set(allRaw().map(m=>m.k));SEMI_INGS.forEach(s=>known.add(s.k));
   const missing=[];
   Object.entries(rc).forEach(([k,bom])=>{
     Object.keys(bom).forEach(mk=>{if(!known.has(mk))missing.push(k+"→"+mk);});
