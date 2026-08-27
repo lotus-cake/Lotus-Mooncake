@@ -425,7 +425,7 @@ function renderRcCheck(){
   let okN=0;
   const rows=RECIPE_DEFS.map(d=>{
     const bom=RECIPES[d.k]||{},nL=Object.keys(bom).length;
-    const y=YIELDS[d.k]||{},hasOut=+y.out>0;
+    const y=YIELDS[d.k]||{},isP0=d.k.startsWith("paste_"),hasOut=isP0?(+y.g>0):(+y.out>0);
     const isPaste=d.k.startsWith("paste_"),hasGpp=!isPaste||(+y.gpp>0);
     const full=nL>0&&hasOut&&hasGpp;if(full)okN++;
     const col=nL===0?"var(--danger)":(full?"var(--ok)":"#B08830");
@@ -494,7 +494,7 @@ const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,...PARAMS})[k
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 const NF=n=>(+n).toLocaleString("en-US");
 const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
-const APP_BUILD="b0819-86";
+const APP_BUILD="b0819-87";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
