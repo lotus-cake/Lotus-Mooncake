@@ -258,7 +258,7 @@ table.sum .z{color:#C9C6B4}
       <div><label class="f">付款状态</label>
         <select id="fPay"><option>未付</option><option>已付</option><option>部分付</option><option>到店付</option></select></div>
       <div><label class="f">付款方式</label>
-        <select id="fPayM"><option value="">—</option><option>Square</option><option>AlphaPay(微信&支付宝)</option><option>现金</option><option>EMT</option><option>SL WeChat</option><option>其它</option></select></div>
+        <select id="fPayM"><option value="">—</option><option>Square</option><option>AlphaPay(微信&支付宝)</option><option>Gift Card</option><option>现金</option><option>EMT</option><option>SL WeChat</option><option>其它</option></select></div>
     </div>
     <div id="fPaidWrap" style="display:none">
       <label class="f">已收金额 $ *(部分付时填实际已收)</label>
@@ -587,7 +587,7 @@ const FLAVORS = [
   {k:"cp",n:"陈皮红豆"},{k:"mk",n:"摩卡"},{k:"wl",n:"乌龙"},
 ];
 const STORE_NAME = {CAM:"Cambie", BBY:"Burnaby", ALD:"Alderbridge"};
-const PAY_METHODS = ["Square","AlphaPay(微信&支付宝)","现金","EMT","SL WeChat","其它"];
+const PAY_METHODS = ["Square","AlphaPay(微信&支付宝)","Gift Card","现金","EMT","SL WeChat","其它"];
 const DEFAULT_PRICES = {p6:88, p6cash:80, p2:28, bb2:28, emp:0.9,
   promos:[{buy:10,free:1},{buy:20,free:3},{buy:30,free:5}]};
 let PRICES = {...DEFAULT_PRICES};
@@ -674,7 +674,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-83";
+const APP_BUILD="b0819-84";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
