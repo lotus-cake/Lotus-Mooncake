@@ -788,7 +788,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-87";
+const APP_BUILD="b0819-88";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1840,15 +1840,16 @@ window.openDayClose=()=>{
   const byPm={};
   rows.forEach(r=>{const pm=pmDisp(r.pm||"—");byPm[pm]=byPm[pm]||{inn:0,out:0};
     if((+r.amt||0)>=0)byPm[pm].inn+=+r.amt;else byPm[pm].out+=-r.amt;});
-  const lines=Object.entries(byPm).map(([pm,v])=>{
+  const pmEntries=isOwner?Object.entries(byPm):Object.entries(byPm).filter(([pm])=>pm==="现金");
+  const lines=pmEntries.map(([pm,v])=>{
     const net=Math.round((v.inn-v.out)*100)/100;
-    return `<div class="kv"><span>${esc(pm)}</span><b>收 ${money(Math.round(v.inn*100)/100)}${v.out?` · 退 ${money(Math.round(v.out*100)/100)}`:""} · 净 ${money(net)}</b></div>`;}).join("")||'<p class="note">今日本店暂无钱账流水</p>';
+    return `<div class="kv"><span>${esc(pm)}</span><b>收 ${money(Math.round(v.inn*100)/100)}${v.out?` · 退 ${money(Math.round(v.out*100)/100)}`:""} · 净 ${money(net)}</b></div>`;}).join("")||`<p class="note">今日本店暂无${isOwner?"":"现金"}钱账流水</p>`;
   const cashNet=Math.round((((byPm["现金"]||{}).inn||0)-((byPm["现金"]||{}).out||0))*100)/100;
   const total=Math.round(Object.values(byPm).reduce((s,v)=>s+v.inn-v.out,0)*100)/100;
   openModal(mhead(`日结 · ${STORE_NAME[store]||store} · ${D}`)+`
     ${cur&&cur.locked?`<p class="note" style="color:var(--danger)">本日已锁定(${esc(cur.staff||"")} ${cur.t||""});实点现金 ${money(cur.cashCounted)} · 差额 ${money(cur.diff)}</p>`:""}
     ${lines}
-    <div class="kv"><span><b>净收款合计</b></span><b>${money(total)}</b></div>
+    ${isOwner?`<div class="kv"><span><b>净收款合计</b></span><b>${money(total)}</b></div>`:`<p class="note">其它支付方式已自动入账,明细仅 Owner 可见</p>`}
     <div class="kv"><span>应有现金增量</span><b>${money(cashNet)}</b></div>
     ${!cur||!cur.locked?`
     <label class="f">实点现金 $ *</label>
