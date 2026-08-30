@@ -288,6 +288,8 @@ table.sum tr.today td{background:#FBF3DF;font-weight:700}
     <button class="btn small" id="btnPrmSave" style="margin-top:10px">保存参数</button>
   </div>
   <div class="card">
+    <div class="note" style="margin:0 0 4px"><b>配方体检</b>(对照数据库真账;缺=红)</div>
+    <div id="rcCheck" style="margin-bottom:14px"></div>
     <div class="note" style="margin:0 0 4px"><b>配方 BOM</b>(录了克数,对应工序填份数就自动扣原料)</div>
     <select id="rcSel" style="margin-top:6px"></select>
     <div id="rcBody" style="margin-top:6px"></div>
@@ -392,6 +394,7 @@ const MATN=k=>(MATS.find(m=>m.k===k)||{}).n||k;
 const RAW_GROUPS=[["semi","半成品"],["fs","共同·粉糖类"],["re","共同·乳蛋油"],["fl","口味专属"],["aux","辅料/其它"]];
 const DEFAULT_RAW=[
   {k:"yolk",n:"熟咸蛋黄(半成品)",u:"g",gr:"semi"},
+  {k:"redpuree",n:"红豆泥(半成品)",u:"g",gr:"semi"},
   {k:"yolkraw",n:"生咸蛋黄",u:"包",gr:"re"},
   {k:"cakeflour",n:"低筋面粉",u:"g",gr:"fs"},
   {k:"sugar",n:"糖",u:"g",gr:"fs"},{k:"icing",n:"糖粉",u:"g",gr:"fs"},
@@ -418,6 +421,22 @@ const RECIPE_DEFS=[
   ...FLAVORS.map(f=>({k:"paste_"+f.k,n:f.n+"馅(每份配方)"})),
   ...FLAVORS.map(f=>({k:"lava_"+f.k,n:f.n+"流心(每份配方)"})),
   ...FLAVORS.map(f=>({k:"skin_"+f.k,n:f.n+"曲奇皮(每份配方)"}))];
+function renderRcCheck(){
+  const el=document.getElementById("rcCheck");if(!el)return;
+  let okN=0;
+  const rows=RECIPE_DEFS.map(d=>{
+    const bom=RECIPES[d.k]||{},nL=Object.keys(bom).length;
+    const y=YIELDS[d.k]||{},isP0=d.k.startsWith("paste_"),hasOut=isP0?(+y.g>0):(+y.out>0);
+    const isPaste=d.k.startsWith("paste_"),hasGpp=!isPaste||(+y.gpp>0);
+    const full=nL>0&&hasOut&&hasGpp;if(full)okN++;
+    const col=nL===0?"var(--danger)":(full?"var(--ok)":"#B08830");
+    const st=nL===0?"✗ 未录 BOM":(full?("✓ "+nL+" 项"+(isPaste?(" · "+y.gpp+"g/颗"):"")):("⚠ BOM "+nL+" 项,缺"+(!hasOut?"产出":"")+((!hasOut&&!hasGpp)?"+":"")+(!hasGpp?"克/颗":"")));
+    const semiHint=(d.k==="lava_tr"||d.k==="lava_mk"||d.k==="lava_wl")&&nL===0?'<span style="color:var(--muted)">(可用:半成品·流心液+风味料)</span>':"";
+    return `<div class="kv"><span>${d.n}${semiHint}</span><b style="color:${col}">${st}</b></div>`;
+  }).join("");
+  el.innerHTML=`<div class="kv"><span><b>总览</b></span><b>${okN}/${RECIPE_DEFS.length} 齐备</b></div>`+rows+
+    `<div class="note" style="margin-top:4px">参数:每模 ${PRM("perMold")} 颗 · 内芯 ${PRM("coreG")} g · 分馅默认 ${PRM("fenG")} g/颗(馅配方可各自覆盖)</div>`;
+}
 const RECIPE_STAGE={paste:"paste_",lava:"lava_",skin:"skin_"};
 function recipeFor(stage,flavor){
   const rk=RECIPE_STAGE[stage]?RECIPE_STAGE[stage]+flavor:null;
@@ -427,6 +446,7 @@ function recipeFor(stage,flavor){
 }
 const STAGES=[
   {k:"bakeyolk",n:"烤咸蛋黄",g:1, flavor:false, unit:"包"},
+  {k:"cookpuree",n:"煮红豆泥",g:1, flavor:false, unit:"批"},
   {k:"paste", n:"炒馅",     g:1, flavor:true,  unit:"克"},
   {k:"fen",   n:"分馅",     g:1, flavor:true,  unit:"颗"},
   {k:"lava",  n:"流心制作", g:1, flavor:true,  unit:"克"},
@@ -472,11 +492,11 @@ function flavorPieces(qty){
 let DB=null, RECS={}, ORDERS={}, TH={}, PLAN={}, WPLAN={}, TARGETS={}, YIELDS={}, PARAMS={};
 const CORE_SHARE={mk:"js",wl:"js"};
 const CG=f=>CORE_SHARE[f]||f;
-const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,...PARAMS})[k];
+const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,pureeBeanG:680,pureeChenpiG:15,pureeOutG:2300,...PARAMS})[k];
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 const NF=n=>(+n).toLocaleString("en-US");
 const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
-const APP_BUILD="b0819-85";
+const APP_BUILD="b0819-89";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -595,6 +615,7 @@ function calcStock(recsOverride){
     switch(r.stage){
       case"paste": S.paste[f]+=g; break;
       case"bakeyolk": S.raw.yolkraw=(S.raw.yolkraw||0)-g; S.raw.yolk=(S.raw.yolk||0)+Math.round(g*PRM("yolkBagG")*10)/10; break;
+      case"cookpuree": S.raw.redbean=(S.raw.redbean||0)-g*PRM("pureeBeanG"); S.raw.chenpi=(S.raw.chenpi||0)-g*PRM("pureeChenpiG"); S.raw.redpuree=(S.raw.redpuree||0)+((+r.puree>0)?+r.puree:g*PRM("pureeOutG")); break;
       case"fen":   if(r.remain!=null){S.fen[f]+=g;S.paste[f]=+r.remain;} else {S.paste[f]-=i; S.fen[f]+=g;} break;
       case"lava":  S.lava[CG(f)]+=g; break;
       case"fill":  S.core[CG(f)]+=g*PRM("perMold")+(+r.extra||0); if(r.remain!=null)S.lava[CG(f)]=+r.remain; else S.lava[CG(f)]-=(+r.used||0); break;
@@ -834,7 +855,7 @@ function renderDash(){
       }
       const sn=SN(it.stage)||it.stage;
       const fl=it.flavor&&(STAGES.find(s=>s.k===it.stage)||{}).flavor!==false?FN(it.flavor)+" ":"";
-      const u=["paste","lava","skin"].includes(it.stage)?"份":it.stage==="fill"?"模":it.stage==="bakeyolk"?"包":"颗";
+      const u=["paste","lava","skin"].includes(it.stage)?"份":it.stage==="fill"?"模":it.stage==="bakeyolk"?"包":it.stage==="cookpuree"?"批":"颗";
       const dn=doneOf(it);
       const st=dn>=it.qty?'<span class="okrow">✓ 完成</span>':(dn>0?`<b class="warnrow">${dn}/${it.qty}</b>`:'<span class="z">未开始</span>');
       return `<div class="wlog"><span>· ${sn} ${fl}${it.qty}${u}</span><b>${st}</b></div>`;
@@ -991,6 +1012,7 @@ function overdraw(rec){
     case"wrap1":chk(i,S.fen[f]||0,FN(f)+"馅球");chk(i,S.core[CG(f)]||0,(CORE_SHARE[f]?"共用":FN(f))+"冻芯");break;
     case"wrap2":chk(i,S.skin[f]||0,FN(f)+"曲奇皮");chk(i,S.lxx[f]||0,FN(f)+"流心馅");break;
     case"bakeyolk":chk(rec.good,S.raw.yolkraw||0,"生咸蛋黄(包)");break;
+    case"cookpuree":chk(rec.good*PRM("pureeBeanG"),S.raw.redbean||0,"红豆(g)");chk(rec.good*PRM("pureeChenpiG"),S.raw.chenpi||0,"陈皮(g)");break;
     case"fill":if(rec.remain>(S.lava[f]||0))out.push(`剩余液(${rec.remain}g)比系统现有(${S.lava[f]||0}g)还多 — 之前可能少记了流心制作,保存将按你填的校准`);break;
     case"fen":if(rec.remain>(S.paste[f]||0))out.push(`剩余馅(${rec.remain}g)比系统现有(${S.paste[f]||0}g)还多 — 保存将按你填的校准`);break;
     case"mold":chk(i,S.wet[f]||0,FN(f)+"未压模");break;
@@ -1036,6 +1058,10 @@ function renderRecForm(keepNums){
     const raw=S.raw.yolkraw||0;
     h+=`<div><label class="f">烤了几包 *</label><input type="number" id="rGood" min="0" step="0.5" inputmode="decimal"></div>
         <div class="hintbox">生咸蛋黄现有 ${fmtYolkRaw(raw)};烤好按 1包=${PRM("yolkBagG")}g 计入「熟咸蛋黄」,之后盘点校准。</div>`;
+  }else if(curStage==="cookpuree"){
+    h+=`<div class="row"><div><label class="f">煮了几批 *</label><input type="number" id="rGood" min="0" step="0.5" inputmode="decimal"></div>
+        <div><label class="f">实际出泥(克,选填)</label><input type="number" id="rPuree" min="0" inputmode="numeric"></div></div>
+        <div class="hintbox">现有:红豆 ${Math.round(S.raw.redbean||0)}g · 陈皮 ${Math.round(S.raw.chenpi||0)}g。每批扣红豆 ${PRM("pureeBeanG")}g + 陈皮 ${PRM("pureeChenpiG")}g,标准出泥 ${PRM("pureeOutG")}g/批;填实际总出量则按实际入池。</div>`;
   }else if(curStage==="paste"){
     h+=`<div class="row"><div><label class="f">配方份数(填了自动扣原料)</label><input type="number" id="rIn" min="0" inputmode="decimal"></div>
         <div><label class="f">完成重量(克) *</label><input type="number" id="rGood" min="0" inputmode="numeric"></div></div>
@@ -1211,6 +1237,9 @@ function renderRecForm(keepNums){
     else if(curStage==="bakeyolk"){rec.waste=0;
       const short=[];if((S.raw.yolkraw||0)<good)short.push(`生咸蛋黄:需要${good}包,现有${fmtYolkRaw(S.raw.yolkraw||0)}`);
       rec._short=short;}
+    else if(curStage==="cookpuree"){rec.waste=0;
+      const pv=parseFloat((document.getElementById("rPuree")||{}).value);
+      if(pv>0)rec.puree=Math.round(pv);}
     else if(curStage==="fen"){
       const rm=parseFloat((document.getElementById("rRemain")||{}).value);
       if(isNaN(rm))return toast("请填剩余馅克数(称一下盆里剩的)");
@@ -1778,6 +1807,7 @@ function renderTh(){
 }
 let rcRows=[],rcLoaded="";
 function renderRecipeEditor(){
+  renderRcCheck();
   const sel=document.getElementById("rcSel");if(!sel)return;
   if(!sel.dataset.init){
     sel.innerHTML=RECIPE_DEFS.map(r=>`<option value="${r.k}">${r.n}</option>`).join("");
