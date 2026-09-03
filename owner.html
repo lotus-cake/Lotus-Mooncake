@@ -238,8 +238,8 @@ table.sum .z{color:#C9C6B4}
       <button data-v="CAM">Cambie</button><button data-v="BBY">Burnaby</button><button data-v="ALD">Alderbridge</button>
     </div>
     <div id="fDateWrap">
-      <label class="f">取货日期 *(9/4 – 9/30)</label>
-      <input type="date" id="fDate" min="2026-09-04" max="2026-09-30" value="2026-09-04">
+      <label class="f">取货日期 *(9/3 – 9/27)</label>
+      <input type="date" id="fDate" min="2026-09-03" max="2026-09-27" value="2026-09-03">
     </div>
   </div>
 
@@ -552,7 +552,7 @@ const firebaseConfig = {
   messagingSenderId: "1061048356919",
   appId: "1:1061048356919:web:d91f819b897ff1710fefb2"
 };
-const DB_ROOT = "v1";  // 正式账本(发版器自动写入)
+const DB_ROOT = "v1";  // 生产链已上线,记的是真账
 const OWNER_PIN   = "0000"; // ★ Owner 访问码 — 部署前务必修改
 const ACCESS_CODES = {       // ★ 各角色访问码 — 部署前全部修改
   CAM:  "1111",   // Cambie 门店
@@ -562,7 +562,7 @@ const ACCESS_CODES = {       // ★ 各角色访问码 — 部署前全部修改
   OWNER: OWNER_PIN
 };
 const PROXY_URL   = "";     // 识别中转地址(后续配置)
-const DATE_MIN = "2026-09-04", DATE_MAX = "2026-09-30", PREPAY_FROM = "2026-09-24";
+const DATE_MIN = "2026-09-03", DATE_MAX = "2026-09-27", PREPAY_FROM = "2026-09-24";
 /* ================================================================ */
 
 const PRODUCTS = [
@@ -674,7 +674,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-89";
+const APP_BUILD="b0819-90";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1048,7 +1048,7 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
   if(!fStoreVal)return toast("请选取货门店");
   if(!fBatch){
     if(!date)return toast("请选取货日期");
-    if(date<DATE_MIN||date>DATE_MAX)return toast("取货日期须在 9/4 – 9/30");
+    if(date<DATE_MIN||date>DATE_MAX)return toast("取货日期须在 9/3 – 9/27");
   }
   if(total===0)return toast("请选择至少一件产品");
   if(payM==="其它"&&!payOther)return toast("选「其它」付款方式需填写说明");
@@ -1342,7 +1342,7 @@ function saveEdit(o){
     notes:document.getElementById("eNote").value.trim(),updatedAt:Date.now()};
   if(!o.batch){
     const nd=document.getElementById("eDate").value;
-    if(nd<DATE_MIN||nd>DATE_MAX)return toast("取货日期须在 9/4 – 9/30");
+    if(nd<DATE_MIN||nd>DATE_MAX)return toast("取货日期须在 9/3 – 9/27");
     patch.pickupDate=nd;
   }
   const diffs=[];
@@ -1573,7 +1573,7 @@ function openSplit(no){
     if(mv===0)return toast("请选择拆出的数量");
     if(mv>=o.boxes)return toast("不能全部拆走,全改日期请用「改期」");
     const nd=document.getElementById("spDate").value;
-    if(!nd||nd<DATE_MIN||nd>DATE_MAX)return toast("日期须在 9/4 – 9/30");
+    if(!nd||nd<DATE_MIN||nd>DATE_MAX)return toast("日期须在 9/3 – 9/27");
     const staff=getStaff(); if(!staff)return;
     const remain={...o.qty};
     Object.keys(sQty).forEach(k=>{remain[k]-=sQty[k]; if(!remain[k])delete remain[k];});
