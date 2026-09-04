@@ -414,6 +414,10 @@ table.sum .z{color:#C9C6B4}
   <div class="seg" id="pendSeg" style="margin:0 0 8px">
     <button data-v="in" class="on">待收款</button><button data-v="out">待退款</button>
   </div>
+  <div id="ownerTools" style="display:none;margin:0 0 10px;gap:8px">
+    <button class="btn small ghost" id="btnCredit2" style="flex:1">挂账清单(Owner)</button>
+    <button class="btn small ghost" id="btnLgFix2" style="flex:1">台账补录 / 更正(Owner)</button>
+  </div>
   <div class="note" id="pendHint" style="margin:-4px 0 8px">按取货日期排序;取货<b>前一天 17:00</b> 未收到款自动标红。</div><div id="pendUrgent"></div>
   <div id="pendList"></div>
 </div>
@@ -791,7 +795,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-92";
+const APP_BUILD="b0819-93";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1268,6 +1272,7 @@ function applyRole(){
     payUIRefresh();
   }
   navBtn("set").style.display="none"; // Owner 功能已移至独立 owner.html
+  {const ot=document.getElementById("ownerTools");if(ot)ot.style.display=(ROLE&&ROLE.type==="owner")?"flex":"none";}
   if(isStore){
     const st=ROLE.store;
     fStoreVal=st; // #2: 三店可选,默认登录店
@@ -3967,7 +3972,7 @@ function setCredit(no,on){
   patchOrder(no,{unpaidPlan:on?CREDIT_PLAN:null},()=>{logOp(no,st,on?"转为 Owner 挂账":"取消 Owner 挂账","");renderAll();openCreditList();});
 }
 document.getElementById("btnCredit").addEventListener("click",openCreditList);
-document.getElementById("btnLgFix").addEventListener("click",()=>{
+function openLedgerFix(){
   if(!(ROLE&&ROLE.type==="owner"))return toast("仅 Owner 可补录台账");
   let lst="CAM";
   openModal(mhead("台账补录 / 更正")+`
@@ -3992,7 +3997,10 @@ document.getElementById("btnLgFix").addEventListener("click",()=>{
     logOp(on||("SYS-"+lst),st,"台账补录",`${STORE_NAME[lst]} ${d} ${type} ${pm} ${type==="退款"?"−":"+"}$${amt} · ${note}`);
     toast("已写入台账");closeModal();renderAll();
   };
-});
+}
+document.getElementById("btnLgFix").addEventListener("click",openLedgerFix);
+document.getElementById("btnLgFix2").addEventListener("click",openLedgerFix);
+document.getElementById("btnCredit2").addEventListener("click",openCreditList);
 document.getElementById("btnOpWp").addEventListener("click",()=>{
   const D=todayStr(),M=tomorrowStr();
   let wd=calSel>=D?calSel:D,wst="CAM";
