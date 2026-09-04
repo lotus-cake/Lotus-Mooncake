@@ -362,7 +362,7 @@ const firebaseConfig = {
   messagingSenderId: "1061048356919",
   appId: "1:1061048356919:web:d91f819b897ff1710fefb2"
 };
-const DB_ROOT = "beta";  // beta沙盘(发版器自动写入)
+const DB_ROOT = "beta";  // 生产链已上线,记的是真账
 const ACCESS_CODES = {   // ★ 部署前修改
   KITCHEN: "7777",       // 厨房通用
   OWNER:   "0000"        // 和订单App的 Owner 码保持一致
@@ -496,7 +496,7 @@ const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,pureeBeanG:68
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 const NF=n=>(+n).toLocaleString("en-US");
 const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
-const APP_BUILD="b0819-89";
+const APP_BUILD="b0819-91";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
