@@ -795,7 +795,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-95";
+const APP_BUILD="b0819-96";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -3086,11 +3086,13 @@ function renderArrive(){
   if(!(ROLE&&ROLE.type==="store")){el.style.display="none";return;}
   const st=ROLE.store,d=todayStr();
   const plan=planForStore(d,st);
-  const prods=WALKIN_PRODUCTS.filter(p=>((plan.ord[p.k]||0)+(plan.walk[p.k]||0))>0);
+  const shp=shippedFor(d,st),shipQ={};WALKIN_PRODUCTS.forEach(p=>{const v=(shp["订单"][p.k]||0)+(shp["现货"][p.k]||0);if(v)shipQ[p.k]=v;});
+  const prods=WALKIN_PRODUCTS.filter(p=>((plan.ord[p.k]||0)+(plan.walk[p.k]||0))>0||(shipQ[p.k]||0)>0);
   if(!prods.length){el.style.display="none";return;}
   el.style.display="";
   const done=todayRecvRec(st,d);
   const body=document.getElementById("arriveBody");
+  const delta={};let deltaTot=0;if(done){WALKIN_PRODUCTS.forEach(p=>{const v=(shipQ[p.k]||0)-((done.qty||{})[p.k]||0);if(v>0){delta[p.k]=v;deltaTot+=v;}});}
   if(done&&!window._arrEdit){
     const sellable=WALKIN_PRODUCTS.filter(p=>((done.qty||{})[p.k]||0)>0||((plan.ord[p.k]||0)>0)).map(p=>{
       const got=(done.qty||{})[p.k]||0,need=plan.ord[p.k]||0,sell=Math.max(0,got-need);
@@ -3098,13 +3100,14 @@ function renderArrive(){
     body.innerHTML=`<div class="kv"><span>状态</span><b class="${done.status==="已收到,数量正确"?"okrow":"warnrow"}">${esc(done.status)} · ${esc(done.staff||"")}</b></div>
       ${done.note?`<div class="note">${esc(done.note)}</div>`:""}
       ${sellable}
-      <button class="btn small ghost" style="margin-top:6px" onclick="window._arrEdit=1;renderArrive()">修改点收</button>`;
+      ${deltaTot?`<div class="ai-banner" style="margin-top:8px"><b>补发已交接:新到 +${deltaTot} 盒待点收</b><br><span class="z">${Object.entries(delta).map(([k,v])=>((PRODUCTS.find(p=>p.k===k)||{n:k}).n)+" +"+v).join(" · ")}</span><br><button class="btn small" style="margin-top:6px" onclick="window._arrEdit=1;window._arrPre=1;renderArrive()">补点收(累计数已预填)</button></div>`:""}
+      <button class="btn small ghost" style="margin-top:6px" onclick="window._arrEdit=1;window._arrPre=0;renderArrive()">修改点收</button>`;
     return;
   }
   body.innerHTML=prods.map(p=>{
     const exp=(plan.ord[p.k]||0)+(plan.walk[p.k]||0);
     return `<div class="kv"><span>${p.n} <span class="z">应到 ${exp}(订单${plan.ord[p.k]||0}+现货${plan.walk[p.k]||0})</span></span>
-      <input type="number" class="arrIn" data-k="${p.k}" value="${(done&&done.qty&&done.qty[p.k])!=null?done.qty[p.k]:exp}" min="0" style="width:72px;text-align:center"></div>`;
+      <input type="number" class="arrIn" data-k="${p.k}" value="${window._arrPre&&done?(((done.qty||{})[p.k]||0)+(delta[p.k]||0)):((done&&done.qty&&done.qty[p.k])!=null?done.qty[p.k]:exp)}" min="0" style="width:72px;text-align:center"></div>`;
   }).join("")+`
     <label class="f">收货状态 *</label>
     <select id="arrStatus"><option>已收到,数量正确</option><option>已收到,但数量不符</option><option>部分收到</option><option>未收到</option><option>其他异常</option></select>
@@ -3128,7 +3131,7 @@ function renderArrive(){
     if(DB)DB.ref(DB_ROOT+"/walkin/"+st+"/receipts/"+(rk||"a"+Date.now())).set(rrec);
     else{WALKIN[st]=WALKIN[st]||{receipts:{},sales:{}};(WALKIN[st].receipts=WALKIN[st].receipts||{})[rk||"a"+Date.now()]=rrec;}
     logOp("SYS-"+st,staff,"今日到货确认",`${st} ${Object.entries(qty).map(([k,v])=>((PRODUCTS.find(p=>p.k===k)||{n:k}).n)+"×"+v).join(" ")} · ${status}${note?" · "+note:""}`);
-    window._arrEdit=0;toast("已确认收货,现货已自动入账");renderAll();
+    window._arrEdit=0;window._arrPre=0;toast("已确认收货,现货已自动入账");renderAll();
   };
 }
 
@@ -3459,6 +3462,11 @@ function kitchenGiftStock(){ // 与厨房端 calcStock 同口径:装盒 + 盘点
     else if(r.stage==="ship"&&r.product)s[r.product]=(s[r.product]||0)-g;
     else if(r.stage==="adjust"&&r.node==="gift"&&r.key)s[r.key]=(s[r.key]||0)+(+r.delta||0);});
   return s;}
+function shipBatches(d,st){ // 当日按车拆分:[{n,ts}]
+  return Object.values(PRODRECS||{}).filter(r=>r&&!r.voided&&r.stage==="ship"&&r.date===d&&r.store===st)
+    .sort((a,b)=>(a.ts||0)-(b.ts||0)).reduce((acc,r)=>{const t=+r.ts||0;const last=acc[acc.length-1];
+      if(last&&t-last.t<60000){last.n+=(+r.good||0);last.t=t;}else acc.push({t,n:+r.good||0});return acc;},[]);}
+function shipBatchTag(d,st){const b=shipBatches(d,st);if(b.length<2)return "";return `(${b.map((x,i)=>(i===0?"先发":"补发")+" "+x.n).join(" · ")})`;}
 function shippedFor(d,st){ // 已交接:按用途分
   const out={"订单":{},"现货":{}};
   Object.values(PRODRECS||{}).forEach(r=>{
@@ -3586,7 +3594,7 @@ function renderSum(){
     const ar=todayRecvRec(st,d);
     const rc=recvFor(d,st);
     const recvTot=ar?Object.values(ar.qty||{}).reduce((s,v)=>s+(+v||0),0):(rc.ob+rc.wb);
-    const shipTag=shipTot?`已交接 ${shipTot}盒${shipTot===need?" ✓":` <b style="color:var(--danger)">(应送${need})</b>`}`:`<span style="color:var(--bronze)">待交接(应送 ${need}盒)</span>`;
+    const shipTag=shipTot?`已交接 ${shipTot}盒${shipBatchTag(d,st)}${shipTot===need?" ✓":` <b style="color:var(--danger)">(应送${need})</b>`}`:`<span style="color:var(--bronze)">待交接(应送 ${need}盒)</span>`;
     const recvTag=(ar||recvTot)?`点收 ${recvTot}盒${ar?` · ${esc(ar.status||"")}`:""}${shipTot&&recvTot<shipTot?` <b style="color:var(--danger)">差${shipTot-recvTot}盒</b>`:(shipTot&&recvTot>=shipTot?" ✓":"")}${ar&&ar.note?`<br><span class="z">${esc(ar.note)}</span>`:""}`
       :(shipTot?`<span style="color:var(--bronze)">等门店点收</span>`:"");
     return `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px">
