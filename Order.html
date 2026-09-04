@@ -795,7 +795,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-96";
+const APP_BUILD="b0819-97";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -3195,10 +3195,13 @@ function togglePick(no){
     const mom=ORDERS[o.parentNo];
     if(mom&&mom.pay!=="已付")return toast(`母单 ${o.parentNo} 未付款(${mom.pay}),子单取货锁定;请先完成母单收款`);
   }
-  if(toDone && dueAmt(o)>0 && !o.parentNo){ settleDue(no,true); return; }
-  askStaff(toDone?`确认取货:${no}(${o.name})`:`改回未取:${no}`,staff=>{
-    patchOrder(no,{pickedUp:toDone,pickedAt:toDone?todayStr():null},()=>{
-      logOp(no,staff,toDone?"标记已取货":"改回未取","");
+  const credit=toDone&&isCredit(o);
+  if(toDone && dueAmt(o)>0 && !o.parentNo && !credit){ settleDue(no,true); return; }
+  askStaff(toDone?`确认取货:${no}(${o.name})${credit?" · Owner 挂账,不收款":""}`:`改回未取:${no}`,staff=>{
+    const patch={pickedUp:toDone,pickedAt:toDone?todayStr():null};
+    if(credit&&!o.exception)patch.exception={reason:CREDIT_PLAN+"(自动放行)",ts:Date.now(),by:staff};
+    patchOrder(no,patch,()=>{
+      logOp(no,staff,toDone?"标记已取货":"改回未取",credit?"Owner 挂账 · 未收款自动放行":"");
       toast(`${no} ${toDone?"已取货 ✓":"改回未取"}`);
     });
   });
