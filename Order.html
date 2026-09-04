@@ -795,7 +795,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-98";
+const APP_BUILD="b0819-99";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -3111,9 +3111,12 @@ function renderArrive(){
       <button class="btn small ghost" style="margin-top:6px" onclick="window._arrEdit=1;window._arrPre=0;renderArrive()">修改点收</button>`;
     return;
   }
-  body.innerHTML=prods.map(p=>{
-    const exp=(plan.ord[p.k]||0)+(plan.walk[p.k]||0);
-    return `<div class="kv"><span>${p.n} <span class="z">应到 ${exp}(订单${plan.ord[p.k]||0}+现货${plan.walk[p.k]||0})</span></span>
+  const hasShip=Object.keys(shipQ).length>0;
+  body.innerHTML=`<div class="note" style="margin:0 0 6px">${hasShip?"已按<b>客服记的交接数</b>预填(司机送来的数),请按实到核对;计划数仅供参考":"<b style=\"color:var(--danger)\">客服尚未记交接</b>,暂按计划数预填——请以实到为准"}</div>`+prods.map(p=>{
+    const planExp=(plan.ord[p.k]||0)+(plan.walk[p.k]||0),shipped=shipQ[p.k]||0;
+    const exp=hasShip?shipped:planExp;
+    const lbl=hasShip?`交接 <b>${shipped}</b>${shipped!==planExp?` <span style="color:var(--danger)">(计划${planExp})</span>`:` <span class="z">(=计划)</span>`}`:`计划 ${planExp}(订单${plan.ord[p.k]||0}+现货${plan.walk[p.k]||0})`;
+    return `<div class="kv"><span>${p.n} <span class="z">${lbl}</span></span>
       <input type="number" class="arrIn" data-k="${p.k}" value="${window._arrPre&&done?(((done.qty||{})[p.k]||0)+(delta[p.k]||0)):((done&&done.qty&&done.qty[p.k])!=null?done.qty[p.k]:exp)}" min="0" style="width:72px;text-align:center"></div>`;
   }).join("")+`
     <label class="f">收货状态 *</label>
