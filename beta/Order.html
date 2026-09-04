@@ -246,8 +246,8 @@ table.sum .z{color:#C9C6B4}
       <button data-v="CAM">Cambie</button><button data-v="BBY">Burnaby</button><button data-v="ALD">Alderbridge</button><button data-v="MULTI" id="fStoreMulti" style="display:none">多店取货</button>
     </div>
     <div id="fDateWrap">
-      <label class="f">取货日期 *(9/4 – 9/27)</label>
-      <input type="date" id="fDate" min="2026-09-04" max="2026-09-27" value="2026-09-04">
+      <label class="f">取货日期 *(9/3 – 9/27)</label>
+      <input type="date" id="fDate" min="2026-09-03" max="2026-09-27" value="2026-09-03">
       <label class="f" style="margin-top:8px">取货时间(可选)</label>
       <input type="time" id="fTime" step="600">
       <div class="note" id="fTimeWin"></div>
@@ -489,6 +489,7 @@ table.sum .z{color:#C9C6B4}
     <div id="calEditor" style="margin-top:10px"></div>
     <div class="row" style="margin-top:10px">
       <button class="btn small ghost" id="btnOpWp">安排门店现货</button>
+      <button class="btn small ghost" id="btnLgFix" style="margin-top:6px">台账补录 / 更正(Owner)</button>
     </div>
   </div>
   <div class="card">
@@ -604,7 +605,7 @@ const firebaseConfig = {
   messagingSenderId: "1061048356919",
   appId: "1:1061048356919:web:d91f819b897ff1710fefb2"
 };
-const DB_ROOT = "beta";  // beta沙盘(发版器自动写入)
+const DB_ROOT = "beta";  // ★ 正式账本(2026-08-25 上线)
 const OWNER_PIN   = "6390"; // ★ Owner 访问码 — 部署前务必修改
 const ACCESS_CODES = {       // ★ 各角色访问码 — 部署前全部修改
   CAM:  "4726",   // Cambie 门店
@@ -614,7 +615,7 @@ const ACCESS_CODES = {       // ★ 各角色访问码 — 部署前全部修改
   OWNER: OWNER_PIN
 };
 const PROXY_URL   = "";     // 识别中转地址(后续配置)
-const DATE_MIN = "2026-09-04", DATE_MAX = "2026-09-27", PREPAY_FROM = "2026-09-24";
+const DATE_MIN = "2026-09-03", DATE_MAX = "2026-09-27", PREPAY_FROM = "2026-09-24";
 const PICKUP_WIN={CAM:["11:30","19:00"],ALD:["11:30","19:00"],BBY:["13:00","20:00"]};
 function timeOk(st,t){if(!t)return true;const w=PICKUP_WIN[st];if(!w)return true;return t>=w[0]&&t<=w[1];}
 /* ================================================================ */
@@ -788,7 +789,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-89";
+const APP_BUILD="b0819-91";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -1397,6 +1398,7 @@ const NO_REF=m=>m==="SL"||m==="现金"||m==="微信";
 let fChStoreVal="";
 function payUIRefresh(){
   const pay=document.getElementById("fPay").value;
+  if(ROLE&&ROLE.type==="cs"){const _s=document.getElementById("fPayM");[..._s.options].forEach(op=>{if(op.text==="现金")op.remove();});}
   const pm=document.getElementById("fPayM").value;
   const ch=document.getElementById("fChan").value;
   const showPayFields=(pay==="已付"||pay==="部分付");
@@ -1512,7 +1514,7 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
   if(!fStoreVal)return toast("请选取货门店");
   if(!fBatch){
     if(!date)return toast("请选取货日期");
-    if(date<DATE_MIN||date>DATE_MAX)return toast("取货日期须在 9/4 – 9/27");
+    if(date<DATE_MIN||date>DATE_MAX)return toast("取货日期须在 9/3 – 9/27");
     {const tv=(document.getElementById("fTime")||{}).value||"";
      if(tv&&fStoreVal&&PICKUP_WIN[fStoreVal]&&!timeOk(fStoreVal,tv))return toast(`${STORE_NAME[fStoreVal]}取货时间窗 ${PICKUP_WIN[fStoreVal][0]}–${PICKUP_WIN[fStoreVal][1]}`);}
   }
@@ -1958,7 +1960,7 @@ function openEdit(no){
         <div id="eDuePlanWrap" style="display:${o.pay==="部分付"?"":"none"};margin-top:6px"><label class="f">尾款安排 *</label>
         <select id="eDuePlan"><option value="">—</option><option ${o.duePlan==="取货时付"?"selected":""}>取货时付</option><option ${o.duePlan==="客服跟进"?"selected":""}>客服跟进</option></select></div></div>
       <div><label class="f">付款方式</label>
-        <select id="ePayM"><option value="">—</option>${LEGACY_PM(o.payMethod)?`<option selected>${esc(o.payMethod)}</option>`:""}${PAY_METHODS.map(v=>`<option ${v===o.payMethod?"selected":""}>${v}</option>`).join("")}</select>
+        <select id="ePayM"><option value="">—</option>${LEGACY_PM(o.payMethod)?`<option selected>${esc(o.payMethod)}</option>`:""}${PAY_METHODS.filter(x=>!(ROLE&&ROLE.type==="cs"&&x==="现金")).map(v=>`<option ${v===o.payMethod?"selected":""}>${v}</option>`).join("")}</select>
         <div class="kv" style="margin-top:6px"><span>本单加 GST</span><input type="checkbox" id="eTax" ${o.gstOn?"checked":""} style="width:20px;height:20px;accent-color:var(--olive)"></div></div>
     </div>
     <div id="ePayOtherWrap" style="display:${o.payMethod==="其它"?"block":"none"}">
@@ -2067,6 +2069,8 @@ function saveEdit(o){
   if(newPay==="部分付"&&!_duePlanV){_duePlanV=o.duePlan||"取货时付";}
   if(newPay==="已付"&&newAmt!=null)newPaid=newAmt;
   if(newPay==="未付")newPaid=0;
+  const _pd=Math.round((newPaid-paidOf(o))*100)/100;
+  const _ePmV=(document.getElementById("ePayM")||{}).value||o.payMethod||"其它";const _ledgerFix=(stf)=>{if(Math.abs(_pd)>0.005)addLedger({orderNo:o.no,type:_pd>0?"订单收款":"退款",pm:_ePmV,amt:_pd,staff:stf||null,ref:null,note:"改单更正已收"});};
   const patch={name,phone:document.getElementById("ePhone").value.trim(),store:eStore,
     qty:{...eQty},box6:nb.b6,box2:nb.b2,boxes:nb.total,pieces:nb.pieces,
     amount:newAmt,autoAmount:autoNow,manualPrice:newAmt!=null&&Math.abs(newAmt-autoNow)>0.005,gstAmt:(newAmt!=null&&Math.abs(newAmt-autoNow)>0.005)?null:calcDetail(eQty,(document.getElementById("ePayM")||{}).value||o.payMethod,o.channel,eTaxOff).gst,gstOn:(eTaxOff?null:1),paid:newPaid,
@@ -2074,7 +2078,7 @@ function saveEdit(o){
     notes:document.getElementById("eNote").value.trim(),updatedAt:Date.now()};
   if(!o.batch){
     const nd=document.getElementById("eDate").value;
-    if(nd<DATE_MIN||nd>DATE_MAX)return toast("取货日期须在 9/4 – 9/27");
+    if(nd<DATE_MIN||nd>DATE_MAX)return toast("取货日期须在 9/3 – 9/27");
 
     patch.pickupDate=nd;
   }
@@ -2102,7 +2106,7 @@ function saveEdit(o){
     if(cand.exception){patch.exception=cand.exception;diffs.push("例外放行:"+cand.exception.reason);}
     askStaff("确认修改:"+o.no,staff=>{
       patchOrder(o.no,patch,()=>{
-        logOp(o.no,staff,"修改订单",(diffs.length?diffs.join(";"):"无字段变化")+" · "+(window._eSrcV||""));
+        logOp(o.no,staff,"修改订单",(diffs.length?diffs.join(";"):"无字段变化")+" · "+(window._eSrcV||""));_ledgerFix(staff);
         if(window._storeChangeConsume){
           const sc=window._storeChangeConsume;window._storeChangeConsume=null;
           Object.entries(sc.qty).forEach(([k,v])=>{if(v>0)addSale(sc.store,{date:sc.date,time:nowHM(),product:k,qty:v,pm:"改店占用",amt:0,staff,src:"storechange",orderNo:o.no,ts:Date.now()});});
@@ -2135,7 +2139,7 @@ function saveEdit(o){
     ["amount","autoAmount","manualPrice","paid","pay","payMethod","payOther"].forEach(k=>delete patch[k]);
     return askStaff("确认修改子单:"+o.no,staff=>{
       patchOrder(o.no,patch,()=>{
-        logOp(o.no,staff,"修改订单",(diffs.length?diffs.join(";"):"无字段变化")+" · "+(window._eSrcV||""));
+        logOp(o.no,staff,"修改订单",(diffs.length?diffs.join(";"):"无字段变化")+" · "+(window._eSrcV||""));_ledgerFix(staff);
         if(window._storeChangeConsume){
           const sc=window._storeChangeConsume;window._storeChangeConsume=null;
           Object.entries(sc.qty).forEach(([k,v])=>{if(v>0)addSale(sc.store,{date:sc.date,time:nowHM(),product:k,qty:v,pm:"改店占用",amt:0,staff,src:"storechange",orderNo:o.no,ts:Date.now()});});
@@ -2717,7 +2721,7 @@ function openSplit(no){
     if(mv===0)return toast("请选择拆出的数量");
     if(mv>=o.boxes)return toast("不能全部拆走;全改日期请直接「修改订单」改取货日期");
     const nd=document.getElementById("spDate").value;
-    if(!nd||nd<DATE_MIN||nd>DATE_MAX)return toast("日期须在 9/4 – 9/27");
+    if(!nd||nd<DATE_MIN||nd>DATE_MAX)return toast("日期须在 9/3 – 9/27");
     const staff=getStaff(); if(!staff)return;
     const remain={...o.qty};
     Object.keys(sQty).forEach(k=>{remain[k]-=sQty[k]; if(!remain[k])delete remain[k];});
@@ -3931,6 +3935,32 @@ document.getElementById("btnCopyBuy").addEventListener("click",()=>{
   document.body.removeChild(ta);
 });
 /* --- 现货安排(移到 Owner 中心) --- */
+document.getElementById("btnLgFix").addEventListener("click",()=>{
+  if(!(ROLE&&ROLE.type==="owner"))return toast("仅 Owner 可补录台账");
+  let lst="CAM";
+  openModal(mhead("台账补录 / 更正")+`
+    <div class="note">用于漏记、错记的补账:写入一笔真实台账(只追加,不改旧记录)。金额=钱实际进出的数;减少请选「退款」。</div>
+    <label class="f">计入门店 *</label>
+    <div class="seg" id="lgStore">${Object.entries(STORE_NAME).map(([k,n],i)=>`<button data-v="${k}" class="${i===0?"on":""}">${n}</button>`).join("")}</div>
+    <div class="row"><div><label class="f">日期 *</label><input type="date" id="lgDate" value="${todayStr()}"></div>
+      <div><label class="f">类型 *</label><select id="lgType"><option>订单收款</option><option>退款</option><option>现货销售</option></select></div></div>
+    <div class="row"><div><label class="f">付款方式 *</label><select id="lgPm">${PAY_METHODS.map(m=>`<option>${m}</option>`).join("")}</select></div>
+      <div><label class="f">金额 $ *</label><input type="number" id="lgAmt" min="0" step="0.01" inputmode="decimal"></div></div>
+    <label class="f">订单号(可选)</label><input type="text" id="lgOrder" placeholder="MC-0010">
+    <label class="f">说明 *</label><input type="text" id="lgNote" placeholder="例:客服改单未入账,补录现金收款">
+    ${staffField()}
+    <button class="btn" style="margin-top:12px" id="lgGo">写入台账</button>`,true);
+  document.getElementById("lgStore").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;lst=b.dataset.v;document.querySelectorAll("#lgStore button").forEach(x=>x.classList.toggle("on",x===b));});
+  document.getElementById("lgGo").onclick=()=>{
+    const amt=Math.round((parseFloat(document.getElementById("lgAmt").value)||0)*100)/100,type=document.getElementById("lgType").value,pm=document.getElementById("lgPm").value,d=document.getElementById("lgDate").value,note=document.getElementById("lgNote").value.trim(),on=document.getElementById("lgOrder").value.trim()||null;
+    const st=(document.getElementById("opStaff")||{}).value||"";
+    if(!(amt>0))return toast("请填金额");if(!note)return toast("请填说明");if(!d)return toast("请填日期");if(!st)return toast("请选经手人");
+    if(!confirm(`确认写入:${STORE_NAME[lst]} ${d} ${type} ${pm} ${type==="退款"?"−":"+"}$${amt}${on?" · "+on:""}?`))return;
+    addLedger({d,store:lst,orderNo:on,type,pm,amt:type==="退款"?-amt:amt,staff:st,ref:null,note:"补录:"+note});
+    logOp(on||("SYS-"+lst),st,"台账补录",`${STORE_NAME[lst]} ${d} ${type} ${pm} ${type==="退款"?"−":"+"}$${amt} · ${note}`);
+    toast("已写入台账");closeModal();renderAll();
+  };
+});
 document.getElementById("btnOpWp").addEventListener("click",()=>{
   const D=todayStr(),M=tomorrowStr();
   let wd=calSel>=D?calSel:D,wst="CAM";
