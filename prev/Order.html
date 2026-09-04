@@ -795,7 +795,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-94";
+const APP_BUILD="b0819-95";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -3453,6 +3453,12 @@ function planForStore(d,st){ // 当日该店应送:订单每产品 + 现货安�
   const walk={...(((WPLAN||{})[d]||{})[st]||{})};
   return {ord,walk};
 }
+function kitchenGiftStock(){ // 与厨房端 calcStock 同口径:装盒 + 盘点调整 − 出货交接
+  const s={};Object.values(PRODRECS||{}).forEach(r=>{if(!r||r.voided)return;const g=+r.good||0;
+    if(r.stage==="boxup"&&r.product)s[r.product]=(s[r.product]||0)+g;
+    else if(r.stage==="ship"&&r.product)s[r.product]=(s[r.product]||0)-g;
+    else if(r.stage==="adjust"&&r.node==="gift"&&r.key)s[r.key]=(s[r.key]||0)+(+r.delta||0);});
+  return s;}
 function shippedFor(d,st){ // 已交接:按用途分
   const out={"订单":{},"现货":{}};
   Object.values(PRODRECS||{}).forEach(r=>{
@@ -3489,7 +3495,11 @@ function renderHandover(){
         ${recvTot||rc.who?`<br>门店实收 ${recvTot}盒${recvTot<shipTot?' <b style="color:var(--danger)">差'+(shipTot-recvTot)+'盒</b>':(recvTot>=shipTot&&shipTot?" ✓":"")}${rc.who?"("+esc(rc.who)+")":""}`:(shipTot?'<br><span style="color:var(--bronze)">等门店确认收货</span>':"")}</span></span>
       <button class="btn small" onclick="openHandover('${st}')">${shipTot?"补交接":"记交接"}</button></div>`;
   });
-  el.innerHTML=any?h:'<div class="note">今日没有需要配送的订单或现货安排</div>';
+  const ks=kitchenGiftStock();
+  const parts=PRODUCTS.filter(p=>(ks[p.k]||0)!==0).map(p=>`${p.n} <b>${ks[p.k]}</b>`);
+  const tot=Object.values(ks).reduce((a,b)=>a+b,0);
+  const ksLine=`<div class="note" style="margin:0 0 8px">厨房成品在库:${parts.length?parts.join(" · ")+` <span class="z">(合计 ${tot} 盒)</span>`:"暂无成品记录"}</div>`;
+  el.innerHTML=ksLine+(any?h:'<div class="note">今日没有需要配送的订单或现货安排</div>');
 }
 function openHandover(st){
   needPin(()=>{
@@ -3498,6 +3508,7 @@ function openHandover(st){
     const sh=shippedFor(d,st);
     const rows=PRODUCTS.filter(p=>(ord[p.k]||0)+(walk[p.k]||0)+(sh["订单"][p.k]||0)+(sh["现货"][p.k]||0)>0);
     if(!rows.length)return toast("该店今日没有应送产品");
+    const ks=kitchenGiftStock();
     openModal(mhead(`出货交接:${STORE_NAME[st]}`)+`
       <p class="note" style="margin:0 0 8px">数字已按「应送 − 已交接」预填,和实物核对后确认。交接后厨房礼盒库存自动扣减。</p>
       <table class="qtbl">
@@ -3507,7 +3518,8 @@ function openHandover(st){
         ${rows.map(p=>{
           const ro=Math.max(0,(ord[p.k]||0)-(sh["订单"][p.k]||0));
           const rw=Math.max(0,(walk[p.k]||0)-(sh["现货"][p.k]||0));
-          return `<tr><td class="qname">${p.n}</td>
+          const inS=ks[p.k]||0,short=inS<ro+rw;
+          return `<tr><td class="qname">${p.n}<br><small style="color:${short?"var(--danger)":"var(--muted)"}">厨房在库 ${inS}${short?" · 不够发":""}</small></td>
             <td><input type="number" data-ho="${p.k}" min="0" value="${ro||""}" placeholder="0" style="width:70px;text-align:center"></td>
             <td><input type="number" data-hw="${p.k}" min="0" value="${rw||""}" placeholder="0" style="width:70px;text-align:center"></td></tr>`;
         }).join("")}
@@ -3586,6 +3598,8 @@ function renderSum(){
         <button class="btn small" onclick="openHandover('${st}')">${shipTot?"补交接":"记交接"}</button></div>
     </div>`;
   }).join("");
+  {const ks=kitchenGiftStock();const parts=PRODUCTS.filter(p=>(ks[p.k]||0)!==0).map(p=>`${p.n} <b>${ks[p.k]}</b>`);const tot=Object.values(ks).reduce((x,y)=>x+y,0);
+   document.getElementById("sumStore").insertAdjacentHTML("afterbegin",`<div class="note" style="margin:0 0 8px">厨房成品在库:${parts.length?parts.join(" · ")+` <span class="z">(合计 ${tot} 盒)</span>`:"暂无成品记录"}<br><span class="z">交接后自动扣减;单行"不够发"以此为准</span></div>`);}
   const rows=WALKIN_PRODUCTS.map(p=>{
     const per=STS.map(st=>({st,n:(plans[st].ord[p.k]||0)+(plans[st].walk[p.k]||0),w:plans[st].walk[p.k]||0}));
     const tot=per.reduce((s,x)=>s+x.n,0);
