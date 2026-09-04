@@ -795,7 +795,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-93";
+const APP_BUILD="b0819-94";
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
   document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("envBand");if(b)b.style.display="block";});
@@ -3977,8 +3977,9 @@ function openLedgerFix(){
   let lst="CAM";
   openModal(mhead("台账补录 / 更正")+`
     <div class="note">用于漏记、错记的补账:写入一笔真实台账(只追加,不改旧记录)。金额=钱实际进出的数;减少请选「退款」。</div>
-    <label class="f">计入门店 *</label>
-    <div class="seg" id="lgStore">${Object.entries(STORE_NAME).map(([k,n],i)=>`<button data-v="${k}" class="${i===0?"on":""}">${n}</button>`).join("")}</div>
+    <label class="f">计入口袋 *(和它要抵/要补的那笔记在同一处)</label>
+    <div class="seg" id="lgStore">${Object.entries(STORE_NAME).map(([k,n],i)=>`<button data-v="${k}" class="${i===0?"on":""}">${n}</button>`).join("")}<button data-v="HQ">客服 / 总部</button></div>
+    <div class="note" style="margin:2px 0 6px">门店=进该店日结;客服/总部=不进任何门店日结,只在 Owner 对账页的客服卡里。</div>
     <div class="row"><div><label class="f">日期 *</label><input type="date" id="lgDate" value="${todayStr()}"></div>
       <div><label class="f">类型 *</label><select id="lgType"><option>订单收款</option><option>退款</option><option>现货销售</option></select></div></div>
     <div class="row"><div><label class="f">付款方式 *</label><select id="lgPm">${PAY_METHODS.map(m=>`<option>${m}</option>`).join("")}</select></div>
@@ -3992,9 +3993,12 @@ function openLedgerFix(){
     const amt=Math.round((parseFloat(document.getElementById("lgAmt").value)||0)*100)/100,type=document.getElementById("lgType").value,pm=document.getElementById("lgPm").value,d=document.getElementById("lgDate").value,note=document.getElementById("lgNote").value.trim(),on=document.getElementById("lgOrder").value.trim()||null;
     const st=(document.getElementById("opStaff")||{}).value||"";
     if(!(amt>0))return toast("请填金额");if(!note)return toast("请填说明");if(!d)return toast("请填日期");if(!st)return toast("请选经手人");
-    if(!confirm(`确认写入:${STORE_NAME[lst]} ${d} ${type} ${pm} ${type==="退款"?"−":"+"}$${amt}${on?" · "+on:""}?`))return;
-    addLedger({d,store:lst,orderNo:on,type,pm,amt:type==="退款"?-amt:amt,staff:st,ref:null,note:"补录:"+note});
-    logOp(on||("SYS-"+lst),st,"台账补录",`${STORE_NAME[lst]} ${d} ${type} ${pm} ${type==="退款"?"−":"+"}$${amt} · ${note}`);
+    const lbl=STORE_NAME[lst]||"客服/总部";
+    if(!confirm(`确认写入:${lbl} ${d} ${type} ${pm} ${type==="退款"?"−":"+"}$${amt}${on?" · "+on:""}?`))return;
+    const row={d,store:lst==="HQ"?null:lst,orderNo:on,type,pm,amt:type==="退款"?-amt:amt,staff:st,ref:null,note:"补录:"+note};
+    if(lst==="HQ")row.acct="客服(补录)|"+st;
+    addLedger(row);
+    logOp(on||("SYS-"+lst),st,"台账补录",`${lbl} ${d} ${type} ${pm} ${type==="退款"?"−":"+"}$${amt} · ${note}`);
     toast("已写入台账");closeModal();renderAll();
   };
 }
