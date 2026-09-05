@@ -382,6 +382,9 @@ const PRODUCTS=[
   {k:"mk2",n:"两粒摩卡",box:2},{k:"wl2",n:"两粒乌龙",box:2},
   {k:"bb2",n:"两粒盲盒",box:2}];
 const PN=k=>(PRODUCTS.find(p=>p.k===k)||{}).n||k;
+const isSingleP=k=>/^s_/.test(String(k)),singleF=k=>String(k).slice(2);
+// 单颗成品 = 该口味已包装单颗池(+历史误装盒的 gift 残量);礼盒成品 = gift
+function finishedStock(pk,S2){S2=S2||calcStock();return isSingleP(pk)?((S2.packed[singleF(pk)]||0)+(S2.gift[pk]||0)):(S2.gift[pk]||0);}
 const BOX_BOM={mix6:{js:1,mt:1,tr:1,cp:1,mk:1,wl:1},js6:{js:6},
   s_js:{js:1},s_mt:{mt:1},s_tr:{tr:1},s_cp:{cp:1},s_mk:{mk:1},s_wl:{wl:1},
   js2:{js:2},mt2:{mt:2},tr2:{tr:2},cp2:{cp:2},mk2:{mk:2},wl2:{wl:2}};
@@ -496,7 +499,7 @@ const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,pureeBeanG:68
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 const NF=n=>(+n).toLocaleString("en-US");
 const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
-const APP_BUILD="b0819-102";
+const APP_BUILD="b0819-103";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -637,10 +640,12 @@ function calcStock(recsOverride){
         const p=r.product;
         if(p==="bb2"){FLAVORS.forEach(x=>{if(r.mix&&r.mix[x.k])S.packed[x.k]-=r.mix[x.k];});}
         else{const bom=BOX_BOM[p]||{};FLAVORS.forEach(x=>{const c=(bom[x.k]||0)*g;if(c)S.packed[x.k]-=c;});}
-        S.mat[(PRODUCTS.find(x=>x.k===p)||{}).box===6?"kit6":"kit2"]-=g;
+        if(!isSingleP(p))S.mat[(PRODUCTS.find(x=>x.k===p)||{}).box===6?"kit6":"kit2"]-=g;
         S.gift[p]+=g; S.cumBox[p]+=g; break;}
       case"sample":S.packed[f]-=g; break;
-      case"ship":  S.gift[r.product]-=g; break;
+      case"ship":{const p=r.product;
+        if(isSingleP(p)){let rem=g;const gs=S.gift[p]||0;const take=Math.min(gs,rem);S.gift[p]=gs-take;rem-=take;if(rem)S.packed[singleF(p)]=(S.packed[singleF(p)]||0)-rem;}
+        else S.gift[p]=(S.gift[p]||0)-g; break;}
       case"matin": S.mat[r.mat]+=g; break;
       case"rawin": S.raw[r.raw]=(S.raw[r.raw]||0)+g; break;
       case"rawuse":S.raw[r.raw]=(S.raw[r.raw]||0)-g; break;
@@ -1032,7 +1037,7 @@ function overdraw(rec){
       const kk=(PRODUCTS.find(x=>x.k===rec.product)||{}).box===6?"kit6":"kit2";
       chk(g,S.mat[kk],MATN(kk));break;}
     case"sample":chk(g,S.packed[f]||0,FN(f)+"包装成品");break;
-    case"ship":chk(g,S.gift[rec.product]||0,PN(rec.product)+"礼盒");break;
+    case"ship":chk(g,finishedStock(rec.product,S),PN(rec.product)+(isSingleP(rec.product)?"(已包装单颗)":"礼盒"));break;
   }
   return out;
 }
@@ -1056,7 +1061,7 @@ function renderRecForm(keepNums){
         <div class="hintbox" id="rHint" style="display:none"></div>`;
   }
   if(curStage==="ship"){
-    h+=`<label class="f">礼盒产品(括号=现库存)</label><div class="seg" id="rProd">${PRODUCTS.map(p=>`<button data-v="${p.k}">${p.n}<small>${S.gift[p.k]||0}盒</small></button>`).join("")}</div>
+    h+=`<label class="f">产品(括号=现库存;单颗=已包装单颗池)</label><div class="seg" id="rProd">${PRODUCTS.map(p=>`<button data-v="${p.k}">${p.n}<small>${finishedStock(p.k,S)}${isSingleP(p.k)?"颗":"盒"}</small></button>`).join("")}</div>
         <label class="f">配送门店</label><div class="seg" id="rStore">${Object.entries(STORE_NAME).map(([k,n])=>`<button data-v="${k}">${n}</button>`).join("")}</div>
         <label class="f">用途</label><div class="seg" id="rUse"><button data-v="订单">订单预留</button><button data-v="现货">门店现货</button></div>
         <div class="hintbox" id="rHint" style="display:none"></div>`;
@@ -1199,7 +1204,7 @@ function renderRecForm(keepNums){
         hd.textContent="单颗库存:"+Object.keys(bom).map(f=>`${FN(f)} ${S2.packed[f]||0}颗`).join(" · ")
           +` · ${(PRODUCTS.find(x=>x.k===rProduct)||{}).box===6?"六粒套 "+S2.mat.kit6:"两粒套 "+S2.mat.kit2}`;}
     }
-    if(curStage==="ship"){hd.style.display="block";hd.textContent=`${PN(rProduct)}礼盒库存 ${S2.gift[rProduct]||0} 盒`;}
+    if(curStage==="ship"){hd.style.display="block";hd.textContent=`${PN(rProduct)}${isSingleP(rProduct)?"已包装单颗":"礼盒"}库存 ${finishedStock(rProduct,S2)} ${isSingleP(rProduct)?"颗":"盒"}`;}
   });
   const stg=document.getElementById("rStore");
   if(stg)stg.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
