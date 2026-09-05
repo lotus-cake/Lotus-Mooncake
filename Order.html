@@ -795,7 +795,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-100";
+const APP_BUILD="b0819-101";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -1961,6 +1961,9 @@ function openEdit(no){
     ${o.batch?`<p class="note">分批大单:下方数量为客人<b>应得总额度</b>,不能低于已取数量。</p>`
       :`<label class="f">取货日期</label><input type="date" id="eDate" min="${DATE_MIN}" max="${DATE_MAX}" value="${o.pickupDate}">
        <label class="f">取货时间</label><input type="time" id="eTime" step="600" value="${o.pickupTime||""}">
+       <div id="eGoodsWrap" style="display:none;margin-top:8px"><label class="f">这单的货怎么处理? *</label>
+         <div class="seg" id="eGoods" style="flex-direction:column"><button data-v="keep">保留在店 · 改天直接取(不再装车)</button><button data-v="release">放出当现货卖 · 新日期重新送</button></div>
+         <div class="note" id="eGoodsHint" style="margin-top:4px"></div></div>
        <div class="note">CAM/ALD 11:30–19:00 · BBY 13:00–20:00</div>`}
     <label class="f">产品数量</label>
     <table class="qtbl" id="eQtyTable"></table>
@@ -1999,6 +2002,15 @@ function openEdit(no){
   eAmtTouched=!!o.manualPrice; eChanCtx=o.channel||"";
   document.getElementById("eAmt").addEventListener("input",()=>{eAmtTouched=true;});
   {const _et=document.getElementById("eTime");if(_et){ePickTimeV=_et.value||"";_et.oninput=()=>{ePickTimeV=_et.value||"";};}}
+  window._eGoodsV="";
+  const updGoods=()=>{const wrap=document.getElementById("eGoodsWrap");if(!wrap)return;const dEl=document.getElementById("eDate");
+    const show=!o.batch&&!o.pickedUp&&!!dEl&&dEl.value!==o.pickupDate&&o.pickupDate<=todayStr()&&eStore===o.store;
+    wrap.style.display=show?"":"none";
+    if(show){const h=document.getElementById("eGoodsHint");if(h)h.textContent=hasShipFor(o.pickupDate,o.store)?`客服 ${fmtMD(o.pickupDate)} 记过该店交接,货应已在店`:`${fmtMD(o.pickupDate)} 没有该店交接记录,请核实货是否已送到`;}
+    else window._eGoodsV="";};
+  {const dEl=document.getElementById("eDate");if(dEl)dEl.addEventListener("change",updGoods);}
+  document.getElementById("eGoods").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;window._eGoodsV=b.dataset.v;document.querySelectorAll("#eGoods button").forEach(x=>x.classList.toggle("on",x===b));});
+  document.getElementById("eStoreSeg").addEventListener("click",()=>setTimeout(updGoods,0));
   document.getElementById("eStoreSeg").addEventListener("click",e=>{
     const b=e.target.closest("button"); if(!b)return;
     eStore=b.dataset.v;
@@ -2105,9 +2117,15 @@ function saveEdit(o){
   if(patch.phone!==(o.phone||""))diffs.push(`电话 ${o.phone||"无"}→${patch.phone||"无"}`);
   if(patch.store!==o.store)diffs.push(`门店 ${o.store}→${patch.store}`);
   if(!o.batch&&patch.pickupDate!==o.pickupDate)diffs.push(`日期 ${(fmtMD(o.pickupDate)+(o.pickupTime?" "+o.pickupTime:""))}→${fmtMD(patch.pickupDate)}`);
+  let _goodsV=null;const _oldPickD=o.pickupDate;
   if(!o.batch&&!o.pickedUp&&patch.pickupDate!==o.pickupDate){
     if(patch.store!==o.store){if(o.atStore){patch.atStore=null;diffs.push("换店:清除「货已在店」");}}
-    else if(o.pickupDate<=todayStr()&&hasShipFor(o.pickupDate,o.store)&&!o.atStore){patch.atStore=o.pickupDate;diffs.push(`货已在店(${fmtMD(o.pickupDate)}已送达),新日期不再装车`);}
+    else if(o.pickupDate<=todayStr()){
+      _goodsV=window._eGoodsV||"";
+      if(!_goodsV)return toast("请选择:货保留在店,还是放出当现货");
+      if(_goodsV==="keep"){patch.atStore=o.pickupDate;diffs.push(`货保留在店(${fmtMD(o.pickupDate)}送达),新日期不再装车`);}
+      else{patch.atStore=null;diffs.push("货放出当现货,新日期重新装车");}
+    }
   }
   if(sigOf(patch.qty)!==sigOf(o.qty)){
     PRODUCTS.forEach(p=>{
@@ -2129,6 +2147,7 @@ function saveEdit(o){
     askStaff("确认修改:"+o.no,staff=>{
       patchOrder(o.no,patch,()=>{
         logOp(o.no,staff,"修改订单",(diffs.length?diffs.join(";"):"无字段变化")+" · "+(window._eSrcV||""));_ledgerFix(staff);
+        if(_goodsV==="release"){const okR=recomputeArriveAuto(o.store,_oldPickD,staff);toast(okR?"已改期;这单的货已放入今日现货可售":"已改期;门店今天尚未点收,点收时现货会自动包含这几盒");}
         if(window._storeChangeConsume){
           const sc=window._storeChangeConsume;window._storeChangeConsume=null;
           Object.entries(sc.qty).forEach(([k,v])=>{if(v>0)addSale(sc.store,{date:sc.date,time:nowHM(),product:k,qty:v,pm:"改店占用",amt:0,staff,src:"storechange",orderNo:o.no,ts:Date.now()});});
@@ -2162,6 +2181,7 @@ function saveEdit(o){
     return askStaff("确认修改子单:"+o.no,staff=>{
       patchOrder(o.no,patch,()=>{
         logOp(o.no,staff,"修改订单",(diffs.length?diffs.join(";"):"无字段变化")+" · "+(window._eSrcV||""));_ledgerFix(staff);
+        if(_goodsV==="release"){const okR=recomputeArriveAuto(o.store,_oldPickD,staff);toast(okR?"已改期;这单的货已放入今日现货可售":"已改期;门店今天尚未点收,点收时现货会自动包含这几盒");}
         if(window._storeChangeConsume){
           const sc=window._storeChangeConsume;window._storeChangeConsume=null;
           Object.entries(sc.qty).forEach(([k,v])=>{if(v>0)addSale(sc.store,{date:sc.date,time:nowHM(),product:k,qty:v,pm:"改店占用",amt:0,staff,src:"storechange",orderNo:o.no,ts:Date.now()});});
@@ -3460,6 +3480,15 @@ function renderBatchPage(){
 
 /* ---------------- 汇总页(门店配送,当日置顶) ---------------- */
 function z(v){return v?v:'<span class="z">·</span>';}
+function recomputeArriveAuto(st,d,staff){ // 重算某日到货自动现货 = 实收 − 当日订单需求(改期释放后调用)
+  const done=todayRecvRec(st,d);if(!done)return false;
+  const plan=planForStore(d,st),qty=done.qty||{},autoQty={};
+  WALKIN_PRODUCTS.forEach(p=>{const v=Math.max(0,(qty[p.k]||0)-(plan.ord[p.k]||0));if(v>0)autoQty[p.k]=v;});
+  const w=WALKIN[st]||{},rk=Object.keys(w.receipts||{}).find(k=>(w.receipts[k]||{}).auto==="arrive"&&w.receipts[k].date===d);
+  const rrec={date:d,qty:autoQty,auto:"arrive",note:"到货确认自动入库(改期释放重算)",staff:staff||""};
+  if(DB)DB.ref(DB_ROOT+"/walkin/"+st+"/receipts/"+(rk||"a"+Date.now())).set(rrec);
+  else{WALKIN[st]=WALKIN[st]||{receipts:{},sales:{}};(WALKIN[st].receipts=WALKIN[st].receipts||{})[rk||"a"+Date.now()]=rrec;}
+  return true;}
 function hasShipFor(d,st){return Object.values(PRODRECS||{}).some(r=>r&&!r.voided&&r.stage==="ship"&&r.date===d&&r.store===st);}
 function planForStore(d,st){ // 当日该店应送:订单每产品 + 现货安排(货已在店的不再计)
   const ord={};
