@@ -499,7 +499,7 @@ const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,pureeBeanG:68
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 const NF=n=>(+n).toLocaleString("en-US");
 const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
-const APP_BUILD="b0819-103";
+const APP_BUILD="b0819-104";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -1056,7 +1056,8 @@ function renderRecForm(keepNums){
         <div class="hintbox" id="rHint" style="display:none"></div>`;
   }
   if(curStage==="boxup"){
-    h+=`<label class="f">礼盒产品</label><div class="seg" id="rProd">${PRODUCTS.map(p=>`<button data-v="${p.k}">${p.n}<small>库存${S.gift[p.k]||0}</small></button>`).join("")}</div>
+    h+=`<div class="note" style="margin:0 0 4px">单颗不用装盒:单颗包装完成即成品,出货直接从「已包装单颗」扣</div>
+        <label class="f">礼盒产品</label><div class="seg" id="rProd">${PRODUCTS.filter(p=>!isSingleP(p.k)).map(p=>`<button data-v="${p.k}">${p.n}<small>库存${S.gift[p.k]||0}</small></button>`).join("")}</div>
         <div id="bbMixWrap" style="display:none"><label class="f">盲盒口味组成(每盒2颗)</label><div id="bbMixBody"></div></div>
         <div class="hintbox" id="rHint" style="display:none"></div>`;
   }
