@@ -795,7 +795,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-101";
+const APP_BUILD="b0819-102";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -2433,6 +2433,11 @@ function doCancel(no){
     <p style="font-size:14px;line-height:1.8">${o.parentNo
       ?`确认取消子单 ${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}?<br><b style="color:var(--olive)">盒数将自动归还母单 ${o.parentNo};付款随母单,子单取消不产生退款。</b>`
       :`确认取消 ${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}?订单保留为「已取消」,库存额度自动释放。${paidOf(o)>0||o.pay==="已付"?"<br><b style='color:var(--danger)'>该订单已付款,取消后将自动生成待退款记录。</b>":""}`}</p>
+    ${(()=>{const gd=o.atStore||o.pickupDate;const show=!o.batch&&!o.parentNo&&!o.pickedUp&&gd&&gd<=todayStr();if(!show)return "";
+      const shipped=hasShipFor(gd,o.store);
+      return `<div id="ccGoodsWrap" style="margin:4px 0 8px"><label class="f">这单的货怎么处理? *</label>
+        <div class="seg" id="ccGoods" style="flex-direction:column"><button data-v="release" class="${shipped?"on":""}">已配到店 · 转为 ${STORE_NAME[o.store]||o.store} 现货可售(${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""})</button><button data-v="none" class="${shipped?"":"on"}">货不在店 · 不处理</button></div>
+        <div class="note" style="margin-top:4px">${shipped?`客服 ${fmtMD(gd)} 记过该店交接,货应已在店`:`${fmtMD(gd)} 没有该店交接记录,请核实货是否已送到`}</div></div>`;})()}
     <label class="f">取消来源 *</label>
     <select id="ccSrc"><option value="">—</option><option>客人电话取消</option><option>微信取消</option><option>客人到店取消</option><option>客服协助取消</option><option>其他</option></select>
     <input type="text" id="ccSrcTxt" placeholder="其他:请说明" style="display:none;margin-top:6px">
@@ -2445,6 +2450,8 @@ function doCancel(no){
     </div>`,true);
   document.getElementById("ccSrc").addEventListener("change",function(){
     document.getElementById("ccSrcTxt").style.display=this.value==="其他"?"":"none";});
+  window._ccGoodsV=(()=>{const b=document.querySelector("#ccGoods button.on");return b?b.dataset.v:null;})();
+  {const g=document.getElementById("ccGoods");if(g)g.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;window._ccGoodsV=b.dataset.v;document.querySelectorAll("#ccGoods button").forEach(x=>x.classList.toggle("on",x===b));});}
   document.getElementById("ccGo").onclick=()=>{
     let srcV=document.getElementById("ccSrc").value;
     if(!srcV)return toast("请选择取消来源");
@@ -2473,7 +2480,13 @@ function doCancel(no){
           });
         }else{
           logOp(no,staff,"取消订单",`${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""} · ${srcV}${reason?" · "+reason:""}${paid?` · 待退款→${promo?"客服(优惠单·紧急确认)":({cs:"客服",owner:"Owner",pending:"现场分流"}[patch.refundRoute]||patch.refundRoute)}`:""}`);
-          toast(no+" 已取消"+(paid?",进入退款处理":""));
+          if(document.getElementById("ccGoods")||window._ccGoodsV){
+            if(window._ccGoodsV==="release"){const gd=o.atStore||o.pickupDate;const okR=recomputeArriveAuto(o.store,gd,staff);
+              logOp(no,staff,"取消转现货",`${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""} → ${STORE_NAME[o.store]||o.store} 现货${okR?"(已重算当日可售)":"(门店尚未点收,点收时自动计入)"}`);
+              toast(no+" 已取消,货已转为现货"+(okR?"":"(门店点收后计入)")+(paid?";进入退款处理":""));}
+            else toast(no+" 已取消"+(paid?",进入退款处理":""));
+            window._ccGoodsV=null;}
+          else toast(no+" 已取消"+(paid?",进入退款处理":""));
           if(paid&&patch.refundRoute==="pending")setTimeout(()=>openRefundRouter(no),150);
         }
       });
