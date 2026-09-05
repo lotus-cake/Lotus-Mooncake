@@ -795,7 +795,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-102";
+const APP_BUILD="b0819-103";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -3516,12 +3516,23 @@ function planForStore(d,st){ // 当日该店应送:订单每产品 + 现货安�
   const walk={...(((WPLAN||{})[d]||{})[st]||{})};
   return {ord,walk};
 }
-function kitchenGiftStock(){ // 与厨房端 calcStock 同口径:装盒 + 盘点调整 − 出货交接
-  const s={};Object.values(PRODRECS||{}).forEach(r=>{if(!r||r.voided)return;const g=+r.good||0;
-    if(r.stage==="boxup"&&r.product)s[r.product]=(s[r.product]||0)+g;
-    else if(r.stage==="ship"&&r.product)s[r.product]=(s[r.product]||0)-g;
-    else if(r.stage==="adjust"&&r.node==="gift"&&r.key)s[r.key]=(s[r.key]||0)+(+r.delta||0);});
-  return s;}
+function kitchenGiftStock(){ // 与厨房端 calcStock 同口径:礼盒=装盒+盘点−出货;单颗=已包装单颗池(+误装盒残量)−装盒消耗−单颗出货
+  const FL=["js","mt","tr","cp","mk","wl"];
+  const BOM={mix6:{js:1,mt:1,tr:1,cp:1,mk:1,wl:1},js6:{js:6},js2:{js:2},mt2:{mt:2},tr2:{tr:2},cp2:{cp:2},mk2:{mk:2},wl2:{wl:2},s_js:{js:1},s_mt:{mt:1},s_tr:{tr:1},s_cp:{cp:1},s_mk:{mk:1},s_wl:{wl:1}};
+  const gift={},packed={};
+  Object.values(PRODRECS||{}).filter(r=>r&&!r.voided).sort((a,b)=>(a.ts||0)-(b.ts||0)).forEach(r=>{const g=+r.good||0;
+    if(r.stage==="pack"&&r.flavor)packed[r.flavor]=(packed[r.flavor]||0)+g;
+    else if(r.stage==="sample"&&r.flavor)packed[r.flavor]=(packed[r.flavor]||0)-g;
+    else if(r.stage==="boxup"&&r.product){
+      if(r.product==="bb2"){FL.forEach(f=>{if(r.mix&&r.mix[f])packed[f]=(packed[f]||0)-r.mix[f];});}
+      else{const bom=BOM[r.product]||{};FL.forEach(f=>{const c=(bom[f]||0)*g;if(c)packed[f]=(packed[f]||0)-c;});}
+      gift[r.product]=(gift[r.product]||0)+g;}
+    else if(r.stage==="ship"&&r.product){const p=r.product;
+      if(/^s_/.test(p)){let rem=g;const gs=gift[p]||0;const take=Math.min(gs,rem);gift[p]=gs-take;rem-=take;if(rem)packed[p.slice(2)]=(packed[p.slice(2)]||0)-rem;}
+      else gift[p]=(gift[p]||0)-g;}
+    else if(r.stage==="adjust"&&r.key){if(r.node==="gift")gift[r.key]=(gift[r.key]||0)+(+r.delta||0);else if(r.node==="packed")packed[r.key]=(packed[r.key]||0)+(+r.delta||0);}});
+  const out={};WALKIN_PRODUCTS.forEach(p=>{out[p.k]=/^s_/.test(p.k)?((packed[p.k.slice(2)]||0)+(gift[p.k]||0)):(gift[p.k]||0);});
+  return out;}
 function shipBatches(d,st){ // 当日按车拆分:[{n,ts}]
   return Object.values(PRODRECS||{}).filter(r=>r&&!r.voided&&r.stage==="ship"&&r.date===d&&r.store===st)
     .sort((a,b)=>(a.ts||0)-(b.ts||0)).reduce((acc,r)=>{const t=+r.ts||0;const last=acc[acc.length-1];
@@ -3666,8 +3677,9 @@ function renderSum(){
         <button class="btn small" onclick="openHandover('${st}')">${shipTot?"补交接":"记交接"}</button></div>
     </div>`;
   }).join("");
-  {const ks=kitchenGiftStock();const parts=PRODUCTS.filter(p=>(ks[p.k]||0)!==0).map(p=>`${p.n} <b>${ks[p.k]}</b>`);const tot=Object.values(ks).reduce((x,y)=>x+y,0);
-   document.getElementById("sumStore").insertAdjacentHTML("afterbegin",`<div class="note" style="margin:0 0 8px">厨房成品在库:${parts.length?parts.join(" · ")+` <span class="z">(合计 ${tot} 盒)</span>`:"暂无成品记录"}<br><span class="z">交接后自动扣减;单行"不够发"以此为准</span></div>`);}
+  {const ks=kitchenGiftStock();const parts=WALKIN_PRODUCTS.filter(p=>(ks[p.k]||0)!==0).map(p=>`${p.n} <b>${ks[p.k]}</b>${/^s_/.test(p.k)?"颗":""}`);
+   const totB=WALKIN_PRODUCTS.filter(p=>!/^s_/.test(p.k)).reduce((x,p)=>x+(ks[p.k]||0),0),totS=WALKIN_PRODUCTS.filter(p=>/^s_/.test(p.k)).reduce((x,p)=>x+(ks[p.k]||0),0);
+   document.getElementById("sumStore").insertAdjacentHTML("afterbegin",`<div class="note" style="margin:0 0 8px">厨房成品在库:${parts.length?parts.join(" · ")+` <span class="z">(礼盒合计 ${totB} 盒 · 单颗 ${totS} 颗)</span>`:"暂无成品记录"}<br><span class="z">单颗=已包装单颗池;交接后自动扣减;单行"不够发"以此为准</span></div>`);}
   const rows=WALKIN_PRODUCTS.map(p=>{
     const per=STS.map(st=>({st,n:(plans[st].ord[p.k]||0)+(plans[st].walk[p.k]||0),w:plans[st].walk[p.k]||0}));
     const tot=per.reduce((s,x)=>s+x.n,0);
