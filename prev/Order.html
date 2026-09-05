@@ -795,7 +795,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-99";
+const APP_BUILD="b0819-100";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -1646,7 +1646,7 @@ function orderCard(o,forPickup){
     return `<div class="ocard ${o.store} pkcard ${o.pickedUp?"fin":""}" onclick="openDetail('${o.no}')">
       <div class="pkinfo">
         <div class="l1"><span class="ono">${o.no}</span><span class="oname">${esc(o.name)}</span>
-          ${o.parentNo?"":`<span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>`}${o.parentNo?`<span class="badge" style="background:#E4E9D5">子单·属 ${o.parentNo}</span>`:""}${(o.parentNo&&ORDERS[o.parentNo]&&ORDERS[o.parentNo].pay!=="已付")?'<span class="badge" style="background:var(--danger);color:#fff">母单未付·取货锁定</span>':""}${!o.parentNo&&o.status!=="有效"&&(paidOf(o)>0||o.pay==="已付")?(o.refunded?'<span class="badge" style="background:#DCE8D8;color:#3F6B3F">已退款✓</span>':'<span class="badge duepay">待退款</span>'):""}${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}${(o.dueNote&&dueAmt(o)>EPS)?`<span class="badge due">待收:${esc(o.dueNote)}</span>`:""}${o.exception?'<span class="badge exc">例外</span>':""}</div>
+          ${o.parentNo?"":`<span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>`}${o.parentNo?`<span class="badge" style="background:#E4E9D5">子单·属 ${o.parentNo}</span>`:""}${(o.parentNo&&ORDERS[o.parentNo]&&ORDERS[o.parentNo].pay!=="已付")?'<span class="badge" style="background:var(--danger);color:#fff">母单未付·取货锁定</span>':""}${!o.parentNo&&o.status!=="有效"&&(paidOf(o)>0||o.pay==="已付")?(o.refunded?'<span class="badge" style="background:#DCE8D8;color:#3F6B3F">已退款✓</span>':'<span class="badge duepay">待退款</span>'):""}${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}${(o.dueNote&&dueAmt(o)>EPS)?`<span class="badge due">待收:${esc(o.dueNote)}</span>`:""}${(o.atStore&&!o.pickedUp)?`<span class="badge" style="background:#E3EFD8;color:#3F5A1E">货已在店</span>`:""}${o.exception?'<span class="badge exc">例外</span>':""}</div>
         <div class="oitems">${items}(${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}${o.parentNo?' · <span class="z">付款随母单</span>':(o.amount!=null?" · "+money(o.amount):"")})</div>
         <div class="ometa">${esc(fmtPhone(o.phone)||"")} ${cleanNotes(o.notes)?" · "+esc(cleanNotes(o.notes)):""}</div>
       </div>
@@ -1664,7 +1664,7 @@ function orderCard(o,forPickup){
       <span class="badge ${o.store}">${STORE_NAME[o.store]||o.store}</span>
       <span class="badge st-${o.status}">${o.status==="已取消"?"Cancel":o.status}</span>
       ${o.parentNo?"":`<span class="badge pay-${o.pay}">${o.pay==="未付"&&o.unpaidPlan?("未付·"+o.unpaidPlan):o.pay}</span>`}${o.parentNo?`<span class="badge" style="background:#E4E9D5">子单·属 ${o.parentNo}</span>`:""}${(o.parentNo&&ORDERS[o.parentNo]&&ORDERS[o.parentNo].pay!=="已付")?'<span class="badge" style="background:var(--danger);color:#fff">母单未付·取货锁定</span>':""}${!o.parentNo&&o.status!=="有效"&&(paidOf(o)>0||o.pay==="已付")?(o.refunded?'<span class="badge" style="background:#DCE8D8;color:#3F6B3F">已退款✓</span>':'<span class="badge duepay">待退款</span>'):""}${payDue(o)?'<span class="badge duepay">⚠ 逾期未付</span>':""}
-      ${(o.dueNote&&dueAmt(o)>EPS)?`<span class="badge due">待收:${esc(o.dueNote)}</span>`:""}
+      ${(o.dueNote&&dueAmt(o)>EPS)?`<span class="badge due">待收:${esc(o.dueNote)}</span>`:""}${(o.atStore&&!o.pickedUp)?`<span class="badge" style="background:#E3EFD8;color:#3F5A1E">货已在店</span>`:""}
       ${bat}${o.exception?'<span class="badge exc">例外</span>':""}
       ${o.pickedUp?'<span class="badge st-有效">已取</span>':""}
     </div>
@@ -2105,6 +2105,10 @@ function saveEdit(o){
   if(patch.phone!==(o.phone||""))diffs.push(`电话 ${o.phone||"无"}→${patch.phone||"无"}`);
   if(patch.store!==o.store)diffs.push(`门店 ${o.store}→${patch.store}`);
   if(!o.batch&&patch.pickupDate!==o.pickupDate)diffs.push(`日期 ${(fmtMD(o.pickupDate)+(o.pickupTime?" "+o.pickupTime:""))}→${fmtMD(patch.pickupDate)}`);
+  if(!o.batch&&!o.pickedUp&&patch.pickupDate!==o.pickupDate){
+    if(patch.store!==o.store){if(o.atStore){patch.atStore=null;diffs.push("换店:清除「货已在店」");}}
+    else if(o.pickupDate<=todayStr()&&hasShipFor(o.pickupDate,o.store)&&!o.atStore){patch.atStore=o.pickupDate;diffs.push(`货已在店(${fmtMD(o.pickupDate)}已送达),新日期不再装车`);}
+  }
   if(sigOf(patch.qty)!==sigOf(o.qty)){
     PRODUCTS.forEach(p=>{
       const ov=(o.qty&&o.qty[p.k])||0, nv=patch.qty[p.k]||0;
@@ -3456,10 +3460,11 @@ function renderBatchPage(){
 
 /* ---------------- 汇总页(门店配送,当日置顶) ---------------- */
 function z(v){return v?v:'<span class="z">·</span>';}
-function planForStore(d,st){ // 当日该店应送:订单每产品 + 现货安排
+function hasShipFor(d,st){return Object.values(PRODRECS||{}).some(r=>r&&!r.voided&&r.stage==="ship"&&r.date===d&&r.store===st);}
+function planForStore(d,st){ // 当日该店应送:订单每产品 + 现货安排(货已在店的不再计)
   const ord={};
   liveOrders().forEach(o=>{
-    if(!o.batch&&o.pickupDate===d&&o.store===st)
+    if(!o.batch&&o.pickupDate===d&&o.store===st&&!o.atStore)
       Object.entries(o.qty||{}).forEach(([k,v])=>ord[k]=(ord[k]||0)+v);
     if(o.batch)Object.values(o.pickups||{}).forEach(r=>{
       if(r.date===d&&(r.store||o.store)===st)Object.entries(r.qty||{}).forEach(([k,v])=>ord[k]=(ord[k]||0)+v);});
