@@ -795,7 +795,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-104";
+const APP_BUILD="b0819-105";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -3580,6 +3580,15 @@ function renderHandover(){
   const ksLine=`<div class="note" style="margin:0 0 8px">厨房成品在库:${parts.length?parts.join(" · ")+` <span class="z">(合计 ${tot} 盒)</span>`:"暂无成品记录"}</div>`;
   el.innerHTML=ksLine+(any?h:'<div class="note">今日没有需要配送的订单或现货安排</div>');
 }
+function voidShip(key,st){
+  const r=(PRODRECS||{})[key];if(!r)return toast("记录不存在");
+  if(!(ROLE&&(ROLE.type==="cs"||ROLE.type==="owner")))return toast("仅客服/Owner 可作废交接");
+  askStaff(`作废交接:${(PRODUCTS.find(p=>p.k===r.product)||{n:r.product}).n} ${r.good}(${r.use||"订单"})`,staff=>{
+    const patch={voided:true,voidBy:staff,voidAt:todayStr()+" "+nowHM()};
+    const done=()=>{Object.assign(r,patch);logOp("SYS-"+st,staff,"作废出货交接",`${(PRODUCTS.find(p=>p.k===r.product)||{n:r.product}).n} ${r.good} · ${r.use||"订单"} · 原记 ${r.time||""}`);toast("已作废,请补记正确数量");renderSum();renderPickup();closeModal();setTimeout(()=>openHandover(st),120);};
+    if(DB)DB.ref(DB_ROOT+"/prod/records/"+key).update(patch,done);else done();
+  });
+}
 function openHandover(st){
   needPin(()=>{
     const d=todayStr();
@@ -3589,6 +3598,10 @@ function openHandover(st){
     if(!rows.length)return toast("该店今日没有应送产品");
     const ks=kitchenGiftStock();
     openModal(mhead(`出货交接:${STORE_NAME[st]}`)+`
+      ${(()=>{const list=Object.entries(PRODRECS||{}).filter(([k,r])=>r&&r.stage==="ship"&&r.date===d&&r.store===st).sort((a,b)=>(a[1].ts||0)-(b[1].ts||0));
+        if(!list.length)return "";
+        return `<div class="note" style="margin:0 0 4px"><b>今日已记交接</b>(输错的点「作废」再补记)</div>
+        ${list.map(([k,r])=>`<div class="kv" style="${r.voided?"opacity:.45;text-decoration:line-through":""}"><span>${r.time||""} ${(PRODUCTS.find(p=>p.k===r.product)||{n:r.product}).n} <b>${r.good}</b> · ${r.use||"订单"}${r.note?" · "+esc(r.note):""}${r.voided?" · 已作废":""}</span>${r.voided?"":`<button class="btn small ghost" onclick="voidShip('${k}','${st}')">作废</button>`}</div>`).join("")}<div style="height:8px"></div>`;})()}
       <p class="note" style="margin:0 0 8px">数字已按「应送 − 已交接」预填,和实物核对后确认。交接后厨房礼盒库存自动扣减。</p>
       <table class="qtbl">
         <tr><td class="qname" style="font-size:12px;color:var(--muted)">产品</td>
