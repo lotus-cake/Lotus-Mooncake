@@ -178,7 +178,7 @@ table.sum .z{color:#C9C6B4}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .mask{position:fixed;inset:0;background:rgba(30,32,20,.55);z-index:40;display:none;align-items:flex-end;justify-content:center}
 .mask.center{align-items:center;padding:20px}
-.mbox{background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:760px;max-height:88vh;overflow-y:auto;padding:18px 16px 24px}
+.mbox{background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:760px;max-height:86vh;overflow-y:auto;padding:18px 16px calc(64px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
 .mask.center .mbox{border-radius:18px;max-width:420px}
 .mhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
 .mhead b{font-size:16px;color:var(--olive-dark)}
@@ -796,11 +796,11 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-106";
+const APP_BUILD="b0819-107";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
-    b.style.cssText="position:fixed;bottom:70px;left:12px;right:12px;z-index:99999;background:#5A6B2B;color:#fff;padding:12px 14px;border-radius:12px;font-size:15px;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.25)";
+    b.style.cssText="position:fixed;top:8px;left:12px;right:12px;z-index:99999;background:#5A6B2B;color:#fff;padding:12px 14px;border-radius:12px;font-size:15px;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.25)";
     b.textContent="有新版本 "+t+"(当前 "+APP_BUILD+")· 点这里更新";
     b.onclick=()=>{location.replace(location.pathname+"?v="+t+"&r="+Date.now());};document.body.appendChild(b);}}).catch(()=>{});}catch(e){}})();
 
@@ -3322,8 +3322,8 @@ function openSale(pk){
     </div>
     <label class="f">付款方式</label>
     <div class="kv" style="margin:2px 0 6px"><span>本单加 GST(勾=可税产品+5%;合并收银不勾)</span><input type="checkbox" id="wTax" style="width:20px;height:20px;accent-color:var(--olive)"></div>
-    <div class="seg" id="slSeg" style="flex-direction:column">
-      ${WALK_PAY.map(m=>`<button data-v="${m}">${m}</button>`).join("")}
+    <div class="seg" id="slSeg" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      ${WALK_PAY.map(m=>`<button data-v="${m}" style="width:100%">${m}</button>`).join("")}
     </div>
     <div id="slOtherWrap" style="display:none"><label class="f">其它说明 *</label>
       <input type="text" id="slOther"></div>
