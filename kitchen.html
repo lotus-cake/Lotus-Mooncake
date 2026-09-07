@@ -499,7 +499,7 @@ const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,pureeBeanG:68
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 const NF=n=>(+n).toLocaleString("en-US");
 const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
-const APP_BUILD="b0819-113";
+const APP_BUILD="b0819-114";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -809,7 +809,7 @@ function shipDayBlock(d,isToday){
   ["CAM","BBY","ALD"].forEach(st=>{
     let ob=0;
     liveOrders().forEach(o=>{
-      if(!o.batch&&o.pickupDate===d&&o.store===st)ob+=o.boxes||0;
+      if(!o.batch&&o.pickupDate===d&&o.store===st&&!o.atStore){const fq=(o.fromWalkin&&o.fromWalkin.qty)||{};const fw=Object.entries(fq).reduce((s,[kk,v])=>s+(/^s_/.test(kk)?0:(+v||0)),0);ob+=Math.max(0,(o.boxes||0)-fw);}
       if(o.batch&&o.store===st)Object.values(o.pickups||{}).forEach(r=>{if(r.date===d)ob+=r.boxes||0;});
     });
     const wq=(WPLAN[d]||{})[st]||{};
