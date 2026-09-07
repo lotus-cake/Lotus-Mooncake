@@ -797,7 +797,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-110";
+const APP_BUILD="b0819-111";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -1092,9 +1092,10 @@ function mhead(t){ return `<div class="mhead"><b>${t}</b><button class="mclose" 
 
 /* ---------------- 员工留痕 ---------------- */
 let STAFF="";
-function staffField(){
+function staffField(){ // 门店码不记忆上一位操作人(防止偷懒直接确认);客服/Owner 保留记忆
+  const remember=!(ROLE&&ROLE.type==="store");
   return `<label class="f">操作人 Staff Name *</label>
-    <input type="text" id="opStaff" value="${esc(STAFF)}" placeholder="请输入你的名字">`;
+    <input type="text" id="opStaff" value="${remember?esc(STAFF):""}" placeholder="${remember?"请输入你的名字":"每次都要填:你的名字"}" autocomplete="off">`;
 }
 function getStaff(){
   const el=document.getElementById("opStaff");
