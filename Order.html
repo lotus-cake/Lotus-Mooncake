@@ -383,6 +383,7 @@ table.sum .z{color:#C9C6B4}
     </div>
     <button class="btn ghost small" id="btnRecv">＋ 录入今日到货</button>
     <button class="btn ghost small" id="btnRepack" style="margin-left:6px">🔁 改装 / 拆盒</button>
+    <button class="btn ghost small" id="btnXfer" style="margin-left:6px">⇄ 跨店调拨</button>
     <div class="card" style="margin-top:12px">
       <table class="wtbl" id="wTable"></table>
     </div>
@@ -797,7 +798,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-111";
+const APP_BUILD="b0819-112";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -962,6 +963,37 @@ function openOrderFromWalkin(no){
     patchOrder(no,{fromWalkin:{store:st,date:d,ts,qty:nq}},()=>{logOp(no,staff,"从现货出货",`${STORE_NAME[st]} 现货 −${desc}`);toast("已扣 "+STORE_NAME[st]+" 现货:"+desc);closeModal();renderAll();});
   };
 }
+function openTransfer(){
+  const from=wStoreVal;if(!from)return toast("请先选调出店");
+  let to=Object.keys(STORE_NAME).find(k=>k!==from);
+  const c=walkinCalc(from,todayStr());
+  const items=WALKIN_PRODUCTS.filter(p=>(c[p.k]||{}).remain>0);
+  if(!items.length)return toast(STORE_NAME[from]+" 没有可调出的现货");
+  openModal(mhead("跨店调拨 · 调出:"+STORE_NAME[from])+`
+    <label class="f">调入门店 *</label>
+    <div class="seg" id="xfTo">${Object.entries(STORE_NAME).filter(([k])=>k!==from).map(([k,n])=>`<button data-v="${k}" class="${k===to?"on":""}">${n}</button>`).join("")}</div>
+    <div class="note" style="margin:6px 0 4px">只填要调走的数量(上限=本店现剩)。调出店现货减、调入店现货加,两边都留痕,不计销售。</div>
+    ${items.map(p=>`<div class="kv"><span>${p.n} <span class="z">现剩 ${c[p.k].remain}</span></span><input type="number" class="xfQ" data-k="${p.k}" min="0" max="${c[p.k].remain}" value="0" style="width:64px;text-align:center"></div>`).join("")}
+    <label class="f">备注(选填)</label><input type="text" id="xfNote" placeholder="例:司机顺路带去">
+    ${staffField()}
+    <button class="btn" style="margin-top:12px" id="xfGo">确认调拨</button>`,true);
+  document.getElementById("xfTo").onclick=e=>{const b=e.target.closest("button");if(!b)return;to=b.dataset.v;document.querySelectorAll("#xfTo button").forEach(x=>x.classList.toggle("on",x===b));};
+  document.getElementById("xfGo").onclick=()=>{
+    const staff=getStaff();if(!staff)return;
+    const take=[];document.querySelectorAll(".xfQ").forEach(i=>{const v=Math.max(0,Math.min(+i.max||0,Math.round(+i.value||0)));if(v>0)take.push([i.dataset.k,v]);});
+    if(!take.length)return toast("请填至少一项数量");
+    const pn=k=>(WALKIN_PRODUCTS.find(x=>x.k===k)||{n:k}).n;const desc=take.map(([k,v])=>pn(k)+"×"+v).join("、");
+    const note=document.getElementById("xfNote").value.trim();
+    if(!confirm(`确认调拨:${STORE_NAME[from]} → ${STORE_NAME[to]}:${desc}?`))return;
+    const d=todayStr(),ts=Date.now(),qty={};take.forEach(([k,v])=>qty[k]=v);
+    take.forEach(([k,v],i)=>addSale(from,{date:d,time:nowHM(),product:k,qty:v,pm:"调拨出",amt:0,staff,src:"transfer",toStore:to,ts:ts+i,note}));
+    addReceipt(to,{date:d,qty,ts:ts+50,auto:"transfer",fromStore:from,note:"调入自 "+STORE_NAME[from]+(note?" · "+note:""),staff});
+    logOp("SYS-"+from,staff,"现货调出",`→ ${STORE_NAME[to]}:${desc}${note?" · "+note:""}`);
+    logOp("SYS-"+to,staff,"现货调入",`← ${STORE_NAME[from]}:${desc}${note?" · "+note:""}`);
+    toast(`已调拨 ${STORE_NAME[from]} → ${STORE_NAME[to]}:${desc}`);closeModal();renderWalkin();
+  };
+}
+{const b=document.getElementById("btnXfer");if(b)b.addEventListener("click",openTransfer);}
 function openRepack(){
   const st=wStoreVal;if(!st)return toast("请先选门店");
   let mode="pack",target=null,n=1;
@@ -3370,7 +3402,7 @@ function renderWalkin(){
     (logs.length?logs.map(([,s])=>{
       const pn=(WALKIN_PRODUCTS.find(p=>p.k===s.product)||{}).n||s.product;
       const who=(s.acct||s.staff)?` · ${esc(s.acct||"")}${s.acct&&s.staff?"|":""}${esc(s.staff||"")}`:"";
-      const srcTag=s.src==="batch"?"分批取走":s.src==="crosspick"?"跨店代取":s.src==="orderpick"?"订单取走":esc(s.pm||"");
+      const srcTag=s.src==="batch"?"分批取走":s.src==="crosspick"?"跨店代取":s.src==="orderpick"?"订单取走":s.src==="transfer"?("调拨出→"+(STORE_NAME[s.toStore]||s.toStore||"")):esc(s.pm||"");
       return `<div class="wlog"><span>${s.time||""} ${pn}${(s.qty||1)>1?" ×"+s.qty:""}${s.amt!=null&&s.amt>0?" "+money(s.amt):""}${who}</span><b>${srcTag}${s.other?":"+esc(s.other):""}</b></div>`;
     }).join("")+`<div class="wlog" style="border-bottom:none"><span><b>今日现货销售额</b></span><b style="color:var(--olive)">${money(dayRev)}</b></div>`
     :`<div class="note">今日暂无现货销售</div>`);
