@@ -798,7 +798,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-115";
+const APP_BUILD="b0819-116";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -2270,7 +2270,7 @@ function saveEdit(o){
     askStaff("确认修改:"+o.no,staff=>{
       patchOrder(o.no,patch,()=>{
         logOp(o.no,staff,"修改订单",(diffs.length?diffs.join(";"):"无字段变化")+" · "+(window._eSrcV||""));_ledgerFix(staff);
-        if(_goodsV==="release"){const okR=recomputeArriveAuto(o.store,_oldPickD,staff);toast(okR?"已改期;这单的货已放入今日现货可售":"已改期;门店今天尚未点收,点收时现货会自动包含这几盒");}
+        if(_goodsV==="release"){releaseToWalkin(o,"resched",staff);toast("已改期;这单的货已放入 "+(STORE_NAME[o.store]||o.store)+" 今日现货可售");}
         if(window._storeChangeConsume){
           const sc=window._storeChangeConsume;window._storeChangeConsume=null;
           Object.entries(sc.qty).forEach(([k,v])=>{if(v>0)addSale(sc.store,{date:sc.date,time:nowHM(),product:k,qty:v,pm:"改店占用",amt:0,staff,src:"storechange",orderNo:o.no,ts:Date.now()});});
@@ -2304,7 +2304,7 @@ function saveEdit(o){
     return askStaff("确认修改子单:"+o.no,staff=>{
       patchOrder(o.no,patch,()=>{
         logOp(o.no,staff,"修改订单",(diffs.length?diffs.join(";"):"无字段变化")+" · "+(window._eSrcV||""));_ledgerFix(staff);
-        if(_goodsV==="release"){const okR=recomputeArriveAuto(o.store,_oldPickD,staff);toast(okR?"已改期;这单的货已放入今日现货可售":"已改期;门店今天尚未点收,点收时现货会自动包含这几盒");}
+        if(_goodsV==="release"){releaseToWalkin(o,"resched",staff);toast("已改期;这单的货已放入 "+(STORE_NAME[o.store]||o.store)+" 今日现货可售");}
         if(window._storeChangeConsume){
           const sc=window._storeChangeConsume;window._storeChangeConsume=null;
           Object.entries(sc.qty).forEach(([k,v])=>{if(v>0)addSale(sc.store,{date:sc.date,time:nowHM(),product:k,qty:v,pm:"改店占用",amt:0,staff,src:"storechange",orderNo:o.no,ts:Date.now()});});
@@ -2604,9 +2604,9 @@ function doCancel(no){
         }else{
           logOp(no,staff,"取消订单",`${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""} · ${srcV}${reason?" · "+reason:""}${paid?` · 待退款→${promo?"客服(优惠单·紧急确认)":({cs:"客服",owner:"Owner",pending:"现场分流"}[patch.refundRoute]||patch.refundRoute)}`:""}`);
           if(document.getElementById("ccGoods")||window._ccGoodsV){
-            if(window._ccGoodsV==="release"){const gd=o.atStore||o.pickupDate;const okR=recomputeArriveAuto(o.store,gd,staff);
-              logOp(no,staff,"取消转现货",`${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""} → ${STORE_NAME[o.store]||o.store} 现货${okR?"(已重算当日可售)":"(门店尚未点收,点收时自动计入)"}`);
-              toast(no+" 已取消,货已转为现货"+(okR?"":"(门店点收后计入)")+(paid?";进入退款处理":""));}
+            if(window._ccGoodsV==="release"){releaseToWalkin(o,"cancelrelease",staff);
+              logOp(no,staff,"取消转现货",`${o.boxes}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""} → ${STORE_NAME[o.store]||o.store} 现货(已直接入库)`);
+              toast(no+" 已取消,货已转入 "+(STORE_NAME[o.store]||o.store)+" 现货"+(paid?";进入退款处理":""));}
             else toast(no+" 已取消"+(paid?",进入退款处理":""));
             window._ccGoodsV=null;}
           else toast(no+" 已取消"+(paid?",进入退款处理":""));
@@ -3298,7 +3298,7 @@ function renderArrive(){
     const rec={kind:"arrive",date:d,store:st,qty,status,note,staff,acct:acctLabel(),ts:Date.now()};
     if(DB)DB.ref(DB_ROOT+"/prod/recv/"+key).set(rec);else RECV[key]=rec;
     // 自动现货 = 实收 − 当日订单需求(替换当日 auto 收货)
-    const autoQty={};WALKIN_PRODUCTS.forEach(p=>{const v=Math.max(0,(qty[p.k]||0)-(plan.ord[p.k]||0));if(v>0)autoQty[p.k]=v;});
+    const rel=releasedQty(st,d);const autoQty={};WALKIN_PRODUCTS.forEach(p=>{const v=Math.max(0,(qty[p.k]||0)-(plan.ord[p.k]||0)-(rel[p.k]||0));if(v>0)autoQty[p.k]=v;});
     const w=WALKIN[st]||{},rk=Object.keys(w.receipts||{}).find(k=>(w.receipts[k]||{}).auto==="arrive"&&w.receipts[k].date===d);
     const rrec={date:d,qty:autoQty,auto:"arrive",note:"到货确认自动入库",staff};
     if(DB)DB.ref(DB_ROOT+"/walkin/"+st+"/receipts/"+(rk||"a"+Date.now())).set(rrec);
@@ -3619,10 +3619,17 @@ function renderBatchPage(){
 
 /* ---------------- 汇总页(门店配送,当日置顶) ---------------- */
 function z(v){return v?v:'<span class="z">·</span>';}
+function releasedQty(st,d){ // 当日"取消转现货/改期放出"直接入库量(点收自动入库要扣掉,避免重复)
+  const out={};Object.values(((WALKIN[st]||{}).receipts)||{}).forEach(r=>{if(r&&r.date===d&&(r.auto==="cancelrelease"||r.auto==="resched"))Object.entries(r.qty||{}).forEach(([k,v])=>out[k]=(out[k]||0)+(+v||0));});return out;}
+function releaseToWalkin(o,kind,staff){ // 订单的货直接放入该店现货(有点收记录与否都成立)
+  const qty={};Object.entries(o.qty||{}).forEach(([k,v])=>{if(v>0)qty[k]=v;});
+  if(!Object.keys(qty).length)return false;
+  addReceipt(o.store,{date:todayStr(),qty,ts:Date.now(),auto:kind,orderNo:o.no,note:(kind==="cancelrelease"?"取消转现货:":"改期放出:")+o.no,staff:staff||""});
+  return true;}
 function recomputeArriveAuto(st,d,staff){ // 重算某日到货自动现货 = 实收 − 当日订单需求(改期释放后调用)
   const done=todayRecvRec(st,d);if(!done)return false;
   const plan=planForStore(d,st),qty=done.qty||{},autoQty={};
-  WALKIN_PRODUCTS.forEach(p=>{const v=Math.max(0,(qty[p.k]||0)-(plan.ord[p.k]||0));if(v>0)autoQty[p.k]=v;});
+  const rel=releasedQty(st,d);WALKIN_PRODUCTS.forEach(p=>{const v=Math.max(0,(qty[p.k]||0)-(plan.ord[p.k]||0)-(rel[p.k]||0));if(v>0)autoQty[p.k]=v;});
   const w=WALKIN[st]||{},rk=Object.keys(w.receipts||{}).find(k=>(w.receipts[k]||{}).auto==="arrive"&&w.receipts[k].date===d);
   const rrec={date:d,qty:autoQty,auto:"arrive",note:"到货确认自动入库(改期释放重算)",staff:staff||""};
   if(DB)DB.ref(DB_ROOT+"/walkin/"+st+"/receipts/"+(rk||"a"+Date.now())).set(rrec);
