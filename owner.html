@@ -674,7 +674,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-108";
+const APP_BUILD="b0819-109";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -2950,7 +2950,7 @@ window.gdCalc=function(D){
   const add=(o,k,n)=>{o[k]=(o[k]||0)+n;};
   const fwSet=new Set();
   ["CAM","BBY","ALD"].forEach(st=>{Object.values((WALKIN[st]||{}).sales||{}).forEach(r=>{
-    if(r&&r.date===D&&r.src==="familywalk"&&r.orderNo)fwSet.add(r.orderNo);});});
+    if(r&&r.date===D&&(r.src==="familywalk"||r.src==="orderpick")&&r.orderNo)fwSet.add(r.orderNo);});});
   Object.values(ORDERS||{}).forEach(o=>{
     if(!o||o.batch)return;
     if(o.pickedUp&&o.pickedAt===D&&!fwSet.has(o.no)&&!(o.crossPick&&!o.pickedAt)){
@@ -2962,7 +2962,7 @@ window.gdCalc=function(D){
     const src=r.src||"";
     if(src==="storechange")return;
     if(src==="自损")add(S[stk].loss,k,v);
-    else if(src==="batch"||src==="familywalk"||src==="crosspick")add(S[stk].pre,k,v);
+    else if(src==="batch"||src==="familywalk"||src==="crosspick"||src==="orderpick")add(S[stk].pre,k,v);
     else add(S[stk].ret,k,v);
   });});
   return S;
