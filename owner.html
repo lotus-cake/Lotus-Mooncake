@@ -674,7 +674,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-111";
+const APP_BUILD="b0819-112";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -2960,7 +2960,7 @@ window.gdCalc=function(D){
   ["CAM","BBY","ALD"].forEach(stk=>{Object.values((WALKIN[stk]||{}).sales||{}).forEach(r=>{
     if(!r||r.date!==D)return; const k=r.product; const v=+r.qty||0; if(!k||v<=0)return;
     const src=r.src||"";
-    if(src==="storechange")return;
+    if(src==="storechange"||src==="transfer")return;
     if(src==="自损")add(S[stk].loss,k,v);
     else if(src==="batch"||src==="familywalk"||src==="crosspick"||src==="orderpick")add(S[stk].pre,k,v);
     else add(S[stk].ret,k,v);
