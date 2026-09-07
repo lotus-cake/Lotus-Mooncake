@@ -797,7 +797,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-109";
+const APP_BUILD="b0819-110";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -929,12 +929,18 @@ function patchTodo(id,patch){
 const REPACK_BOM={mix6:{js:1,mt:1,tr:1,cp:1,mk:1,wl:1},js6:{js:6},js2:{js:2},mt2:{mt:2},tr2:{tr:2},cp2:{cp:2},mk2:{mk:2},wl2:{wl:2}};
 function openOrderFromWalkin(no){
   const o=ORDERS[no];if(!o)return;
-  if(o.fromWalkin)return toast("此单已记从现货出货");
-  let st=o.store;const d=o.pickedAt||todayStr();
-  const items=Object.entries(o.qty||{}).filter(([,v])=>v>0);
-  const draw=()=>{const c=walkinCalc(st,todayStr());document.getElementById("ofwList").innerHTML=items.map(([k,v])=>{const p=WALKIN_PRODUCTS.find(x=>x.k===k)||{n:k};const rem=(c[k]||{}).remain||0;return `<div class="kv"><span>${p.n} ×${v}</span><b style="color:${rem<v?"var(--danger)":"var(--olive)"}">现剩 ${rem}${rem<v?" · 不够":""}</b></div>`;}).join("");};
+  let st=(o.fromWalkin&&o.fromWalkin.store)||o.store;const d=o.pickedAt||todayStr();
+  const done=(o.fromWalkin&&o.fromWalkin.qty)||{};
+  const items=Object.entries(o.qty||{}).map(([k,v])=>[k,v-(done[k]||0)]).filter(([,v])=>v>0);
+  if(!items.length)return toast("此单所有品项都已记从现货出货");
+  const pn=k=>(WALKIN_PRODUCTS.find(x=>x.k===k)||{n:k}).n;
+  const draw=()=>{const c=walkinCalc(st,todayStr());document.getElementById("ofwList").innerHTML=
+    `<div class="note" style="margin:0 0 4px">只填<b>真正从现货拿走</b>的数量;正常配送预留的品项填 0</div>`+
+    items.map(([k,v])=>{const rem=(c[k]||{}).remain||0;const dv=items.length===1?v:0;
+      return `<div class="kv"><span>${pn(k)} <span class="z">单上 ${v}${done[k]?"(已记 "+done[k]+")":""} · 现剩 <b style="color:${rem<=0?"var(--danger)":"var(--olive)"}">${rem}</b></span></span>
+        <input type="number" class="ofwQ" data-k="${k}" min="0" max="${v}" value="${dv}" style="width:64px;text-align:center"></div>`;}).join("");};
   openModal(mhead("从现货出货:"+no)+`
-    <div class="note">用于临时单 / 未预留的单:货从门店现货拿走,扣该店现货、不计营收(钱在订单里),出货日报按预订取货计。</div>
+    <div class="note">用于临时单 / 未预留的品项:货从门店现货拿走,扣该店现货、不计营收(钱在订单里),出货日报按预订取货计。</div>
     <label class="f">从哪家店的现货出 *</label>
     <div class="seg" id="ofwStore">${Object.entries(STORE_NAME).map(([k,n])=>`<button data-v="${k}" class="${k===st?"on":""}">${n}</button>`).join("")}</div>
     <div id="ofwList" style="margin-top:8px"></div>
@@ -944,10 +950,16 @@ function openOrderFromWalkin(no){
   document.getElementById("ofwStore").onclick=e=>{const b=e.target.closest("button");if(!b)return;st=b.dataset.v;document.querySelectorAll("#ofwStore button").forEach(x=>x.classList.toggle("on",x===b));draw();};
   document.getElementById("ofwGo").onclick=()=>{
     const staff=getStaff();if(!staff)return;
-    if(!confirm(`确认:${no} 的 ${items.map(([k,v])=>((WALKIN_PRODUCTS.find(x=>x.k===k)||{n:k}).n)+"×"+v).join("、")} 从 ${STORE_NAME[st]} 现货扣除?`))return;
+    const take=[];document.querySelectorAll(".ofwQ").forEach(i=>{const v=Math.max(0,Math.min(+i.max||0,Math.round(+i.value||0)));if(v>0)take.push([i.dataset.k,v]);});
+    if(!take.length)return toast("请填至少一项数量");
+    const c=walkinCalc(st,todayStr());const short=take.filter(([k,v])=>((c[k]||{}).remain||0)<v);
+    if(short.length&&!confirm(`${short.map(([k])=>pn(k)).join("、")} 现货不够,仍要扣(会成负数)?`))return;
+    const desc=take.map(([k,v])=>pn(k)+"×"+v).join("、");
+    if(!confirm(`确认:${no} 的 ${desc} 从 ${STORE_NAME[st]} 现货扣除?`))return;
     const ts=Date.now();
-    items.forEach(([k,v],i)=>addSale(st,{date:d,time:nowHM(),product:k,qty:v,pm:"订单取走",amt:0,staff,src:"orderpick",orderNo:no,ts:ts+i}));
-    patchOrder(no,{fromWalkin:{store:st,date:d,ts}},()=>{logOp(no,staff,"从现货出货",`${STORE_NAME[st]} 现货 −${items.map(([k,v])=>((WALKIN_PRODUCTS.find(x=>x.k===k)||{n:k}).n)+"×"+v).join("、")}`);toast("已扣 "+STORE_NAME[st]+" 现货");closeModal();renderAll();});
+    take.forEach(([k,v],i)=>addSale(st,{date:d,time:nowHM(),product:k,qty:v,pm:"订单取走",amt:0,staff,src:"orderpick",orderNo:no,ts:ts+i}));
+    const nq={...done};take.forEach(([k,v])=>nq[k]=(nq[k]||0)+v);
+    patchOrder(no,{fromWalkin:{store:st,date:d,ts,qty:nq}},()=>{logOp(no,staff,"从现货出货",`${STORE_NAME[st]} 现货 −${desc}`);toast("已扣 "+STORE_NAME[st]+" 现货:"+desc);closeModal();renderAll();});
   };
 }
 function openRepack(){
@@ -1866,7 +1878,9 @@ function openDetail(no){
     ${o.batch?`<div class="sect">取货记录</div>${pkList||'<p class="note">还没有取货记录</p>'}`:""}
     <div style="height:12px"></div>
     ${(o.pickedUp&&ROLE&&ROLE.type==="store")?`<p class="note" style="margin:0;color:var(--danger)">已完成取货,信息锁定;需更正请联系客服</p>`:""}
-    ${(!o.batch&&!o.parentNo&&o.status==="有效")?(o.fromWalkin?`<div class="note" style="margin-top:6px">📦 已从 ${STORE_NAME[o.fromWalkin.store]||o.fromWalkin.store} 现货出货(${fmtMD(o.fromWalkin.date)})</div>`:`<button class="btn small ghost" style="margin-top:8px;width:100%" onclick="closeModal();openOrderFromWalkin('${no}')">📦 从门店现货出货(临时单 / 未预留)</button>`):""}
+    ${(!o.batch&&!o.parentNo&&o.status==="有效")?(()=>{const fw=o.fromWalkin||{},fq=fw.qty||{};const left=Object.entries(o.qty||{}).some(([k,v])=>v-(fq[k]||0)>0);
+      const doneTxt=Object.keys(fq).length?`<div class="note" style="margin-top:6px">📦 已从 ${STORE_NAME[fw.store]||fw.store} 现货出:${Object.entries(fq).map(([k,v])=>((WALKIN_PRODUCTS.find(p=>p.k===k)||{n:k}).n)+"×"+v).join("、")}(${fmtMD(fw.date)})</div>`:(fw.store?`<div class="note" style="margin-top:6px">📦 已从 ${STORE_NAME[fw.store]||fw.store} 现货出货(${fmtMD(fw.date)})</div>`:"");
+      return doneTxt+(left&&(!fw.store||Object.keys(fq).length)?`<button class="btn small ghost" style="margin-top:8px;width:100%" onclick="closeModal();openOrderFromWalkin('${no}')">📦 从门店现货出货${Object.keys(fq).length?"(追加)":"(临时单 / 未预留)"}</button>`:"");})():""}
     ${(o.pickedUp&&!o.batch&&ROLE&&(ROLE.type==="cs"||ROLE.type==="owner"))?`<button class="btn ghost" onclick="undoPicked('${no}')">撤销已取</button>`:""}
     ${(dead||(o.pickedUp&&ROLE&&ROLE.type==="store"))?"":`<button class="btn" onclick="openEdit('${no}')">修改订单</button>`}
     ${(dead||(o.pickedUp&&ROLE&&ROLE.type==="store"))?"":`<div class="row" style="margin-top:10px">
