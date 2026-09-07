@@ -382,6 +382,7 @@ table.sum .z{color:#C9C6B4}
       <button class="chip" data-v="ALD">Alderbridge</button>
     </div>
     <button class="btn ghost small" id="btnRecv">＋ 录入今日到货</button>
+    <button class="btn ghost small" id="btnRepack" style="margin-left:6px">🔁 改装 / 拆盒</button>
     <div class="card" style="margin-top:12px">
       <table class="wtbl" id="wTable"></table>
     </div>
@@ -796,7 +797,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-107";
+const APP_BUILD="b0819-108";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -925,6 +926,52 @@ function patchTodo(id,patch){
   else { Object.assign(TODOS[id],patch); }
   renderTodos();
 }
+const REPACK_BOM={mix6:{js:1,mt:1,tr:1,cp:1,mk:1,wl:1},js6:{js:6},js2:{js:2},mt2:{mt:2},tr2:{tr:2},cp2:{cp:2},mk2:{mk:2},wl2:{wl:2}};
+function openRepack(){
+  const st=wStoreVal;if(!st)return toast("请先选门店");
+  let mode="pack",target=null,n=1;
+  const c=()=>walkinCalc(st,todayStr());
+  const boxes=Object.keys(REPACK_BOM).filter(k=>PRODUCTS.some(p=>p.k===k));
+  const pn=k=>(WALKIN_PRODUCTS.find(p=>p.k===k)||{n:k}).n;
+  const draw=()=>{
+    const cc=c();
+    const list=(mode==="pack"?boxes:boxes.filter(k=>(cc[k]||{}).remain>0));
+    if(!list.includes(target))target=list[0]||null;
+    const need=target?Object.entries(REPACK_BOM[target]).map(([f,v])=>({k:"s_"+f,v:v*n})):[];
+    const enough=need.every(x=>mode!=="pack"||((cc[x.k]||{}).remain||0)>=x.v);
+    document.getElementById("rpBody").innerHTML=`
+      <label class="f">${mode==="pack"?"改装成":"拆开的礼盒"}</label>
+      <div class="seg" id="rpTarget" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${list.map(k=>`<button data-v="${k}" class="${k===target?"on":""}" style="width:100%">${pn(k)}<small>剩${(cc[k]||{}).remain||0}</small></button>`).join("")||'<span class="note">本店没有可拆的礼盒</span>'}</div>
+      <div class="kv" style="margin-top:8px"><span>数量(${mode==="pack"?"盒":"盒拆"})</span><span><button class="btn small ghost" id="rpMinus">−</button> <b id="rpN">${n}</b> <button class="btn small ghost" id="rpPlus">+</button></span></div>
+      ${target?`<div class="note" style="margin-top:6px">${mode==="pack"?"需要单颗":"得到单颗"}:${need.map(x=>`${pn(x.k)} ×${x.v}(现剩 ${(cc[x.k]||{}).remain||0})`).join(" · ")}${mode==="pack"&&!enough?' <b style="color:var(--danger)">单颗不够</b>':""}</div>`:""}
+      <div class="note" style="margin-top:6px">${mode==="pack"?"改装会用掉一个店内备的礼盒套装,系统不扣店内包材;改装后按礼盒价卖。":"拆盒后按单颗价卖;拆下的礼盒盒子不回计。"}</div>`;
+    document.getElementById("rpTarget").onclick=e=>{const b=e.target.closest("button");if(!b)return;target=b.dataset.v;draw();};
+    document.getElementById("rpMinus").onclick=()=>{n=Math.max(1,n-1);draw();};
+    document.getElementById("rpPlus").onclick=()=>{n=Math.min(50,n+1);draw();};
+    document.getElementById("rpGo").disabled=!target||(mode==="pack"&&!enough);
+  };
+  openModal(mhead("改装 / 拆盒 · "+(STORE_NAME[st]||st))+`
+    <div class="seg" id="rpMode"><button data-v="pack" class="on">单颗 → 礼盒</button><button data-v="unpack">礼盒 → 单颗</button></div>
+    <div id="rpBody" style="margin-top:8px"></div>
+    ${staffField()}
+    <button class="btn" style="margin-top:12px" id="rpGo">确认</button>`,true);
+  document.getElementById("rpMode").onclick=e=>{const b=e.target.closest("button");if(!b)return;mode=b.dataset.v;target=null;n=1;document.querySelectorAll("#rpMode button").forEach(x=>x.classList.toggle("on",x===b));draw();};
+  document.getElementById("rpGo").onclick=()=>{
+    const staff=getStaff();if(!staff)return;
+    if(!target)return toast("请选产品");
+    const cc=c(),qty={};
+    const parts=Object.entries(REPACK_BOM[target]).map(([f,v])=>({k:"s_"+f,v:v*n}));
+    if(mode==="pack"){if(!parts.every(x=>((cc[x.k]||{}).remain||0)>=x.v))return toast("单颗不够");parts.forEach(x=>qty[x.k]=-x.v);qty[target]=n;}
+    else{if(((cc[target]||{}).remain||0)<n)return toast("礼盒不够");qty[target]=-n;parts.forEach(x=>qty[x.k]=x.v);}
+    const desc=mode==="pack"?`${parts.map(x=>pn(x.k)+"×"+x.v).join("+")} → ${pn(target)}×${n}`:`${pn(target)}×${n} → ${parts.map(x=>pn(x.k)+"×"+x.v).join("+")}`;
+    if(!confirm(`确认${mode==="pack"?"改装":"拆盒"}:${desc}?`))return;
+    addReceipt(st,{date:todayStr(),qty,ts:Date.now(),auto:"repack",note:(mode==="pack"?"改装:":"拆盒:")+desc,staff});
+    logOp("SYS-"+st,staff,mode==="pack"?"现货改装":"现货拆盒",desc);
+    toast("已"+(mode==="pack"?"改装":"拆盒")+":"+desc);closeModal();renderWalkin();
+  };
+  draw();
+}
+{const b=document.getElementById("btnRepack");if(b)b.addEventListener("click",openRepack);}
 function addReceipt(store,rec){
   if(DB) DB.ref(DB_ROOT+"/walkin/"+store+"/receipts").push(rec);
   else { WALKIN[store]=WALKIN[store]||{receipts:{},sales:{}};
