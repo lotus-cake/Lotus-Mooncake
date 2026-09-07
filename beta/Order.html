@@ -798,7 +798,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-113";
+const APP_BUILD="b0819-114";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -3629,8 +3629,8 @@ function hasShipFor(d,st){return Object.values(PRODRECS||{}).some(r=>r&&!r.voide
 function planForStore(d,st){ // 当日该店应送:订单每产品 + 现货安排(货已在店的不再计)
   const ord={};
   liveOrders().forEach(o=>{
-    if(!o.batch&&o.pickupDate===d&&o.store===st&&!o.atStore)
-      Object.entries(o.qty||{}).forEach(([k,v])=>ord[k]=(ord[k]||0)+v);
+    if(!o.batch&&o.pickupDate===d&&o.store===st&&!o.atStore){const fq=(o.fromWalkin&&o.fromWalkin.qty)||{};
+      Object.entries(o.qty||{}).forEach(([k,v])=>{const n=Math.max(0,v-(fq[k]||0));if(n)ord[k]=(ord[k]||0)+n;});}
     if(o.batch)Object.values(o.pickups||{}).forEach(r=>{
       if(r.date===d&&(r.store||o.store)===st)Object.entries(r.qty||{}).forEach(([k,v])=>ord[k]=(ord[k]||0)+v);});
     if(o.batch)Object.values(o.reserves||{}).forEach(r=>{
