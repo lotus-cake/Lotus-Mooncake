@@ -674,7 +674,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-116";
+const APP_BUILD="b0819-117";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -2661,6 +2661,8 @@ function renderFin(){
     if(r.voided)return;
     if(r.rawUse)Object.entries(r.rawUse).forEach(([k,v])=>use[k]=(use[k]||0)+(+v||0));
     if(r.stage==="rawuse")use[r.raw]=(use[r.raw]||0)+(+r.good||0);
+    if(r.stage==="bakeyolk")use.yolkraw=(use.yolkraw||0)+(+r.good||0); // 生咸蛋黄(包)
+    if(r.stage==="cookpuree"){const n=+r.good||0;use.redbean=(use.redbean||0)+n*680;use.chenpi=(use.chenpi||0)+n*15;} // 煮泥扣豆/陈皮(默认每批 680/15g)
     if(r.stage==="pack"){const g=+r.good||0;muse.tray=(muse.tray||0)+g;muse.bag=(muse.bag||0)+g;muse.oxy=(muse.oxy||0)+g*2;muse["st_"+r.flavor]=(muse["st_"+r.flavor]||0)+g;}
     if(r.stage==="boxup"){const g=+r.good||0;const p=PRODUCTS.find(x=>x.k===r.product)||{};
       muse[p.box===6?"kit6":"kit2"]=(muse[p.box===6?"kit6":"kit2"]||0)+g;}
@@ -2668,15 +2670,25 @@ function renderFin(){
      if(r.lossType==="op"){if(g)opG+=w+y;else opC+=w+y;}
      else{if(g)fmG+=y;else{fmC+=y;opC+=w;}}}
   });
-  Object.entries(use).forEach(([k,v])=>{const p=COSTS[k];if(p>0){rawCost+=v*p;priced++;}else unpriced++;});
-  Object.entries(muse).forEach(([k,v])=>{const p=COSTS[k];if(p>0){matCost+=v*p;priced++;}else unpriced++;});
+  const detail=[];
+  Object.entries(use).forEach(([k,v])=>{const p=COSTS[k];if(p>0){rawCost+=v*p;priced++;detail.push({k,v,p,c:v*p,kind:"raw"});}else{unpriced++;detail.push({k,v,p:0,c:0,kind:"raw"});}});
+  Object.entries(muse).forEach(([k,v])=>{const p=COSTS[k];if(p>0){matCost+=v*p;priced++;detail.push({k,v,p,c:v*p,kind:"mat"});}else{unpriced++;detail.push({k,v,p:0,c:0,kind:"mat"});}});
+  window._costDetail=detail.sort((a,b)=>b.c-a.c);
   const cost=Math.round((rawCost+matCost)*100)/100;
   el.innerHTML=
     `<div class="kv"><span>订单总额 / 已收</span><b>${money(rev)||"$0"} / ${money(coll)||"$0"}</b></div>
      <div class="kv"><span>现货已收</span><b>${money(wrev)||"$0"}</b></div>
-     <div class="kv"><span>材料成本(实际消耗×单价)</span><b>${money(cost)||"$0"}${unpriced?`<span class="note" style="margin-left:6px">还有${unpriced}项没填单价</span>`:""}</b></div>
+     <div class="kv"><span>材料成本(实际消耗×单价)<button class="btn small ghost" style="margin-left:8px" onclick="openCostDetail()">明细</button></span><b>${money(cost)||"$0"}${unpriced?`<span class="note" style="margin-left:6px">还有${unpriced}项没填单价</span>`:""}</b></div>
      <div class="kv"><span>毛利(已收−材料成本,粗略)</span><b>${money(Math.round((coll+wrev-cost)*100)/100)}</b></div>
      <div class="kv"><span>累计耗损</span><b style="color:var(--danger)">配方 ${lossFmt(fmG,fmC)||0} · 操作 ${lossFmt(opG,opC)||0}</b></div>`;
+}
+function openCostDetail(){
+  const d=window._costDetail||[];const tot=d.reduce((s,x)=>s+x.c,0);
+  const nm=k=>{const m=allRaw().find(x=>x.k===k);if(m)return m.n+"("+m.u+")";const km=KMATS.find(x=>x.k===k);if(km)return km.n+"(个)";if(/^st_/.test(k))return "贴纸·"+k.slice(3)+"(个)";return k;};
+  openModal(mhead("材料成本明细(整季累计)")+`
+    <p class="note" style="margin:0 0 8px">用量来源:配方自动扣料 + 手动领用 + 包材(单颗包装/装盒)+ 煮泥/烤蛋黄。单价按 $/单位;金额异常大的先查单价单位(克计要填 $/g)。</p>
+    <div class="kv"><span><b>合计</b></span><b>${money(Math.round(tot*100)/100)}</b></div>
+    <div style="max-height:56vh;overflow-y:auto">${d.map(x=>`<div class="kv"><span>${nm(x.k)}<br><span class="z">用量 ${Math.round(x.v*100)/100} × 单价 ${x.p?("$"+x.p):"<span style=\"color:var(--danger)\">未填</span>"}</span></span><b>${x.p?money(Math.round(x.c*100)/100):"—"}${tot&&x.c/tot>0.3?' <span style="color:var(--danger)">▲</span>':""}</b></div>`).join("")||'<p class="note">暂无消耗记录</p>'}</div>`,true);
 }
 document.getElementById("btnCosts").addEventListener("click",()=>{
   needOwner(()=>{
