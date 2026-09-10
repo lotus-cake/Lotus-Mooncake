@@ -798,7 +798,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-124";
+const APP_BUILD="b0819-125";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -2136,8 +2136,8 @@ function openEdit(no){
     if(show){const h=document.getElementById("eGoodsHint");if(h)h.textContent=hasShipFor(o.pickupDate,o.store)?`客服 ${fmtMD(o.pickupDate)} 记过该店交接,货应已在店`:`${fmtMD(o.pickupDate)} 没有该店交接记录,请核实货是否已送到`;}
     else window._eGoodsV="";};
   {const dEl=document.getElementById("eDate");if(dEl)dEl.addEventListener("change",updGoods);}
-  document.getElementById("eGoods").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;window._eGoodsV=b.dataset.v;document.querySelectorAll("#eGoods button").forEach(x=>x.classList.toggle("on",x===b));});
-  document.getElementById("eStoreSeg").addEventListener("click",()=>setTimeout(updGoods,0));
+  {const gEl=document.getElementById("eGoods");if(gEl)gEl.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;window._eGoodsV=b.dataset.v;document.querySelectorAll("#eGoods button").forEach(x=>x.classList.toggle("on",x===b));});}
+  {const sEl=document.getElementById("eStoreSeg");if(sEl)sEl.addEventListener("click",()=>setTimeout(updGoods,0));}
   document.getElementById("eStoreSeg").addEventListener("click",e=>{
     const b=e.target.closest("button"); if(!b)return;
     eStore=b.dataset.v;
