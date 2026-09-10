@@ -798,7 +798,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-123";
+const APP_BUILD="b0819-124";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -4571,7 +4571,10 @@ try{
     try{
       var bar=document.createElement("div");
       bar.style.cssText="position:fixed;top:0;left:0;right:0;z-index:99999;background:#A63B2E;color:#fff;font-size:13px;font-weight:700;padding:8px 12px;text-align:center";
-      bar.textContent="⚠ 系统页面异常("+APP_BUILD+")。请截图发工作群,并改用备用链接(网址前加 prev/)继续操作。";
+      var _m=String((e&&e.message)||"")+((e&&e.lineno)?" @"+e.lineno:"");
+      bar.textContent="⚠ 系统页面异常("+APP_BUILD+")。请截图发工作群;若功能受影响可改用备用链接(网址前加 prev/)。点此关闭 · "+_m.slice(0,160);
+      bar.onclick=function(){bar.remove();fired=false;};
+      try{if(typeof DB!=="undefined"&&DB)DB.ref(DB_ROOT+"/errlog").push({build:APP_BUILD,msg:_m.slice(0,300),role:(typeof ROLE!=="undefined"&&ROLE)?(ROLE.type+"|"+(ROLE.name||ROLE.store||"")):"",ua:navigator.userAgent.slice(0,80),ts:Date.now()});}catch(_){}
       document.body.appendChild(bar);
       if(typeof DB!=="undefined"&&DB)DB.ref((typeof DB_ROOT!=="undefined"?DB_ROOT:"x")+"/errors").push({build:typeof APP_BUILD!=="undefined"?APP_BUILD:"?",msg:String(e.message||"").slice(0,300),src:String(e.filename||"").slice(-60),line:e.lineno||0,ua:navigator.userAgent.slice(0,80),ts:Date.now()});
     }catch(_){}
