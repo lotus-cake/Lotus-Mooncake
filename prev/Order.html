@@ -798,7 +798,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-120";
+const APP_BUILD="b0819-121";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -826,7 +826,7 @@ function initData(){
     firebase.auth().onAuthStateChanged(u=>{AUTHED=!!u;setConn(!!u,"未登录");});
     firebase.auth().signInAnonymously().catch(e=>{AUTHED=false;setConn(false,"连接失败:"+e.message);toast("云端连接失败:"+e.message+"(检查 Firebase 匿名登录是否启用)");});
     DB=firebase.database();
-    DB.ref(DB_ROOT+"/orders").on("value",s=>{ORDERS=s.val()||{};renderAll();});
+    DB.ref(DB_ROOT+"/orders").on("value",s=>{ORDERS=s.val()||{};healSplitKids();renderAll();});
     DB.ref(DB_ROOT+"/ledger").on("value",s=>{LEDGER=s.val()||{};});
     DB.ref(DB_ROOT+"/closes").on("value",s=>{CLOSES=s.val()||{};renderAll();});
     DB.ref(DB_ROOT+"/selfloss").on("value",s=>{SELFLOSS=s.val()||{};});
@@ -1063,6 +1063,10 @@ function addBatchPickup(no,rec,cb){
 function saveCaps(){ if(DB) DB.ref(DB_ROOT+"/meta/caps").set(CAPS); }
 
 /* ---------------- 统计 ---------------- */
+function healSplitKids(){ // 自愈:子单(有母单)绝不该带分批标记(旧版拆单曾继承);内存纠正并由客服/Owner 写回一次
+  let n=0;Object.values(ORDERS||{}).forEach(o=>{if(o&&o.parentNo&&o.batch){o.batch=false;n++;
+    if(DB&&ROLE&&(ROLE.type==="cs"||ROLE.type==="owner"))DB.ref(DB_ROOT+"/orders/"+o.no).update({batch:null,healedAt:Date.now()});}});
+  return n;}
 function liveOrders(){ return Object.values(ORDERS).filter(o=>o.status==="有效"); }
 function datedLive(){ return liveOrders().filter(o=>!o.batch); }
 function batchOrders(){ return liveOrders().filter(o=>o.batch); }
