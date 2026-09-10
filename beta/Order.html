@@ -792,7 +792,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-126";
+const APP_BUILD="b0819-127";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -1913,6 +1913,7 @@ function openDetail(no){
     ${o.batch?`<div class="sect">取货记录</div>${pkList||'<p class="note">还没有取货记录</p>'}`:""}
     <div style="height:12px"></div>
     ${(o.pickedUp&&ROLE&&ROLE.type==="store")?`<p class="note" style="margin:0;color:var(--danger)">已完成取货,信息锁定;需更正请联系客服</p>`:""}
+    ${(o.status==="有效"&&!o.parentNo&&dueAmt(o)>EPS)?`<button class="btn" style="margin-top:8px;width:100%;background:var(--olive)" onclick="closeModal();settleDue('${no}',false)">💰 收款 / 结算(待收 ${money(dueAmt(o))},可只收一部分)</button>`:""}
     ${(!o.batch&&!o.parentNo&&o.status==="有效")?(()=>{const fw=o.fromWalkin||{},fq=fw.qty||{};const left=Object.entries(o.qty||{}).some(([k,v])=>v-(fq[k]||0)>0);
       const doneTxt=Object.keys(fq).length?`<div class="note" style="margin-top:6px">📦 已从 ${STORE_NAME[fw.store]||fw.store} 现货出:${Object.entries(fq).map(([k,v])=>((WALKIN_PRODUCTS.find(p=>p.k===k)||{n:k}).n)+"×"+v).join("、")}(${fmtMD(fw.date)})</div>`:(fw.store?`<div class="note" style="margin-top:6px">📦 已从 ${STORE_NAME[fw.store]||fw.store} 现货出货(${fmtMD(fw.date)})</div>`:"");
       return doneTxt+(left&&(!fw.store||Object.keys(fq).length)?`<button class="btn small ghost" style="margin-top:8px;width:100%" onclick="closeModal();openOrderFromWalkin('${no}')">📦 从门店现货出货${Object.keys(fq).length?"(追加)":"(临时单 / 未预留)"}</button>`:"");})():""}
@@ -2505,6 +2506,18 @@ function settleDue(no,alsoPick){
     const staff=getStaff(); if(!staff)return;
     const collected=Math.round(av*100)/100;
     const newPaid=Math.round((paidOf(o)+collected)*100)/100;
+    const balNow=Math.round(((o.amount||0)-paidOf(o))*100)/100;
+    if(collected>0&&collected<balNow-EPS){ // 部分收款:总额不动,记部分付,余额继续待收
+      if(!confirm(`只收 ${money(collected)},还欠 ${money(Math.round((balNow-collected)*100)/100)},记为「部分付」?`))return;
+      const pp={pay:"部分付",paid:newPaid,dueNote:"待收差额 $"+Math.round((balNow-collected)*100)/100,duePlan:o.duePlan||"取货时付",dueQty:null,dueNegAmt:null};
+      if(alsoPick){pp.pickedUp=true;pp.pickedAt=todayStr();}
+      patchOrder(no,pp,()=>{
+        logOp(no,staff,alsoPick?"取货并部分收款":"部分收款",`收 ${money(collected)}(${pmLbl}),累计已收 ${money(newPaid)},仍欠 ${money(Math.round((balNow-collected)*100)/100)}`);
+        addLedger({orderNo:no,type:"订单收款",pm:pmLbl,amt:collected,staff,ref:null});
+        closeModal();toast(`${no} ${alsoPick?"已取货,":""}已收 ${money(collected)},余额待收`);
+      });
+      return;
+    }
     const patch={pay:"已付",paid:newPaid,amount:newPaid,dueNote:null,dueQty:null,dueNegAmt:null};
     // 多收退差:重算原始差额(未截断),负数=欠客人的,统一走退款路由
     {const pmCalc=(pm==="其它")?(o.payMethod||pm):pm;
