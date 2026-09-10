@@ -798,7 +798,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-121";
+const APP_BUILD="b0819-122";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -1133,8 +1133,12 @@ function staffField(){ // 门店码不记忆上一位操作人(防止偷懒直�
   return `<label class="f">操作人 Staff Name *</label>
     <input type="text" id="opStaff" value="${remember?esc(STAFF):""}" placeholder="${remember?"请输入你的名字":"每次都要填:你的名字"}" autocomplete="off">`;
 }
+function staffEl(){ // 弹窗打开时只认弹窗里的操作人框(页面卡片里可能同时有一个同 id 的框)
+  const mask=document.getElementById("mMask"),box=document.getElementById("mBox");
+  if(mask&&mask.style.display==="flex"&&box){const e=box.querySelector("#opStaff");if(e)return e;}
+  return document.getElementById("opStaff");}
 function getStaff(){
-  const el=document.getElementById("opStaff");
+  const el=staffEl();
   const v=el?el.value.trim():"";
   if(!v){toast("请输入操作人 Staff Name");return null;}
   STAFF=v; return v;
