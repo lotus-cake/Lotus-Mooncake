@@ -798,7 +798,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-119";
+const APP_BUILD="b0819-120";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -2870,7 +2870,7 @@ function openSplit(no){
       <div><label class="f">取货人电话</label><input type="tel" id="spPhone" value=""></div>
     </div>
     <label class="f">拆出部分的取货日期 *</label>
-    <input type="date" id="spDate" min="${DATE_MIN}" max="${DATE_MAX}" value="${(o.pickupDate&&o.pickupDate>=DATE_MIN&&o.pickupDate<=DATE_MAX)?o.pickupDate:(todayStr()>=DATE_MIN?todayStr():DATE_MIN)}" required>
+    <input type="date" id="spDate" min="${DATE_MIN}" max="${DATE_MAX}" value="" required>
     <label class="f">拆出部分的门店</label>
     <div class="seg store" id="spStore">
       ${["CAM","BBY","ALD"].map(s=>`<button data-v="${s}" class="${s===o.store?"on":""}">${STORE_NAME[s]}</button>`).join("")}
@@ -2902,7 +2902,8 @@ function openSplit(no){
     if(mv===0)return toast("请选择拆出的数量");
     if(mv>=o.boxes)return toast("不能全部拆走;全改日期请直接「修改订单」改取货日期");
     const nd=document.getElementById("spDate").value;
-    if(!nd||nd<DATE_MIN||nd>DATE_MAX)return toast("日期须在 9/3 – 9/27");
+    if(!nd)return toast("请选择拆出部分的取货日期(每次拆单都必须填)");
+    if(nd<DATE_MIN||nd>DATE_MAX)return toast("日期须在 9/3 – 9/27");
     const staff=getStaff(); if(!staff)return;
     const remain={...o.qty};
     Object.keys(sQty).forEach(k=>{remain[k]-=sQty[k]; if(!remain[k])delete remain[k];});
