@@ -499,7 +499,7 @@ const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,pureeBeanG:68
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 const NF=n=>(+n).toLocaleString("en-US");
 const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
-const APP_BUILD="b0819-120";
+const APP_BUILD="b0819-121";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -528,7 +528,7 @@ function initData(){
     firebase.auth().signInAnonymously().catch(e=>{AUTHED=false;setConn(false,"连接失败:"+e.message);toast("云端连接失败:"+e.message+"(检查 Firebase 匿名登录是否启用)");});
     DB=firebase.database();
     DB.ref(DB_ROOT+"/prod/records").on("value",s=>{RECS=s.val()||{};renderAll();});
-    DB.ref(DB_ROOT+"/orders").on("value",s=>{ORDERS=s.val()||{};renderAll();});
+    DB.ref(DB_ROOT+"/orders").on("value",s=>{ORDERS=s.val()||{};Object.values(ORDERS).forEach(o=>{if(o&&o.parentNo&&o.batch)o.batch=false;});renderAll();});
     DB.ref(DB_ROOT+"/prod/meta/th").on("value",s=>{TH=s.val()||{};renderAll();});
     DB.ref(DB_ROOT+"/prod/rawmats").on("value",s=>{RAWCUSTOM=s.val()||{};renderAll();});
     DB.ref(DB_ROOT+"/prod/recipes").on("value",s=>{RECIPES=s.val()||{};renderAll();});
