@@ -664,7 +664,7 @@ const nickel=v=>Math.round(v*20)/20;
 const EPS=0.021;
 const money = v => (v==null||isNaN(v)) ? "" : "$"+(+v).toFixed(2).replace(/\.00$/,"");
 function calcDetail(qty,payMethod,channel,noTax){
-  const lines=[],units6=[];
+  const lines=[],units6=[],units2=[];
   let pieces=0,box6=0,box2=0;
   PRODUCTS.forEach(p=>{
     const q=(qty&&qty[p.k])||0; if(!q)return;
@@ -673,30 +673,24 @@ function calcDetail(qty,payMethod,channel,noTax){
     const unit = p.box===6 ? (payMethod==="现金"?PRICES.p6cash:PRICES.p6)
                : p.pc ? (PRICES.s1!=null?PRICES.s1:11.5)
                : PRICES.p2;
-    for(let i=0;i<q;i++){const L={v:unit,tx:!noTax&&taxOn(p.k),six:p.box===6,freed:false};lines.push(L);if(L.six)units6.push(L);}
+    for(let i=0;i<q;i++){const L={v:unit,tx:!noTax&&taxOn(p.k),six:p.box===6,two:p.box===2,freed:false};lines.push(L);if(L.six)units6.push(L);if(L.two)units2.push(L);}
   });
-  const T=lines.length,T6=units6.length;
+  const T=lines.length,T6=units6.length,T2=units2.length;
   let gross=lines.reduce((s,l)=>s+l.v,0);
-  // 促销为六粒盒专属:门槛按六粒盒数,赠品免最便宜的六粒盒(连同其税);两粒/单颗不参与
-  let tier=null;
-  (PRICES.promos||[]).forEach(t=>{
-    if(t&&t.buy>0&&t.free>0&&T6>=t.buy+t.free){
-      if(!tier||t.buy+t.free>tier.buy+tier.free)tier=t;
-    }
-  });
+  // 促销分两条线各自计:六粒盒按六粒盒数、两粒盒按两粒盒数(同一套档位 买10送1/20送3/30送5),赠品免该线最便宜的盒(连同其税);单颗不参与
+  const pickTier=(n)=>{let tt=null;(PRICES.promos||[]).forEach(t=>{if(t&&t.buy>0&&t.free>0&&n>=t.buy+t.free){if(!tt||t.buy+t.free>tt.buy+tt.free)tt=t;}});return tt;};
+  const tier=pickTier(T6),tier2=pickTier(T2);
   let promoDisc=0;
-  if(tier){
-    units6.sort((a,b)=>a.v-b.v);
-    units6.slice(0,tier.free).forEach(l=>{l.freed=true;promoDisc+=l.v;});
-  }
+  if(tier){units6.sort((a,b)=>a.v-b.v);units6.slice(0,tier.free).forEach(l=>{l.freed=true;promoDisc+=l.v;});}
+  if(tier2){units2.sort((a,b)=>a.v-b.v);units2.slice(0,tier2.free).forEach(l=>{l.freed=true;promoDisc+=l.v;});}
   const f=(channel==="员工")?(PRICES.emp||0.9):1;
   const r2=v=>Math.round((v+Number.EPSILON)*100)/100;
   const sub=r2((gross-promoDisc)*f);
   const taxBase=lines.reduce((s,l)=>s+((l.tx&&!l.freed)?l.v:0),0)*f;
   const gst=r2(taxBase*0.05);
   const amt=r2(sub+gst);
-  return {freeCount:(tier?tier.free:0),amt,sub,gst,gross:Math.round(gross*100)/100,
-          promoDisc:Math.round(promoDisc*100)/100, tier, t6:T6, pieces, box6, box2};
+  return {freeCount:(tier?tier.free:0)+(tier2?tier2.free:0),free6:(tier?tier.free:0),free2:(tier2?tier2.free:0),amt,sub,gst,gross:Math.round(gross*100)/100,
+          promoDisc:Math.round(promoDisc*100)/100, tier, tier2, t6:T6, t2:T2, pieces, box6, box2};
 }
 function nextTierHint(d){
   const T6=d.t6||0;if(!T6)return "";
@@ -798,7 +792,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-125";
+const APP_BUILD="b0819-126";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
