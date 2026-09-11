@@ -792,7 +792,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-132";
+const APP_BUILD="b0819-133";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -3292,15 +3292,16 @@ function renderArrive(){
   const st=ROLE.store,d=todayStr();
   const plan=planForStore(d,st);
   const shp=shippedFor(d,st),shipQ={};WALKIN_PRODUCTS.forEach(p=>{const v=(shp["订单"][p.k]||0)+(shp["现货"][p.k]||0);if(v)shipQ[p.k]=v;});
-  const prods=WALKIN_PRODUCTS.filter(p=>((plan.ord[p.k]||0)+(plan.walk[p.k]||0))>0||(shipQ[p.k]||0)>0);
   const xin=Object.values(((WALKIN[st]||{}).receipts)||{}).filter(r=>r&&r.auto==="transfer"&&r.date===d);
-  const xinHtml=xin.length?`<div class="note" style="margin:0 0 8px;background:#EEF3E6;border-radius:8px;padding:6px 8px">⇄ 今日调入(已直接入现货,无需点收):${xin.map(r=>Object.entries(r.qty||{}).map(([k,v])=>((WALKIN_PRODUCTS.find(p=>p.k===k)||{n:k}).n)+"×"+v).join("、")+" ← "+(STORE_NAME[r.fromStore]||r.fromStore||"")).join(";")}</div>`:"";
+  const xinQ={};xin.forEach(r=>Object.entries(r.qty||{}).forEach(([k,v])=>xinQ[k]=(xinQ[k]||0)+(+v||0)));
+  const xinHtml=xin.length?`<div class="note" style="margin:0 0 8px;background:#EEF3E6;border-radius:8px;padding:6px 8px">⇄ 今日调入:${xin.map(r=>Object.entries(r.qty||{}).map(([k,v])=>((WALKIN_PRODUCTS.find(p=>p.k===k)||{n:k}).n)+"×"+v).join("、")+" ← "+(STORE_NAME[r.fromStore]||r.fromStore||"")).join(";")}<br><span class="z">调入已在现货里;点收请填司机送来的<b>实物总数</b>(含调入),系统自动不重复计</span></div>`:"";
+  const prods=WALKIN_PRODUCTS.filter(p=>((plan.ord[p.k]||0)+(plan.walk[p.k]||0))>0||(shipQ[p.k]||0)>0||(xinQ[p.k]||0)>0);
   if(!prods.length&&!xin.length){el.style.display="none";return;}
   el.style.display="";
   const done=todayRecvRec(st,d);
   const body=document.getElementById("arriveBody");
   if(!prods.length){body.innerHTML=xinHtml;return;}
-  const delta={};let deltaTot=0;if(done){WALKIN_PRODUCTS.forEach(p=>{const v=(shipQ[p.k]||0)-((done.qty||{})[p.k]||0);if(v>0){delta[p.k]=v;deltaTot+=v;}});}
+  const delta={};let deltaTot=0;if(done){WALKIN_PRODUCTS.forEach(p=>{const v=(shipQ[p.k]||0)+(xinQ[p.k]||0)-((done.qty||{})[p.k]||0);if(v>0){delta[p.k]=v;deltaTot+=v;}});}
   if(done&&!window._arrEdit){
     const sellable=WALKIN_PRODUCTS.filter(p=>((done.qty||{})[p.k]||0)>0||((plan.ord[p.k]||0)>0)).map(p=>{
       const got=(done.qty||{})[p.k]||0,need=plan.ord[p.k]||0,sell=Math.max(0,got-need);
@@ -3314,9 +3315,9 @@ function renderArrive(){
   }
   const hasShip=Object.keys(shipQ).length>0;
   body.innerHTML=xinHtml+`<div class="note" style="margin:0 0 6px">${hasShip?"已按<b>客服记的交接数</b>预填(司机送来的数),请按实到核对;计划数仅供参考":"<b style=\"color:var(--danger)\">客服尚未记交接</b>,暂按计划数预填——请以实到为准"}</div>`+prods.map(p=>{
-    const planExp=(plan.ord[p.k]||0)+(plan.walk[p.k]||0),shipped=shipQ[p.k]||0;
-    const exp=hasShip?shipped:planExp;
-    const lbl=hasShip?`交接 <b>${shipped}</b>${shipped!==planExp?` <span style="color:var(--danger)">(计划${planExp})</span>`:` <span class="z">(=计划)</span>`}`:`计划 ${planExp}(订单${plan.ord[p.k]||0}+现货${plan.walk[p.k]||0})`;
+    const planExp=(plan.ord[p.k]||0)+(plan.walk[p.k]||0),shipped=shipQ[p.k]||0,xinN=xinQ[p.k]||0;
+    const exp=(hasShip?shipped:planExp)+xinN;
+    const lbl=(hasShip?`交接 <b>${shipped}</b>${shipped!==planExp?` <span style="color:var(--danger)">(计划${planExp})</span>`:` <span class="z">(=计划)</span>`}`:`计划 ${planExp}(订单${plan.ord[p.k]||0}+现货${plan.walk[p.k]||0})`)+(xinN?` + 调入 <b>${xinN}</b> = 应到 <b>${exp}</b>`:"");
     return `<div class="kv"><span>${p.n} <span class="z">${lbl}</span></span>
       <input type="number" class="arrIn" data-k="${p.k}" value="${window._arrPre&&done?(((done.qty||{})[p.k]||0)+(delta[p.k]||0)):((done&&done.qty&&done.qty[p.k])!=null?done.qty[p.k]:exp)}" min="0" style="width:72px;text-align:center"></div>`;
   }).join("")+`
@@ -3333,10 +3334,10 @@ function renderArrive(){
     if(status!=="已收到,数量正确"&&!note)return toast("异常情况请填写 Notes");
     const staff=getStaff();if(!staff)return;
     const key=(done&&done.k)||("rv"+Date.now());
-    const rec={kind:"arrive",date:d,store:st,qty,status,note,staff,acct:acctLabel(),ts:Date.now()};
+    const rec={kind:"arrive",date:d,store:st,qty,status,note,staff,acct:acctLabel(),ts:Date.now(),xin:transferredIn(st,d)};
     if(DB)DB.ref(DB_ROOT+"/prod/recv/"+key).set(rec);else RECV[key]=rec;
     // 自动现货 = 实收 − 当日订单需求(替换当日 auto 收货)
-    const rel=releasedQty(st,d);const autoQty={};WALKIN_PRODUCTS.forEach(p=>{const v=Math.max(0,(qty[p.k]||0)-(plan.ord[p.k]||0)-(rel[p.k]||0));if(v>0)autoQty[p.k]=v;});
+    const rel=releasedQty(st,d),xinNow=transferredIn(st,d);const autoQty={};WALKIN_PRODUCTS.forEach(p=>{const v=Math.max(0,(qty[p.k]||0)-(plan.ord[p.k]||0)-(rel[p.k]||0)-(xinNow[p.k]||0));if(v>0)autoQty[p.k]=v;});
     const w=WALKIN[st]||{},rk=Object.keys(w.receipts||{}).find(k=>(w.receipts[k]||{}).auto==="arrive"&&w.receipts[k].date===d);
     const rrec={date:d,qty:autoQty,auto:"arrive",note:"到货确认自动入库",staff};
     if(DB)DB.ref(DB_ROOT+"/walkin/"+st+"/receipts/"+(rk||"a"+Date.now())).set(rrec);
@@ -3657,6 +3658,7 @@ function renderBatchPage(){
 
 /* ---------------- 汇总页(门店配送,当日置顶) ---------------- */
 function z(v){return v?v:'<span class="z">·</span>';}
+function transferredIn(st,d){const out={};Object.values(((WALKIN[st]||{}).receipts)||{}).forEach(r=>{if(r&&r.auto==="transfer"&&r.date===d)Object.entries(r.qty||{}).forEach(([k,v])=>out[k]=(out[k]||0)+(+v||0));});return out;}
 function releasedQty(st,d){ // 当日"取消转现货/改期放出"直接入库量(点收自动入库要扣掉,避免重复)
   const out={};Object.values(((WALKIN[st]||{}).receipts)||{}).forEach(r=>{if(r&&r.date===d&&(r.auto==="cancelrelease"||r.auto==="resched"))Object.entries(r.qty||{}).forEach(([k,v])=>out[k]=(out[k]||0)+(+v||0));});return out;}
 function releaseToWalkin(o,kind,staff){ // 订单的货直接放入该店现货(有点收记录与否都成立)
@@ -3667,7 +3669,7 @@ function releaseToWalkin(o,kind,staff){ // 订单的货直接放入该店现货(
 function recomputeArriveAuto(st,d,staff){ // 重算某日到货自动现货 = 实收 − 当日订单需求(改期释放后调用)
   const done=todayRecvRec(st,d);if(!done)return false;
   const plan=planForStore(d,st),qty=done.qty||{},autoQty={};
-  const rel=releasedQty(st,d);WALKIN_PRODUCTS.forEach(p=>{const v=Math.max(0,(qty[p.k]||0)-(plan.ord[p.k]||0)-(rel[p.k]||0));if(v>0)autoQty[p.k]=v;});
+  const rel=releasedQty(st,d),xinRec=(done.xin)||{};WALKIN_PRODUCTS.forEach(p=>{const v=Math.max(0,(qty[p.k]||0)-(plan.ord[p.k]||0)-(rel[p.k]||0)-(xinRec[p.k]||0));if(v>0)autoQty[p.k]=v;});
   const w=WALKIN[st]||{},rk=Object.keys(w.receipts||{}).find(k=>(w.receipts[k]||{}).auto==="arrive"&&w.receipts[k].date===d);
   const rrec={date:d,qty:autoQty,auto:"arrive",note:"到货确认自动入库(改期释放重算)",staff:staff||""};
   if(DB)DB.ref(DB_ROOT+"/walkin/"+st+"/receipts/"+(rk||"a"+Date.now())).set(rrec);
