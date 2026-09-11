@@ -792,7 +792,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-128";
+const APP_BUILD="b0819-129";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -1084,11 +1084,19 @@ function batchRemainQty(o){
   return r;
 }
 function soldTotals(){ let b6=0,b2=0; liveOrders().forEach(o=>{b6+=o.box6||0;b2+=o.box2||0;}); return {b6,b2}; }
+function walkinUsage(){ // 现货占用(盒):各店到货累计(店间调拨不算)+ 今起已安排但尚未点收的现货
+  const D=todayStr();const u={b6:0,b2:0};
+  const boxOf=k=>{if(k==="bb2")return 2;const p=(typeof WALKIN_PRODUCTS!=="undefined"?WALKIN_PRODUCTS:PRODUCTS).find(x=>x.k===k);return p?(p.box===6?6:(p.box===2?2:0)):0;};
+  const addQ=q=>Object.entries(q||{}).forEach(([k,v])=>{const b=boxOf(k);if(b===6)u.b6+=(+v||0);else if(b===2)u.b2+=(+v||0);});
+  Object.values(WALKIN||{}).forEach(w=>Object.values((w&&w.receipts)||{}).forEach(r=>{if(!r||r.auto==="transfer")return;addQ(r.qty);}));
+  Object.entries(WPLAN||{}).forEach(([d,byStore])=>{if(d<D)return;Object.entries(byStore||{}).forEach(([st,q])=>{if(typeof todayRecvRec==="function"&&todayRecvRec(st,d))return;addQ(q);});});
+  return u;}
 function capState(){
-  const s=soldTotals();
-  return { sold6:s.b6, sold2:s.b2,
-    left6:CAPS.b6>0?Math.max(0,CAPS.b6-s.b6):null, left2:CAPS.b2>0?Math.max(0,CAPS.b2-s.b2):null,
-    out6:CAPS.b6>0&&s.b6>=CAPS.b6, out2:CAPS.b2>0&&s.b2>=CAPS.b2 };
+  const s=soldTotals(),wu=walkinUsage();
+  const used6=s.b6+wu.b6,used2=s.b2+wu.b2;
+  return { sold6:used6, sold2:used2, ord6:s.b6, ord2:s.b2, walk6:wu.b6, walk2:wu.b2,
+    left6:CAPS.b6>0?Math.max(0,CAPS.b6-used6):null, left2:CAPS.b2>0?Math.max(0,CAPS.b2-used2):null,
+    out6:CAPS.b6>0&&used6>=CAPS.b6, out2:CAPS.b2>0&&used2>=CAPS.b2 };
 }
 function walkinCalc(store,date){
   const w=WALKIN[store]||{}; const res={};
@@ -4398,8 +4406,8 @@ function renderSettings(){
   fill("pr6",PRICES.p6);fill("pr6c",PRICES.p6cash);fill("pr2",PRICES.p2);fill("prbb",PRICES.bb2);fill("prEmp",PRICES.emp);fill("prS1",PRICES.s1!=null?PRICES.s1:11.5);renderTaxTable();
   const pr=PRICES.promos||[];
   [0,1,2].forEach(i=>{fill("pmB"+(i+1),(pr[i]||{}).buy||0);fill("pmF"+(i+1),(pr[i]||{}).free||0);});
-  document.getElementById("sold6t").textContent=`${c.sold6} / ${c.left6===null?"不限":c.left6}`;
-  document.getElementById("sold2t").textContent=`${c.sold2} / ${c.left2===null?"不限":c.left2}`;
+  document.getElementById("sold6t").textContent=`订单 ${c.ord6} + 现货 ${c.walk6} = ${c.sold6} / 剩 ${c.left6===null?"不限":c.left6}`;
+  document.getElementById("sold2t").textContent=`订单 ${c.ord2} + 现货 ${c.walk2} = ${c.sold2} / 剩 ${c.left2===null?"不限":c.left2}`;
   document.getElementById("statAll").textContent=Object.keys(ORDERS).length;
   document.getElementById("statLive").textContent=liveOrders().length;
   const rev=liveOrders().reduce((s,o)=>s+(o.amount||0),0);
