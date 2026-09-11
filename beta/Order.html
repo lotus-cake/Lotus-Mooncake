@@ -434,6 +434,7 @@ table.sum .z{color:#C9C6B4}
   <div class="seg" id="sumModeSeg" style="margin:0 0 8px">
     <button data-v="prod" class="on">按产品(厨房)</button><button data-v="store">按门店(装车)</button>
   </div>
+  <div class="card" id="sumOpenCard"></div>
   <div class="card" id="sumProdCard">
     <div class="note" style="margin:0 0 8px"><b id="sumProdTitle">产品配送汇总</b> · 厨房按「产品总计」备货包装</div>
     <div id="sumProd"></div>
@@ -792,7 +793,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-129";
+const APP_BUILD="b0819-130";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -3810,7 +3811,24 @@ function openHandover(st){
     };
   });
 }
+function renderOpenOrders(){ // 未取订单总览:有效·未取·非分批(分批余额另计)
+  const el=document.getElementById("sumOpenCard");if(!el)return;
+  const D=todayStr();const groups={past:[],today:[],future:[]};
+  datedLive().forEach(o=>{if(o.pickedUp||!o.pickupDate)return;(o.pickupDate<D?groups.past:(o.pickupDate===D?groups.today:groups.future)).push(o);});
+  const agg=list=>{const q={};let boxes=0,pieces=0;list.forEach(o=>{boxes+=o.boxes||0;pieces+=piecesOf(o)||0;Object.entries(o.qty||{}).forEach(([k,v])=>q[k]=(q[k]||0)+v);});return {q,boxes,pieces};};
+  const row=(lbl,list,color)=>{const a=agg(list);if(!list.length)return `<div class="kv"><span>${lbl}</span><b class="z">0</b></div>`;
+    return `<details style="margin:4px 0"><summary class="kv" style="cursor:pointer"><span><b style="color:${color}">${lbl}</b> ${list.length} 单</span><b>${a.boxes} 盒${a.pieces?"+"+a.pieces+"颗":""}</b></summary>
+      <div class="pksum" style="margin:6px 0">${PRODUCTS.filter(p=>a.q[p.k]>0).map(p=>`<span class="pi">${p.n}<b>${a.q[p.k]}</b></span>`).join("")}</div>
+      ${list.sort((x,y)=>String(x.pickupDate).localeCompare(String(y.pickupDate))).map(o=>`<div class="kv" style="font-size:13px"><span><b class="ono" style="cursor:pointer" onclick="openDetail('${o.no}')">${esc(o.no)}</b> ${esc(o.name||"")} · ${fmtMD(o.pickupDate)}${o.pickupTime?" "+o.pickupTime:""} · ${STORE_NAME[o.store]||o.store}</span><b>${o.boxes||0}盒${piecesOf(o)?"+"+piecesOf(o)+"颗":""}${o.pay!=="已付"?` <span class="badge due" style="font-size:10px">${esc(o.pay)}</span>`:""}</b></div>`).join("")}</details>`;};
+  const all=[...groups.past,...groups.today,...groups.future];const A=agg(all);
+  let remB=0;batchOrders().forEach(o=>{remB+=boxCounts(batchRemainQty(o)).total;});
+  el.innerHTML=`<div class="note" style="margin:0 0 6px"><b>未取订单总览</b>(已订出、尚未取走的定日单)</div>
+    <div class="kv"><span><b>合计</b> ${all.length} 单</span><b>${A.boxes} 盒${A.pieces?"+"+A.pieces+"颗":""}</b></div>
+    ${row("过期未取",groups.past,"var(--danger)")}${row("今天待取",groups.today,"var(--olive)")}${row("未来待取",groups.future,"var(--bronze)")}
+    <div class="kv" style="margin-top:4px"><span class="z">分批大单待取余额(另计)</span><b class="z">${remB} 盒</b></div>`;
+}
 function renderSum(){
+  renderOpenOrders();
   renderHandover();
   const rem={};
   batchOrders().forEach(o=>{const r=batchRemainQty(o);
