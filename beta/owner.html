@@ -365,6 +365,7 @@ table.sum .z{color:#C9C6B4}
 <!-- ============ 汇总 ============ -->
 <div class="page" id="pg-sum">
   <h2>门店配送汇总</h2>
+  <div class="card" id="openCard"></div>
   <div class="card" id="handoverCard">
     <div class="note" style="margin:0 0 8px"><b>今日出货交接</b>(中央厨房 → 司机 → 门店)</div>
     <div id="handoverBody"></div>
@@ -674,7 +675,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-130";
+const APP_BUILD="b0819-131";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -1958,7 +1959,27 @@ function openHandover(st){
     };
   });
 }
+function piecesOfO(o){return Object.entries(o.qty||{}).reduce((s,[k,v])=>s+((PRODUCTS.find(p=>p.k===k)||{}).pc?(+v||0):0),0);}
+function renderOpenTable(){ // 未取总览:过期(日期<今天)/未来(≥明天)/分批余额/总未取;今天的不进表
+  const el=document.getElementById("openCard");if(!el)return;
+  const D=todayStr();const past=[],future=[];
+  datedLive().forEach(o=>{if(o.pickedUp||!o.pickupDate||o.pickupDate===D)return;(o.pickupDate<D?past:future).push(o);});
+  const q=(list)=>{const m={};list.forEach(o=>Object.entries(o.qty||{}).forEach(([k,v])=>m[k]=(m[k]||0)+(+v||0)));return m;};
+  const qp=q(past),qf=q(future),qb={};
+  batchOrders().forEach(o=>{const r=batchRemainQty(o);PRODUCTS.forEach(p=>{if(r[p.k])qb[p.k]=(qb[p.k]||0)+r[p.k];});});
+  const rows=PRODUCTS.filter(p=>(qp[p.k]||0)+(qf[p.k]||0)+(qb[p.k]||0)>0);
+  const sum=(m,pc)=>PRODUCTS.filter(p=>!!p.pc===pc).reduce((s,p)=>s+(m[p.k]||0),0);
+  const tb=sum(qp,false)+sum(qf,false)+sum(qb,false),tp=sum(qp,true)+sum(qf,true)+sum(qb,true);
+  const list=(lbl,arr,color)=>arr.length?`<details style="margin:6px 0"><summary style="cursor:pointer"><b style="color:${color}">${lbl}</b> ${arr.length} 单</summary>
+      ${arr.sort((x,y)=>String(x.pickupDate).localeCompare(String(y.pickupDate))).map(o=>`<div class="kv" style="font-size:13px"><span><b class="ono" style="cursor:pointer" onclick="openDetail('${o.no}')">${esc(o.no)}</b> ${esc(o.name||"")} · ${fmtMD(o.pickupDate)}${o.pickupTime?" "+o.pickupTime:""} · ${STORE_NAME[o.store]||o.store}</span><b>${o.boxes||0}盒${piecesOfO(o)?"+"+piecesOfO(o)+"颗":""}${o.pay!=="已付"?` <span class="badge due" style="font-size:10px">${esc(o.pay)}</span>`:""}</b></div>`).join("")}</details>`:"";
+  el.innerHTML=`<div class="note" style="margin:0 0 6px"><b>未取总览</b>(已订出、还没取走;今天要取的不计入)</div>
+    <div class="twrap"><table class="sum"><tr><th>产品</th><th>过期未取</th><th>未来</th><th>分批余额</th><th>总未取</th></tr>
+    ${rows.map(p=>`<tr><td>${p.n}</td><td>${qp[p.k]||0}</td><td>${qf[p.k]||0}</td><td>${qb[p.k]||0}</td><td><b>${(qp[p.k]||0)+(qf[p.k]||0)+(qb[p.k]||0)}</b>${p.pc?"颗":""}</td></tr>`).join("")||'<tr><td colspan="5" class="note">暂无未取</td></tr>'}
+    <tr><td><b>合计</b></td><td>${sum(qp,false)}盒${sum(qp,true)?"+"+sum(qp,true)+"颗":""}</td><td>${sum(qf,false)}盒${sum(qf,true)?"+"+sum(qf,true)+"颗":""}</td><td>${sum(qb,false)}盒${sum(qb,true)?"+"+sum(qb,true)+"颗":""}</td><td><b>${tb}盒${tp?"+"+tp+"颗":""}</b></td></tr></table></div>
+    ${list("过期未取",past,"var(--danger)")}${list("未来待取(明天起)",future,"var(--bronze)")}`;
+}
 function renderSum(){
+  renderOpenTable();
   renderHandover();
   const rem={};
   batchOrders().forEach(o=>{const r=batchRemainQty(o);
