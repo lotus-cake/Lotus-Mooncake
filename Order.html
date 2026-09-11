@@ -792,7 +792,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-127";
+const APP_BUILD="b0819-128";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -922,6 +922,16 @@ function patchTodo(id,patch){
   renderTodos();
 }
 const REPACK_BOM={mix6:{js:1,mt:1,tr:1,cp:1,mk:1,wl:1},js6:{js:6},js2:{js:2},mt2:{mt:2},tr2:{tr:2},cp2:{cp:2},mk2:{mk:2},wl2:{wl:2}};
+function undoOrderFromWalkin(no){
+  const o=ORDERS[no];if(!o||!o.fromWalkin)return toast("此单没有现货出货记录");
+  const fw=o.fromWalkin,st=fw.store;
+  const rows=Object.entries(((WALKIN[st]||{}).sales)||{}).filter(([,s])=>s&&s.src==="orderpick"&&s.orderNo===no);
+  const desc=rows.map(([,s])=>((WALKIN_PRODUCTS.find(p=>p.k===s.product)||{n:s.product}).n)+"×"+s.qty).join("、")||"(无流水)";
+  askStaff(`撤销现货出货:${no} · ${STORE_NAME[st]||st} 退回 ${desc}`,staff=>{
+    rows.forEach(([id])=>delSale(st,id));
+    patchOrder(no,{fromWalkin:null},()=>{logOp(no,staff,"撤销现货出货",`${STORE_NAME[st]||st} 现货退回 ${desc}`);toast("已撤销,现货已退回 "+(STORE_NAME[st]||st));closeModal();renderAll();});
+  });
+}
 function openOrderFromWalkin(no){
   const o=ORDERS[no];if(!o)return;
   let st=(o.fromWalkin&&o.fromWalkin.store)||o.store;const d=o.pickedAt||todayStr();
@@ -1916,7 +1926,7 @@ function openDetail(no){
     ${(o.status==="有效"&&!o.parentNo&&dueAmt(o)>EPS)?`<button class="btn" style="margin-top:8px;width:100%;background:var(--olive)" onclick="closeModal();settleDue('${no}',false)">💰 收款 / 结算(待收 ${money(dueAmt(o))},可只收一部分)</button>`:""}
     ${(!o.batch&&!o.parentNo&&o.status==="有效")?(()=>{const fw=o.fromWalkin||{},fq=fw.qty||{};const left=Object.entries(o.qty||{}).some(([k,v])=>v-(fq[k]||0)>0);
       const doneTxt=Object.keys(fq).length?`<div class="note" style="margin-top:6px">📦 已从 ${STORE_NAME[fw.store]||fw.store} 现货出:${Object.entries(fq).map(([k,v])=>((WALKIN_PRODUCTS.find(p=>p.k===k)||{n:k}).n)+"×"+v).join("、")}(${fmtMD(fw.date)})</div>`:(fw.store?`<div class="note" style="margin-top:6px">📦 已从 ${STORE_NAME[fw.store]||fw.store} 现货出货(${fmtMD(fw.date)})</div>`:"");
-      return doneTxt+(left&&(!fw.store||Object.keys(fq).length)?`<button class="btn small ghost" style="margin-top:8px;width:100%" onclick="closeModal();openOrderFromWalkin('${no}')">📦 从门店现货出货${Object.keys(fq).length?"(追加)":"(临时单 / 未预留)"}</button>`:"");})():""}
+      return doneTxt+(left&&(!fw.store||Object.keys(fq).length)?`<button class="btn small ghost" style="margin-top:8px;width:100%" onclick="closeModal();openOrderFromWalkin('${no}')">📦 从门店现货出货${Object.keys(fq).length?"(追加)":"(临时单 / 未预留)"}</button>`:"")+(fw.store?`<button class="btn small ghost" style="margin-top:6px;width:100%;color:var(--danger)" onclick="closeModal();undoOrderFromWalkin('${no}')">↩ 撤销现货出货(退回 ${STORE_NAME[fw.store]||fw.store} 现货)</button>`:"");})():""}
     ${(o.pickedUp&&!o.batch&&ROLE&&(ROLE.type==="cs"||ROLE.type==="owner"))?`<button class="btn ghost" onclick="undoPicked('${no}')">撤销已取</button>`:""}
     ${(dead||(o.pickedUp&&ROLE&&ROLE.type==="store"))?"":`<button class="btn" onclick="openEdit('${no}')">修改订单</button>`}
     ${(dead||(o.pickedUp&&ROLE&&ROLE.type==="store"))?"":`<div class="row" style="margin-top:10px">
