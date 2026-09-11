@@ -792,7 +792,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-131";
+const APP_BUILD="b0819-132";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -2933,7 +2933,8 @@ function openSplit(no){
   document.getElementById("spGo").onclick=()=>{
     const mv=boxCounts(sQty).total;
     if(mv===0)return toast("请选择拆出的数量");
-    if(mv>=o.boxes)return toast("不能全部拆走;全改日期请直接「修改订单」改取货日期");
+    if(mv>=o.boxes&&!o.batch)return toast("不能全部拆走;全改日期请直接「修改订单」改取货日期");
+    if(mv>=o.boxes&&o.batch&&!confirm(`把这张分批大单的剩余全部(${mv}盒)拆成一张定日子单?母单保留付款记录,余额变 0。`))return;
     const nd=document.getElementById("spDate").value;
     if(!nd)return toast("请选择拆出部分的取货日期(每次拆单都必须填)");
     if(nd<DATE_MIN||nd>DATE_MAX)return toast("日期须在 9/3 – 9/27");
