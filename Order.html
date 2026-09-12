@@ -390,6 +390,7 @@ table.sum .z{color:#C9C6B4}
     <div class="sect">今日销售流水</div>
     <div class="card" id="wLog"></div>
     <button class="btn small warn" id="btnUndoSale">撤销最近一笔销售</button>
+    <details id="wRecvWrap" style="margin-top:10px"><summary class="note" style="cursor:pointer"><b>本店收货记录明细</b>(查数对不上时看这里;可作废多余记录)</summary><div id="wRecvList" style="margin-top:6px"></div></details>
     <div style="margin:10px 0 2px"><button class="btn" style="width:100%" onclick="openDayClose()">🔒 日结(汇总今日·锁定本店钱账)</button></div>
     <div style="margin:2px 0 8px"><button class="btn small ghost" style="width:100%" onclick="openSelfLoss()">📷 报自损(需照片 · Owner 审批后自动扣现货)</button></div>
   </div>
@@ -793,7 +794,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-138";
+const APP_BUILD="b0819-139";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -3467,6 +3468,12 @@ function renderWalkin(){
   const logs=Object.entries(w.sales||{}).filter(([,s])=>s.date===date)
     .sort((a,b)=>(b[1].ts||0)-(a[1].ts||0));
   const dayRev=logs.reduce((s,[,x])=>s+(x.amt||0),0);
+  {const rl=document.getElementById("wRecvList");if(rl){
+    const rows=Object.entries((WALKIN[wStoreVal]||{}).receipts||{}).sort((a,b)=>String(b[1].date).localeCompare(String(a[1].date))||((b[1].ts||0)-(a[1].ts||0)));
+    const pn=k=>(WALKIN_PRODUCTS.find(p=>p.k===k)||{n:k}).n;
+    rl.innerHTML=rows.map(([id,r])=>{const q=Object.entries(r.qty||{}).map(([k,v])=>pn(k)+"×"+v).join("、")||"(空)";
+      const kind=r.auto==="arrive"?"到货确认自动入库":r.auto==="transfer"?("调入自 "+(STORE_NAME[r.fromStore]||r.fromStore||"")+(r.pending?" · 待签收(未计)":" · 已计")):r.auto==="repack"?"改装/拆盒":r.auto==="cancelrelease"?"取消转现货":r.auto==="resched"?"改期放出":"手动录入到货";
+      return `<div class="kv" style="font-size:13px"><span>${fmtMD(r.date)} ${q}<br><span class="z">${kind}${r.note&&!r.auto?" · "+esc(r.note):""}${r.staff?" · "+esc(r.staff):""}</span></span><button class="btn small ghost" style="padding:2px 6px;font-size:11px;color:var(--danger)" onclick="voidReceipt('${wStoreVal}','${id}')">作废</button></div>`;}).join("")||'<p class="note">暂无收货记录</p>';}}
   document.getElementById("wLog").innerHTML=
     (logs.length?logs.map(([sid,s])=>{
       const pn=(WALKIN_PRODUCTS.find(p=>p.k===s.product)||{}).n||s.product;
@@ -3542,6 +3549,15 @@ function openSale(pk){
       time:nowHM(),product:pk,qty:slQty,pm,other,amt,gst:gstW||0,gstOn:(wOn&&taxOn(pk))?1:null,staff,ts:Date.now()});
     closeModal();toast(`${pn} ×${slQty} 已售出 ${money(amt)}`);
   };
+}
+function voidReceipt(store,id){ // 作废一条收货记录(数对不上时用;调拨类建议用撤回)
+  const r=((WALKIN[store]||{}).receipts||{})[id];if(!r)return toast("记录不存在");
+  const q=Object.entries(r.qty||{}).map(([k,v])=>((WALKIN_PRODUCTS.find(p=>p.k===k)||{n:k}).n)+"×"+v).join("、");
+  askStaff(`作废收货记录:${fmtMD(r.date)} ${q}(${r.auto||"手动"})`,staff=>{
+    if(DB)DB.ref(DB_ROOT+"/walkin/"+store+"/receipts/"+id).remove();else delete WALKIN[store].receipts[id];
+    logOp("SYS-"+store,staff,"作废收货记录",`${fmtMD(r.date)} ${q} · ${r.auto||"手动"}${r.note?" · "+r.note:""}`);
+    toast("已作废");closeModal();renderWalkin();
+  });
 }
 function voidSale(store,id){ // 作废一笔现货销售:删流水 + 冲销台账(退款 −金额),留痕
   const s=((WALKIN[store]||{}).sales||{})[id];if(!s)return toast("记录不存在");
