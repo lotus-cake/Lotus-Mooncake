@@ -793,13 +793,19 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-137";
-/* 自动更新提示:核对线上 version.txt,旧版就弹条 */
-(function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
-  if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
-    b.style.cssText="position:fixed;top:8px;left:12px;right:12px;z-index:99999;background:#5A6B2B;color:#fff;padding:12px 14px;border-radius:12px;font-size:15px;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.25)";
-    b.textContent="有新版本 "+t+"(当前 "+APP_BUILD+")· 点这里更新";
-    b.onclick=()=>{location.replace(location.pathname+"?v="+t+"&r="+Date.now());};document.body.appendChild(b);}}).catch(()=>{});}catch(e){}})();
+const APP_BUILD="b0819-138";
+/* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
+(function(){try{
+  var fired=false;
+  function check(){fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.text():"";}).then(function(t){t=(t||"").trim();
+    if(!(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD))return;
+    var mask=document.getElementById("mMask"),busy=mask&&mask.style.display==="flex";
+    if(!busy){if(fired)return;fired=true;var b=document.createElement("div");b.style.cssText="position:fixed;top:8px;left:12px;right:12px;z-index:99999;background:#5A6B2B;color:#fff;padding:12px 14px;border-radius:12px;font-size:15px;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.25)";b.textContent="发现新版本 "+t+",3 秒后自动更新…";document.body.appendChild(b);
+      setTimeout(function(){location.replace(location.pathname+"?v="+t+"&r="+Date.now());},3000);}
+    else if(!document.getElementById("updBar")){var b2=document.createElement("div");b2.id="updBar";b2.style.cssText="position:fixed;top:8px;left:12px;right:12px;z-index:99999;background:#5A6B2B;color:#fff;padding:12px 14px;border-radius:12px;font-size:15px;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.25)";b2.textContent="有新版本 "+t+"(当前 "+APP_BUILD+")· 关掉弹窗后自动更新,或点这里立即更新";b2.onclick=function(){location.replace(location.pathname+"?v="+t+"&r="+Date.now());};document.body.appendChild(b2);}
+  }).catch(function(){});}
+  check();setInterval(check,5*60*1000);
+}catch(e){}})();
 
 let AUTHED=false;
 if(typeof DB_ROOT!=="undefined"&&DB_ROOT!=="v1"){
