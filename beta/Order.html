@@ -793,7 +793,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-134";
+const APP_BUILD="b0819-135";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -968,6 +968,21 @@ function openOrderFromWalkin(no){
     patchOrder(no,{fromWalkin:{store:st,date:d,ts,qty:nq}},()=>{logOp(no,staff,"从现货出货",`${STORE_NAME[st]} 现货 −${desc}`);toast("已扣 "+STORE_NAME[st]+" 现货:"+desc);closeModal();renderAll();});
   };
 }
+function undoTransfer(from,saleId){
+  const w=WALKIN[from]||{};const s=(w.sales||{})[saleId];if(!s||s.src!=="transfer")return toast("记录不存在");
+  const to=s.toStore;const xid=s.xferId;
+  const sales=Object.entries(w.sales||{}).filter(([,r])=>r&&r.src==="transfer"&&r.toStore===to&&(xid?r.xferId===xid:(r.date===s.date&&Math.abs((+r.ts||0)-(+s.ts||0))<200)));
+  const rec=Object.entries(((WALKIN[to]||{}).receipts)||{}).find(([,r])=>r&&r.auto==="transfer"&&r.fromStore===from&&(xid?r.xferId===xid:(r.date===s.date&&Math.abs((+r.ts||0)-(+s.ts||0))<200)));
+  if(!rec)return toast("找不到对应的调入记录,请在调入店手工处理");
+  const desc=sales.map(([,r])=>((WALKIN_PRODUCTS.find(p=>p.k===r.product)||{n:r.product}).n)+"×"+r.qty).join("、");
+  const c=walkinCalc(to,todayStr());const short=Object.entries(rec[1].qty||{}).filter(([k,v])=>((c[k]||{}).remain||0)<v);
+  askStaff(`撤回调拨:${STORE_NAME[from]} → ${STORE_NAME[to]} ${desc}${short.length?"(注意:调入店已卖出部分,撤回后该店会出现负数)":""}`,staff=>{
+    sales.forEach(([id])=>delSale(from,id));
+    if(DB)DB.ref(DB_ROOT+"/walkin/"+to+"/receipts/"+rec[0]).remove();else{delete WALKIN[to].receipts[rec[0]];}
+    logOp("SYS-"+from,staff,"撤回现货调出",`→ ${STORE_NAME[to]}:${desc}`);logOp("SYS-"+to,staff,"撤回现货调入",`← ${STORE_NAME[from]}:${desc}`);
+    toast("已撤回调拨");closeModal();renderWalkin();
+  });
+}
 function openTransfer(){
   const from=wStoreVal;if(!from)return toast("请先选调出店");
   let to=Object.keys(STORE_NAME).find(k=>k!==from);
@@ -990,9 +1005,9 @@ function openTransfer(){
     const pn=k=>(WALKIN_PRODUCTS.find(x=>x.k===k)||{n:k}).n;const desc=take.map(([k,v])=>pn(k)+"×"+v).join("、");
     const note=document.getElementById("xfNote").value.trim();
     if(!confirm(`确认调拨:${STORE_NAME[from]} → ${STORE_NAME[to]}:${desc}?`))return;
-    const d=todayStr(),ts=Date.now(),qty={};take.forEach(([k,v])=>qty[k]=v);
-    take.forEach(([k,v],i)=>addSale(from,{date:d,time:nowHM(),product:k,qty:v,pm:"调拨出",amt:0,staff,src:"transfer",toStore:to,ts:ts+i,note}));
-    addReceipt(to,{date:d,qty,ts:ts+50,auto:"transfer",fromStore:from,note:"调入自 "+STORE_NAME[from]+(note?" · "+note:""),staff});
+    const d=todayStr(),ts=Date.now(),qty={};take.forEach(([k,v])=>qty[k]=v);const xid="x"+ts;
+    take.forEach(([k,v],i)=>addSale(from,{date:d,time:nowHM(),product:k,qty:v,pm:"调拨出",amt:0,staff,src:"transfer",toStore:to,ts:ts+i,note,xferId:xid}));
+    addReceipt(to,{date:d,qty,ts:ts+50,auto:"transfer",fromStore:from,note:"调入自 "+STORE_NAME[from]+(note?" · "+note:""),staff,xferId:xid});
     logOp("SYS-"+from,staff,"现货调出",`→ ${STORE_NAME[to]}:${desc}${note?" · "+note:""}`);
     logOp("SYS-"+to,staff,"现货调入",`← ${STORE_NAME[from]}:${desc}${note?" · "+note:""}`);
     toast(`已调拨 ${STORE_NAME[from]} → ${STORE_NAME[to]}:${desc}`);closeModal();renderWalkin();
@@ -3446,11 +3461,12 @@ function renderWalkin(){
     .sort((a,b)=>(b[1].ts||0)-(a[1].ts||0));
   const dayRev=logs.reduce((s,[,x])=>s+(x.amt||0),0);
   document.getElementById("wLog").innerHTML=
-    (logs.length?logs.map(([,s])=>{
+    (logs.length?logs.map(([sid,s])=>{
       const pn=(WALKIN_PRODUCTS.find(p=>p.k===s.product)||{}).n||s.product;
       const who=(s.acct||s.staff)?` · ${esc(s.acct||"")}${s.acct&&s.staff?"|":""}${esc(s.staff||"")}`:"";
       const srcTag=s.src==="batch"?"分批取走":s.src==="crosspick"?"跨店代取":s.src==="orderpick"?"订单取走":s.src==="transfer"?("调拨出→"+(STORE_NAME[s.toStore]||s.toStore||"")):esc(s.pm||"");
-      return `<div class="wlog"><span>${s.time||""} ${pn}${(s.qty||1)>1?" ×"+s.qty:""}${s.amt!=null&&s.amt>0?" "+money(s.amt):""}${who}</span><b>${srcTag}${s.other?":"+esc(s.other):""}</b></div>`;
+      const undoBtn=s.src==="transfer"?` <button class="btn small ghost" style="padding:2px 6px;font-size:11px" onclick="undoTransfer('${wStoreVal}','${sid}')">撤回</button>`:"";
+      return `<div class="wlog"><span>${s.time||""} ${pn}${(s.qty||1)>1?" ×"+s.qty:""}${s.amt!=null&&s.amt>0?" "+money(s.amt):""}${who}</span><b>${srcTag}${s.other?":"+esc(s.other):""}${undoBtn}</b></div>`;
     }).join("")+`<div class="wlog" style="border-bottom:none"><span><b>今日现货销售额</b></span><b style="color:var(--olive)">${money(dayRev)}</b></div>`
     :`<div class="note">今日暂无现货销售</div>`);
 }
