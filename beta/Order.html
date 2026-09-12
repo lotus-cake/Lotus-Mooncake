@@ -793,7 +793,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-135";
+const APP_BUILD="b0819-136";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -1007,7 +1007,7 @@ function openTransfer(){
     if(!confirm(`确认调拨:${STORE_NAME[from]} → ${STORE_NAME[to]}:${desc}?`))return;
     const d=todayStr(),ts=Date.now(),qty={};take.forEach(([k,v])=>qty[k]=v);const xid="x"+ts;
     take.forEach(([k,v],i)=>addSale(from,{date:d,time:nowHM(),product:k,qty:v,pm:"调拨出",amt:0,staff,src:"transfer",toStore:to,ts:ts+i,note,xferId:xid}));
-    addReceipt(to,{date:d,qty,ts:ts+50,auto:"transfer",fromStore:from,note:"调入自 "+STORE_NAME[from]+(note?" · "+note:""),staff,xferId:xid});
+    addReceipt(to,{date:d,qty,ts:ts+50,auto:"transfer",pending:true,fromStore:from,note:"调入自 "+STORE_NAME[from]+(note?" · "+note:""),staff,xferId:xid});
     logOp("SYS-"+from,staff,"现货调出",`→ ${STORE_NAME[to]}:${desc}${note?" · "+note:""}`);
     logOp("SYS-"+to,staff,"现货调入",`← ${STORE_NAME[from]}:${desc}${note?" · "+note:""}`);
     toast(`已调拨 ${STORE_NAME[from]} → ${STORE_NAME[to]}:${desc}`);closeModal();renderWalkin();
@@ -1117,8 +1117,8 @@ function capState(){
 function walkinCalc(store,date){
   const w=WALKIN[store]||{}; const res={};
   WALKIN_PRODUCTS.forEach(p=>res[p.k]={recv:0,sold:0,trecv:0,tsold:0});
-  Object.values(w.receipts||{}).forEach(r=>WALKIN_PRODUCTS.forEach(p=>{
-    const v=(r.qty&&r.qty[p.k])||0; res[p.k].recv+=v; if(r.date===date)res[p.k].trecv+=v; }));
+  Object.values(w.receipts||{}).forEach(r=>{if(!r||r.pending)return;WALKIN_PRODUCTS.forEach(p=>{
+    const v=(r.qty&&r.qty[p.k])||0; res[p.k].recv+=v; if(r.date===date)res[p.k].trecv+=v; });});
   Object.values(w.sales||{}).forEach(s=>{ const q=+s.qty||1; if(res[s.product]){res[s.product].sold+=q; if(s.date===date)res[s.product].tsold+=q;} });
   WALKIN_PRODUCTS.forEach(p=>res[p.k].remain=res[p.k].recv-res[p.k].sold);
   return res;
@@ -3310,7 +3310,7 @@ function renderArrive(){
   const shp=shippedFor(d,st),shipQ={};WALKIN_PRODUCTS.forEach(p=>{const v=(shp["订单"][p.k]||0)+(shp["现货"][p.k]||0);if(v)shipQ[p.k]=v;});
   const xin=Object.values(((WALKIN[st]||{}).receipts)||{}).filter(r=>r&&r.auto==="transfer"&&r.date===d);
   const xinQ={};xin.forEach(r=>Object.entries(r.qty||{}).forEach(([k,v])=>xinQ[k]=(xinQ[k]||0)+(+v||0)));
-  const xinHtml=xin.length?`<div class="note" style="margin:0 0 8px;background:#EEF3E6;border-radius:8px;padding:6px 8px">⇄ 今日调入:${xin.map(r=>Object.entries(r.qty||{}).map(([k,v])=>((WALKIN_PRODUCTS.find(p=>p.k===k)||{n:k}).n)+"×"+v).join("、")+" ← "+(STORE_NAME[r.fromStore]||r.fromStore||"")).join(";")}<br><span class="z">调入已在现货里;点收请填司机送来的<b>实物总数</b>(含调入),系统自动不重复计</span></div>`:"";
+  const xinHtml=xin.length?`<div class="note" style="margin:0 0 8px;background:#EEF3E6;border-radius:8px;padding:6px 8px">⇄ 今日调入:${xin.map(r=>Object.entries(r.qty||{}).map(([k,v])=>((WALKIN_PRODUCTS.find(p=>p.k===k)||{n:k}).n)+"×"+v).join("、")+" ← "+(STORE_NAME[r.fromStore]||r.fromStore||"")+(r.pending?"(待签收)":"(已签收)")).join(";")}<br><span class="z">调入的货和厨房送的一起<b>按实物总数点收</b>;点收后调入才计入本店现货</span></div>`:"";
   const prods=WALKIN_PRODUCTS.filter(p=>((plan.ord[p.k]||0)+(plan.walk[p.k]||0))>0||(shipQ[p.k]||0)>0||(xinQ[p.k]||0)>0);
   if(!prods.length&&!xin.length){el.style.display="none";return;}
   el.style.display="";
@@ -3351,6 +3351,7 @@ function renderArrive(){
     const staff=getStaff();if(!staff)return;
     const key=(done&&done.k)||("rv"+Date.now());
     const rec={kind:"arrive",date:d,store:st,qty,status,note,staff,acct:acctLabel(),ts:Date.now(),xin:transferredIn(st,d)};
+    Object.entries(((WALKIN[st]||{}).receipts)||{}).forEach(([rid,r])=>{if(r&&r.auto==="transfer"&&r.pending&&r.date===d){if(DB)DB.ref(DB_ROOT+"/walkin/"+st+"/receipts/"+rid+"/pending").set(false);else r.pending=false;}});
     if(DB)DB.ref(DB_ROOT+"/prod/recv/"+key).set(rec);else RECV[key]=rec;
     // 自动现货 = 实收 − 当日订单需求(替换当日 auto 收货)
     const rel=releasedQty(st,d),xinNow=transferredIn(st,d);const autoQty={};WALKIN_PRODUCTS.forEach(p=>{const v=Math.max(0,(qty[p.k]||0)-(plan.ord[p.k]||0)-(rel[p.k]||0)-(xinNow[p.k]||0));if(v>0)autoQty[p.k]=v;});
