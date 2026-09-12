@@ -794,7 +794,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-140";
+const APP_BUILD="b0819-141";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -2133,7 +2133,7 @@ function openEdit(no){
     <div class="tot-line"><span>盒数合计</span><b id="eTotal"></b></div>
     <label class="f">订单总额 $(改数量会自动重算;促销/折扣可手动填实收)</label>
     <div class="row">
-      ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?`<div class="kv" style="background:var(--cream);border-radius:8px;padding:8px 10px;width:100%"><span>家族总额(按全家数量自动计算,改数量会触发补收/退款)</span><b>${money(famTotalOf(o))}</b></div><input type="hidden" id="eAmt" value="${o.amount!=null?o.amount:""}">`:`<input type="number" id="eAmt" min="0" step="0.01" value="${o.amount!=null?o.amount:""}" ${ROLE&&ROLE.type==="owner"?"":"disabled"}>
+      ${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?(ROLE&&ROLE.type==="owner"?`<div class="note" style="width:100%">家族总额(母单+子单合计;Owner 可手动改价,点「按价目自动算」按全家数量重算)</div><input type="number" id="eAmt" min="0" step="0.01" value="${o.amount!=null?o.amount:""}">`:`<div class="kv" style="background:var(--cream);border-radius:8px;padding:8px 10px;width:100%"><span>家族总额(按全家数量自动计算,改数量会触发补收/退款)</span><b>${money(famTotalOf(o))}</b></div><input type="hidden" id="eAmt" value="${o.amount!=null?o.amount:""}">`):`<input type="number" id="eAmt" min="0" step="0.01" value="${o.amount!=null?o.amount:""}" ${ROLE&&ROLE.type==="owner"?"":"disabled"}>
       ${ROLE&&ROLE.type==="owner"?`<button class="btn small ghost" id="eAmtAuto" style="white-space:nowrap">按价目自动算</button>`:`<span class="note" style="white-space:nowrap">改价需 Owner</span>`}`}
     </div>
     ${(Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")||((paidOf(o)>0)&&!(ROLE&&ROLE.type==="owner")))?`<div class="kv" style="background:var(--cream);border-radius:8px;padding:8px 10px;margin-top:6px"><span>付款记录(已锁定${Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效")?"·家族":""})</span><b>已收 ${money(paidOf(o))} · ${o.pay} · ${pmDisp(o.payMethod)||"—"}</b></div><div style="display:none">`:""}<label class="f">已收金额 $</label>
@@ -2182,14 +2182,16 @@ function openEdit(no){
   document.getElementById("ePayM").addEventListener("change",function(){
     document.getElementById("ePayOtherWrap").style.display=this.value==="其它"?"block":"none";
     if(!eAmtTouched){ // 非手动价:换付款方式即按价目重算(现金=现金价)
-      const auto=calcAmount(eQty,this.value,o.channel,(document.getElementById("eTax")&&!document.getElementById("eTax").checked)?1:0);
+      const fq2={...eQty};Object.values(ORDERS).forEach(c=>{if(c.parentNo===o.no&&c.status==="有效")Object.entries(c.qty||{}).forEach(([k,v])=>fq2[k]=(fq2[k]||0)+(+v||0));});
+      const auto=calcAmount(fq2,this.value,o.channel,(document.getElementById("eTax")&&!document.getElementById("eTax").checked)?1:0);
       const ea=document.getElementById("eAmt");if(ea&&+ea.value!==+auto){ea.value=auto;toast("金额已按「"+(this.value||"—")+"」重算为 "+money(auto));}
     }
   });
   {const _a=document.getElementById("eAmtAuto");if(_a)_a.onclick=()=>{
-    const auto=calcAmount(eQty,document.getElementById("ePayM").value,o.channel,(document.getElementById("eTax")&&!document.getElementById("eTax").checked)?1:0);
-    document.getElementById("eAmt").value=auto;
-    toast("已按价目算出 "+money(auto));
+    const fq={...eQty};Object.values(ORDERS).forEach(c=>{if(c.parentNo===o.no&&c.status==="有效")Object.entries(c.qty||{}).forEach(([k,v])=>fq[k]=(fq[k]||0)+(+v||0));});
+    const auto=calcAmount(fq,document.getElementById("ePayM").value,o.channel,(document.getElementById("eTax")&&!document.getElementById("eTax").checked)?1:0);
+    document.getElementById("eAmt").value=auto;eAmtTouched=false;
+    toast("已按价目算出 "+money(auto)+(Object.keys(fq).length!==Object.keys(eQty).length||JSON.stringify(fq)!==JSON.stringify(eQty)?"(含子单)":""));
   };}
     {const ep=document.getElementById("ePay"),w=document.getElementById("eDuePlanWrap");
    if(ep&&w)ep.addEventListener("change",()=>{w.style.display=ep.value==="部分付"?"":"none";});}
@@ -2257,7 +2259,8 @@ function saveEdit(o){
   const eAmtV=parseFloat(document.getElementById("eAmt").value);
   const newAmt=isNaN(eAmtV)?null:Math.round(eAmtV*100)/100;
   const eTaxOff=(document.getElementById("eTax")&&!document.getElementById("eTax").checked)?1:0;
-  const autoNow=calcAmount(eQty,payM,o.channel,eTaxOff);
+  const famQ={...eQty};Object.values(ORDERS).forEach(c=>{if(c.parentNo===o.no&&c.status==="有效")Object.entries(c.qty||{}).forEach(([k,v])=>famQ[k]=(famQ[k]||0)+(+v||0));});
+  const autoNow=calcAmount(famQ,payM,o.channel,eTaxOff);
   let newPaid=parseFloat(document.getElementById("ePaid").value);
   newPaid=isNaN(newPaid)?0:Math.round(newPaid*100)/100;
   const newPay=document.getElementById("ePay").value;
@@ -2378,11 +2381,18 @@ function saveEdit(o){
     kids.forEach(c=>Object.entries(c.qty||{}).forEach(([k,v])=>famQ[k]=(famQ[k]||0)+v));
     const kidsAmt=kids.reduce((s,c)=>s+(+c.amount||0),0);
     const famD=calcDetail(famQ,(document.getElementById("ePayM")||{}).value||o.payMethod,o.channel,eTaxOff);
-    const famAuto=famD.amt;patch.gstAmt=famD.gst;
-    patch.amount=Math.round((famAuto-kidsAmt)*100)/100;
-    patch.autoAmount=patch.amount;patch.manualPrice=false;
+    const famAuto=famD.amt;
     const ai2=diffs.findIndex(d=>d.startsWith("总额"));if(ai2>=0)diffs.splice(ai2,1);
-    if(patch.amount!==o.amount)diffs.push(`家族总额(按全家${famD.box6+famD.box2}盒${famD.pieces?"+"+famD.pieces+"颗":""}重算)${money(famTotalOf(o))}→${money(famAuto)}`);
+    const ownerManual=ROLE&&ROLE.type==="owner"&&eAmtTouched&&newAmt!=null&&Math.abs(newAmt-(famAuto-kidsAmt))>0.005;
+    if(ownerManual){ // Owner 手动定家族总额:尊重手动价,不按价目覆盖
+      patch.amount=Math.round((newAmt-kidsAmt)*100)/100;patch.autoAmount=Math.round((famAuto-kidsAmt)*100)/100;patch.manualPrice=true;patch.gstAmt=null;
+      diffs.push(`家族总额手动 ${money(famTotalOf(o))}→${money(newAmt)}(按价目应为 ${money(famAuto)})`);
+    }else{
+      patch.gstAmt=famD.gst;
+      patch.amount=Math.round((famAuto-kidsAmt)*100)/100;
+      patch.autoAmount=patch.amount;patch.manualPrice=false;
+      if(patch.amount!==o.amount)diffs.push(`家族总额(按全家${famD.box6+famD.box2}盒${famD.pieces?"+"+famD.pieces+"颗":""}重算)${money(famTotalOf(o))}→${money(famAuto)}`);
+    }
   }
   if(!(ROLE&&ROLE.type==="owner")&&!o.batch&&!_hasKids){
     {const _ed=calcDetail(eQty,(document.getElementById("ePayM")||{}).value||o.payMethod,o.channel,eTaxOff);
