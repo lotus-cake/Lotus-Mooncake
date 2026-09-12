@@ -419,6 +419,7 @@ table.sum .z{color:#C9C6B4}
   <div id="ownerTools" style="display:none;margin:0 0 10px;gap:8px">
     <button class="btn small ghost" id="btnCredit2" style="flex:1">挂账清单(Owner)</button>
     <button class="btn small ghost" id="btnLgFix2" style="flex:1">台账补录 / 更正(Owner)</button>
+    <button class="btn small ghost" id="btnPromoFix" style="flex:1">补正促销价(Owner)</button>
   </div>
   <div class="note" id="pendHint" style="margin:-4px 0 8px">按取货日期排序;取货<b>前一天 17:00</b> 未收到款自动标红。</div><div id="pendUrgent"></div>
   <div id="pendList"></div>
@@ -792,7 +793,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-133";
+const APP_BUILD="b0819-134";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -4252,6 +4253,38 @@ function setCredit(no,on){
   patchOrder(no,{unpaidPlan:on?CREDIT_PLAN:null},()=>{logOp(no,st,on?"转为 Owner 挂账":"取消 Owner 挂账","");renderAll();openCreditList();});
 }
 document.getElementById("btnCredit").addEventListener("click",openCreditList);
+function famQtyOf(o){ // 母单+有效子单的合并数量(家族计价口径)
+  const q={...(o.qty||{})};Object.values(ORDERS).forEach(c=>{if(c.parentNo===o.no&&c.status==="有效")Object.entries(c.qty||{}).forEach(([k,v])=>q[k]=(q[k]||0)+(+v||0));});return q;}
+function openPromoFix(){
+  if(!(ROLE&&ROLE.type==="owner"))return toast("仅 Owner 可补正");
+  const list=[];
+  liveOrders().forEach(o=>{
+    if(o.parentNo||o.manualPrice)return;
+    const q=famQtyOf(o);const d=calcDetail(q,o.payMethod,o.channel,o.gstOn?0:1);
+    const newAmt=d.amt,old=+o.amount||0;
+    if(!(d.freeCount>0)||newAmt>=old-EPS)return;
+    const paid=paidOf(o);const willPaid=paid>=newAmt-EPS;
+    list.push({o,old,newAmt,gst:d.gst,paid,willPaid,over:Math.max(0,Math.round((paid-newAmt)*100)/100)});
+  });
+  openModal(mhead("补正促销价(按现行促销规则重算)")+`
+    <div class="note">只处理:有效 · 非手动价 · 按现行规则有赠送且新总额<b>低于</b>现总额的单(母单按全家数量算)。改总额、税;已收够的转已付并清待收;多收的标注溢余留存。台账不动(没有钱进出)。</div>
+    <div class="kv"><span><b>待补正</b></span><b>${list.length} 单 · 合计降 ${money(Math.round(list.reduce((s,x)=>s+(x.old-x.newAmt),0)*100)/100)}</b></div>
+    <div style="max-height:50vh;overflow-y:auto">${list.map(x=>`<div class="kv" style="font-size:13px"><span><b>${esc(x.o.no)}</b> ${esc(x.o.name||"")}<br><span class="z">${money(x.old)} → ${money(x.newAmt)} · 已收 ${money(x.paid)}${x.willPaid?(x.over?` · 溢余 ${money(x.over)}`:" · 转已付"):` · 仍欠 ${money(Math.round((x.newAmt-x.paid)*100)/100)}`}</span></span></div>`).join("")||'<p class="note">没有需要补正的单</p>'}</div>
+    ${list.length?staffField()+`<button class="btn" id="pfGo" style="margin-top:12px">确认补正 ${list.length} 单</button>`:""}`,true);
+  const go=document.getElementById("pfGo");if(!go)return;
+  go.onclick=()=>{
+    const staff=getStaff();if(!staff)return;
+    if(!confirm(`确认按现行促销规则补正 ${list.length} 张订单的总额?(不改台账)`))return;
+    let n=0;
+    list.forEach(x=>{const o=x.o;const patch={amount:x.newAmt,autoAmount:x.newAmt,gstAmt:x.gst};
+      if(x.willPaid){patch.pay="已付";patch.dueNote=null;patch.dueQty=null;patch.dueNegAmt=null;patch.duePlan=null;}
+      else if(o.dueNote){patch.dueNote="待收差额 $"+Math.round((x.newAmt-x.paid)*100)/100;}
+      patchOrder(o.no,patch,()=>{logOp(o.no,staff,"补正促销价",`总额 ${money(x.old)}→${money(x.newAmt)}(两粒/六粒促销重算)${x.willPaid?" · 转已付":""}${x.over?" · 溢余 "+money(x.over)+" 留存":""}`);n++;if(n===list.length){toast("已补正 "+n+" 单");renderAll();}});
+    });
+    closeModal();
+  };
+}
+document.getElementById("btnPromoFix").addEventListener("click",openPromoFix);
 function openLedgerFix(){
   if(!(ROLE&&ROLE.type==="owner"))return toast("仅 Owner 可补录台账");
   let lst="CAM";
