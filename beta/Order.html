@@ -793,7 +793,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-136";
+const APP_BUILD="b0819-137";
 /* 自动更新提示:核对线上 version.txt,旧版就弹条 */
 (function(){try{fetch("version.txt?ts="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"").then(t=>{t=(t||"").trim();
   if(t&&/^b0819-\d+$/.test(t)&&t!==APP_BUILD){const b=document.createElement("div");b.id="updBar";
@@ -3466,7 +3466,7 @@ function renderWalkin(){
       const pn=(WALKIN_PRODUCTS.find(p=>p.k===s.product)||{}).n||s.product;
       const who=(s.acct||s.staff)?` · ${esc(s.acct||"")}${s.acct&&s.staff?"|":""}${esc(s.staff||"")}`:"";
       const srcTag=s.src==="batch"?"分批取走":s.src==="crosspick"?"跨店代取":s.src==="orderpick"?"订单取走":s.src==="transfer"?("调拨出→"+(STORE_NAME[s.toStore]||s.toStore||"")):esc(s.pm||"");
-      const undoBtn=s.src==="transfer"?` <button class="btn small ghost" style="padding:2px 6px;font-size:11px" onclick="undoTransfer('${wStoreVal}','${sid}')">撤回</button>`:"";
+      const undoBtn=s.src==="transfer"?` <button class="btn small ghost" style="padding:2px 6px;font-size:11px" onclick="undoTransfer('${wStoreVal}','${sid}')">撤回</button>`:(!s.src?` <button class="btn small ghost" style="padding:2px 6px;font-size:11px;color:var(--danger)" onclick="voidSale('${wStoreVal}','${sid}')">作废</button>`:"");
       return `<div class="wlog"><span>${s.time||""} ${pn}${(s.qty||1)>1?" ×"+s.qty:""}${s.amt!=null&&s.amt>0?" "+money(s.amt):""}${who}</span><b>${srcTag}${s.other?":"+esc(s.other):""}${undoBtn}</b></div>`;
     }).join("")+`<div class="wlog" style="border-bottom:none"><span><b>今日现货销售额</b></span><b style="color:var(--olive)">${money(dayRev)}</b></div>`
     :`<div class="note">今日暂无现货销售</div>`);
@@ -3537,13 +3537,25 @@ function openSale(pk){
     closeModal();toast(`${pn} ×${slQty} 已售出 ${money(amt)}`);
   };
 }
+function voidSale(store,id){ // 作废一笔现货销售:删流水 + 冲销台账(退款 −金额),留痕
+  const s=((WALKIN[store]||{}).sales||{})[id];if(!s)return toast("记录不存在");
+  if(s.src==="transfer")return toast("调拨请用该行的「撤回」");
+  if(s.src==="orderpick")return toast("订单取走请在该订单详情「撤销现货出货」");
+  if(s.src==="自损"||s.src==="storechange"||s.src==="batch"||s.src==="familywalk"||s.src==="crosspick")return toast("此类记录由对应流程撤销,不能在这里作废");
+  const pn=(WALKIN_PRODUCTS.find(p=>p.k===s.product)||{n:s.product}).n;const amt=+s.amt||0;
+  askStaff(`作废现货销售:${pn} ×${s.qty||1}${amt?" "+money(amt)+"("+(s.pm||"")+")":""}`,staff=>{
+    if(amt>0)addLedger({store,orderNo:null,type:"退款",pm:s.pm||"其它",amt:-amt,staff,ref:null,note:"现货作废:"+pn+"×"+(s.qty||1)});
+    delSale(store,id);
+    logOp("SYS-"+store,staff,"作废现货销售",`${pn}×${s.qty||1}${amt?" "+money(amt)+" "+(s.pm||""):""}`);
+    toast("已作废"+(amt?",台账已冲销":""));closeModal();renderWalkin();
+  });
+}
 document.getElementById("btnUndoSale").addEventListener("click",()=>{
   const date=document.getElementById("wDate").value||todayStr();
   const w=WALKIN[wStoreVal]||{};
-  const logs=Object.entries(w.sales||{}).filter(([,s])=>s.date===date).sort((a,b)=>(b[1].ts||0)-(a[1].ts||0));
-  if(!logs.length)return toast("今日没有可撤销的销售");
-  delSale(wStoreVal,logs[0][0]);
-  toast("已撤销最近一笔销售");
+  const logs=Object.entries(w.sales||{}).filter(([,s])=>s.date===date&&!s.src).sort((a,b)=>(b[1].ts||0)-(a[1].ts||0));
+  if(!logs.length)return toast("今日没有可撤销的零售销售");
+  voidSale(wStoreVal,logs[0][0]);
 });
 
 /* ---------------- 分批取货页 ---------------- */
