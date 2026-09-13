@@ -436,6 +436,7 @@ table.sum .z{color:#C9C6B4}
   <div class="seg" id="sumModeSeg" style="margin:0 0 8px">
     <button data-v="prod" class="on">按产品(厨房)</button><button data-v="store">按门店(装车)</button>
   </div>
+  <div class="card" id="sumSuspectCard" style="display:none"></div>
   <div class="card" id="sumProdCard">
     <div class="note" style="margin:0 0 8px"><b id="sumProdTitle">产品配送汇总</b> · 厨房按「产品总计」备货包装</div>
     <div id="sumProd"></div>
@@ -794,7 +795,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-142";
+const APP_BUILD="b0819-144";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -2557,7 +2558,8 @@ function settleDue(no,alsoPick){
     const staff=getStaff(); if(!staff)return;
     const collected=Math.round(av*100)/100;
     const newPaid=Math.round((paidOf(o)+collected)*100)/100;
-    const balNow=Math.round(((o.amount||0)-paidOf(o))*100)/100;
+    // 余额按"当场付款方式"的应付算(现金=现金价、非手动价按价目重算),否则现金 80 会被误判成部分付
+    const balNow=Math.max(0,Math.round(byPm(pm==="其它"?(o.payMethod||pm):pm)*100)/100);
     if(collected>0&&collected<balNow-EPS){ // 部分收款:总额不动,记部分付,余额继续待收
       if(!confirm(`只收 ${money(collected)},还欠 ${money(Math.round((balNow-collected)*100)/100)},记为「部分付」?`))return;
       const pp={pay:"部分付",paid:newPaid,dueNote:"待收差额 $"+Math.round((balNow-collected)*100)/100,duePlan:o.duePlan||"取货时付",dueQty:null,dueNegAmt:null};
@@ -3875,7 +3877,40 @@ function openHandover(st){
     };
   });
 }
+function noteDates(txt){ // 从备注里抓日期:9/12、9月12、12号/12日 → YYYY-MM-DD(按当前年;仅"号/日"时按取货季 9 月)
+  const out=new Set();const s=String(txt||"");const Y=(todayStr()||"2026-09-01").slice(0,4);
+  let m;const r1=/(\d{1,2})\s*[\/月]\s*(\d{1,2})(?!\d)/g;
+  while((m=r1.exec(s))){const mo=+m[1],d=+m[2];if(mo>=8&&mo<=10&&d>=1&&d<=31)out.add(`${Y}-${String(mo).padStart(2,"0")}-${String(d).padStart(2,"0")}`);}
+  const r2=/(?<![\d\/月])(\d{1,2})\s*[号日](?!\d)/g;
+  while((m=r2.exec(s))){const d=+m[1];if(d>=1&&d<=31)out.add(`${Y}-09-${String(d).padStart(2,"0")}`);}
+  return [...out];}
+function noteHash(t){let h=0;const s=String(t||"");for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return String(h);}
+function suspectSplitList(){
+  return liveOrders().filter(o=>!o.pickedUp&&!o.parentNo&&o.notes).map(o=>{
+    const ds=noteDates(o.notes);const mism=o.batch?ds:ds.filter(d=>d!==o.pickupDate);
+    if(!mism.length)return null;
+    if(o.noteCheck&&o.noteCheck.hash===noteHash(o.notes))return null;
+    return {o,dates:mism};}).filter(Boolean).sort((a,b)=>String(a.dates[0]).localeCompare(String(b.dates[0])));
+}
+function dismissSuspect(no){
+  const o=ORDERS[no];if(!o)return;
+  askStaff("排除疑似漏拆:"+no+"(备注不变就不再提醒)",staff=>{
+    patchOrder(no,{noteCheck:{by:staff,ts:Date.now(),hash:noteHash(o.notes)}},()=>{logOp(no,staff,"排除疑似漏拆","");toast("已排除");closeModal();renderSum();});
+  });
+}
+function renderSuspectCard(){
+  const el=document.getElementById("sumSuspectCard");if(!el)return;
+  const list=suspectSplitList();
+  if(!list.length){el.style.display="none";el.innerHTML="";return;}
+  el.style.display="";
+  const D=todayStr();
+  el.innerHTML=`<div class="note" style="margin:0 0 6px"><b style="color:var(--danger)">⚠ 疑似漏拆 / 漏排(${list.length})</b> — 备注里提到的日期和订单取货日不一致;确认没问题就点「排除」</div>`+
+    list.map(x=>{const o=x.o;const hi=esc(o.notes).replace(/(\d{1,2}\s*[\/月]\s*\d{1,2}|\d{1,2}\s*[号日])/g,'<b style="color:var(--danger)">$1</b>');
+      return `<div class="kv" style="align-items:flex-start;${x.dates.includes(D)?"background:#FCEBEB;border-radius:8px;padding:6px 8px":""}"><span><b class="ono" style="cursor:pointer" onclick="openDetail('${o.no}')">${esc(o.no)}</b> ${esc(o.name||"")} · ${o.batch?"分批(无固定日)":"取 "+fmtMD(o.pickupDate)} · ${STORE_NAME[o.store]||o.store}${x.dates.includes(D)?' <span class="badge due">提到今天</span>':""}<br><span class="z">备注:${hi}</span></span>
+        <span style="white-space:nowrap"><button class="btn small" onclick="closeModal();openSplit('${o.no}')">拆单</button> <button class="btn small ghost" onclick="dismissSuspect('${o.no}')">排除</button></span></div>`;}).join("");
+}
 function renderSum(){
+  renderSuspectCard();
   renderHandover();
   const rem={};
   batchOrders().forEach(o=>{const r=batchRemainQty(o);
