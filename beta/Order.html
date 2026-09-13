@@ -794,7 +794,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-141";
+const APP_BUILD="b0819-142";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -2270,7 +2270,7 @@ function saveEdit(o){
   if(newPay==="已付"&&newAmt!=null)newPaid=newAmt;
   if(newPay==="未付")newPaid=0;
   const _pd=Math.round((newPaid-paidOf(o))*100)/100;
-  const _ePmV=(document.getElementById("ePayM")||{}).value||o.payMethod||"其它";const _ledgerFix=(stf)=>{if(Math.abs(_pd)>0.005)addLedger({orderNo:o.no,type:_pd>0?"订单收款":"退款",pm:_ePmV,amt:_pd,staff:stf||null,ref:null,note:"改单更正已收"});};
+  const _ePmV=(document.getElementById("ePayM")||{}).value||o.payMethod||"其它";const _ledgerFix=(stf)=>{if(o.parentNo)return; /* 子单钱随母单,永不入账 */ if(Math.abs(_pd)>0.005)addLedger({orderNo:o.no,type:_pd>0?"订单收款":"退款",pm:_ePmV,amt:_pd,staff:stf||null,ref:null,note:"改单更正已收"});};
   const patch={name,phone:document.getElementById("ePhone").value.trim(),store:eStore,
     qty:{...eQty},box6:nb.b6,box2:nb.b2,boxes:nb.total,pieces:nb.pieces,
     amount:newAmt,autoAmount:autoNow,manualPrice:newAmt!=null&&Math.abs(newAmt-autoNow)>0.005,gstAmt:(newAmt!=null&&Math.abs(newAmt-autoNow)>0.005)?null:calcDetail(eQty,(document.getElementById("ePayM")||{}).value||o.payMethod,o.channel,eTaxOff).gst,gstOn:(eTaxOff?null:1),paid:newPaid,
