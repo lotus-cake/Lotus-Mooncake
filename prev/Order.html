@@ -795,7 +795,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-145";
+const APP_BUILD="b0819-146";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -1107,7 +1107,10 @@ function batchRemainQty(o){
   PRODUCTS.forEach(p=>{const v=((o.qty&&o.qty[p.k])||0)-(pk[p.k]||0); if(v>0)r[p.k]=v;});
   return r;
 }
-function soldTotals(){ let b6=0,b2=0; liveOrders().forEach(o=>{b6+=o.box6||0;b2+=o.box2||0;}); return {b6,b2}; }
+function soldTotals(){ // 订单占用额度:已标记"从现货出货"的品项不再计(那盒已在现货占用里)
+  let b6=0,b2=0; liveOrders().forEach(o=>{b6+=o.box6||0;b2+=o.box2||0;
+    const fq=(o.fromWalkin&&o.fromWalkin.qty)||{};Object.entries(fq).forEach(([k,v])=>{const p=PRODUCTS.find(x=>x.k===k);if(!p)return;if(p.box===6)b6-=(+v||0);else if(p.box===2)b2-=(+v||0);});});
+  return {b6:Math.max(0,b6),b2:Math.max(0,b2)}; }
 function walkinUsage(){ // 现货占用(盒):各店到货累计(店间调拨不算)+ 今起已安排但尚未点收的现货
   const D=todayStr();const u={b6:0,b2:0};
   const boxOf=k=>{if(k==="bb2")return 2;const p=(typeof WALKIN_PRODUCTS!=="undefined"?WALKIN_PRODUCTS:PRODUCTS).find(x=>x.k===k);return p?(p.box===6?6:(p.box===2?2:0)):0;};
