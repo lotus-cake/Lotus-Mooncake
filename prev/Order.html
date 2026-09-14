@@ -795,7 +795,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-148";
+const APP_BUILD="b0819-149";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -3816,7 +3816,7 @@ function renderHandover(){
       <span><b>${STORE_NAME[st]}</b><br>
         <span class="note">应送 订单${needO}盒${needW?" + 现货"+needW+"盒":""} · 已交接 ${shipTot}盒${shipTot?(okShip?" ✓":""):""}
         ${recvTot||rc.who?`<br>门店实收 ${recvTot}盒${recvTot<shipTot?' <b style="color:var(--danger)">差'+(shipTot-recvTot)+'盒</b>':(recvTot>=shipTot&&shipTot?" ✓":"")}${rc.who?"("+esc(rc.who)+")":""}`:(shipTot?'<br><span style="color:var(--bronze)">等门店确认收货</span>':"")}</span></span>
-      <button class="btn small" onclick="openHandover('${st}')">${shipTot?"补交接":"记交接"}</button></div>`;
+      <button class="btn small ghost" onclick="openPlanDetail('${st}')">明细</button> <button class="btn small" onclick="openHandover('${st}')">${shipTot?"补交接":"记交接"}</button></div>`;
   });
   const ks=kitchenGiftStock();
   const parts=PRODUCTS.filter(p=>(ks[p.k]||0)!==0).map(p=>`${p.n} <b>${ks[p.k]}</b>`);
@@ -3832,6 +3832,31 @@ function voidShip(key,st){
     const done=()=>{Object.assign(r,patch);logOp("SYS-"+st,staff,"作废出货交接",`${(PRODUCTS.find(p=>p.k===r.product)||{n:r.product}).n} ${r.good} · ${r.use||"订单"} · 原记 ${r.time||""}`);toast("已作废,请补记正确数量");renderSum();renderPickup();closeModal();setTimeout(()=>openHandover(st),120);};
     if(DB)DB.ref(DB_ROOT+"/prod/records/"+key).update(patch,done);else done();
   });
+}
+function openPlanDetail(st){ // 装车口径透视:逐单列出贡献与被排除项
+  const d=document.getElementById("sumDate")?document.getElementById("sumDate").value||todayStr():todayStr();
+  const pn=k=>(WALKIN_PRODUCTS.find(p=>p.k===k)||{n:k}).n;const it=q=>Object.entries(q||{}).filter(([,v])=>v>0).map(([k,v])=>pn(k)+"×"+v).join("、")||"—";
+  const inc=[],exc=[];
+  liveOrders().forEach(o=>{
+    if(!o.batch&&o.pickupDate===d&&o.store===st){
+      const fq=(o.fromWalkin&&o.fromWalkin.qty)||{};const eff={};Object.entries(o.qty||{}).forEach(([k,v])=>{const n=Math.max(0,v-(fq[k]||0));if(n)eff[k]=n;});
+      if(o.atStore)exc.push({o,why:"货已在店(改期保留)",q:o.qty});
+      else{if(Object.keys(eff).length)inc.push({o,q:eff,note:Object.keys(fq).length?"(已扣从现货出 "+it(fq)+")":""});
+        if(Object.keys(fq).length&&!Object.keys(eff).length)exc.push({o,why:"整单从现货出",q:fq});}
+    }
+    if(o.batch){Object.values(o.pickups||{}).forEach(r=>{if(r.date===d&&(r.store||o.store)===st){if(r.src==="现货"||r.voided)exc.push({o,why:r.voided?"分批取货记录已作废":"分批·现货取走",q:r.qty});else inc.push({o,q:r.qty,note:"(分批取货记录)"});}});
+      Object.values(o.reserves||{}).forEach(r=>{if(r.status==="open"&&r.date===d&&r.store===st)inc.push({o,q:r.qty,note:"(分批预约)"});});}
+  });
+  const plan=planForStore(d,st),sh=shippedFor(d,st),rc=recvFor(d,st);
+  const tot=q=>Object.values(q||{}).reduce((s,v)=>s+(+v||0),0);
+  openModal(mhead(`${STORE_NAME[st]} ${fmtMD(d)} 装车口径明细`)+`
+    <div class="note" style="margin:0 0 6px"><b>应送订单 ${tot(plan.ord)}</b> = 下面各单之和;厨房「各店装车」同口径</div>
+    ${inc.map(x=>`<div class="kv" style="font-size:13px"><span><b class="ono" style="cursor:pointer" onclick="openDetail('${x.o.no}')">${esc(x.o.no)}</b> ${esc(x.o.name||"")}${x.o.pickedUp?' <span class="z">已取</span>':""} <span class="z">${x.note||""}</span></span><b>${it(x.q)}</b></div>`).join("")||'<p class="note">无</p>'}
+    <div class="note" style="margin:8px 0 4px"><b>不计入配送</b>(已排除,仅供核对)</div>
+    ${exc.map(x=>`<div class="kv" style="font-size:13px;opacity:.7"><span><b class="ono" style="cursor:pointer" onclick="openDetail('${x.o.no}')">${esc(x.o.no)}</b> ${esc(x.o.name||"")} <span class="z">${x.why}</span></span><b>${it(x.q)}</b></div>`).join("")||'<p class="note">无</p>'}
+    <div class="note" style="margin:8px 0 4px"><b>现货安排</b> ${tot(plan.walk)} 盒:${it(plan.walk)}</div>
+    <div class="note"><b>已交接</b> 订单用 ${it(sh["订单"])} · 现货用 ${it(sh["现货"])}</div>
+    <div class="note"><b>门店点收</b> ${rc.ob+rc.wb?`${rc.ob+rc.wb} 盒(${rc.who||""})`:"尚未点收"}</div>`,true);
 }
 function openHandover(st){
   needPin(()=>{
@@ -3964,7 +3989,7 @@ function renderSum(){
       <div style="margin:6px 0 4px">${lines.map(x=>x.txt).join("")||'<div class="note">仅补交接历史</div>'}</div>
       <div class="kv" style="align-items:center;border-top:1px dashed var(--line);padding-top:6px">
         <span class="note" style="margin:0">${shipTag}${recvTag?"<br>"+recvTag:""}</span>
-        <button class="btn small" onclick="openHandover('${st}')">${shipTot?"补交接":"记交接"}</button></div>
+        <button class="btn small ghost" onclick="openPlanDetail('${st}')">明细</button> <button class="btn small" onclick="openHandover('${st}')">${shipTot?"补交接":"记交接"}</button></div>
     </div>`;
   }).join("");
   {const ks=kitchenGiftStock();const parts=WALKIN_PRODUCTS.filter(p=>(ks[p.k]||0)!==0).map(p=>`${p.n} <b>${ks[p.k]}</b>${/^s_/.test(p.k)?"颗":""}`);
