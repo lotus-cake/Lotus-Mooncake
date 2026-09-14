@@ -795,7 +795,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-149";
+const APP_BUILD="b0819-150";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -829,7 +829,7 @@ function initData(){
     firebase.auth().onAuthStateChanged(u=>{AUTHED=!!u;setConn(!!u,"未登录");});
     firebase.auth().signInAnonymously().catch(e=>{AUTHED=false;setConn(false,"连接失败:"+e.message);toast("云端连接失败:"+e.message+"(检查 Firebase 匿名登录是否启用)");});
     DB=firebase.database();
-    DB.ref(DB_ROOT+"/orders").on("value",s=>{ORDERS=s.val()||{};healSplitKids();renderAll();});
+    DB.ref(DB_ROOT+"/orders").on("value",s=>{ORDERS=s.val()||{};healSplitKids();healWalkTakes();renderAll();});
     DB.ref(DB_ROOT+"/ledger").on("value",s=>{LEDGER=s.val()||{};});
     DB.ref(DB_ROOT+"/closes").on("value",s=>{CLOSES=s.val()||{};renderAll();});
     DB.ref(DB_ROOT+"/selfloss").on("value",s=>{SELFLOSS=s.val()||{};});
@@ -838,7 +838,7 @@ function initData(){
     DB.ref(DB_ROOT+"/meta/tax").on("value",s=>{TAX=s.val();renderAll();});
     DB.ref(DB_ROOT+"/meta/aiKey").on("value",s=>{AIKEY=s.val()||"";updateKeyStatus();});
     DB.ref(DB_ROOT+"/todos").on("value",s=>{TODOS=s.val()||{};renderTodos();});
-    DB.ref(DB_ROOT+"/walkin").on("value",s=>{WALKIN=s.val()||{};renderWalkin();});
+    DB.ref(DB_ROOT+"/walkin").on("value",s=>{WALKIN=s.val()||{};healWalkTakes();renderWalkin();});
     DB.ref(DB_ROOT+"/prod/records").on("value",s=>{PRODRECS=s.val()||{};renderSum();renderPickup();});
     DB.ref(DB_ROOT+"/prod/walkplan").on("value",s=>{WPLAN=s.val()||{};renderSum();});
     DB.ref(DB_ROOT+"/prod/recv").on("value",s=>{RECV=s.val()||{};renderSum();renderPickup();});
@@ -1091,6 +1091,12 @@ function addBatchPickup(no,rec,cb){
 function saveCaps(){ if(DB) DB.ref(DB_ROOT+"/meta/caps").set(CAPS); }
 
 /* ---------------- 统计 ---------------- */
+function healWalkTakes(){ // 自愈:现货取走铸的子单(旧版无记号)按其现货流水补 fromWalkin
+  let n=0;const byNo={};
+  Object.entries(WALKIN||{}).forEach(([st,w])=>Object.values((w&&w.sales)||{}).forEach(s=>{if(s&&s.src==="familywalk"&&s.orderNo){const b=byNo[s.orderNo]=byNo[s.orderNo]||{store:st,date:s.date,qty:{}};b.qty[s.product]=(b.qty[s.product]||0)+(+s.qty||0);}}));
+  Object.entries(byNo).forEach(([no,b])=>{const o=ORDERS[no];if(!o||o.fromWalkin)return;o.fromWalkin={store:b.store,date:b.date,ts:Date.now(),qty:b.qty,healed:true};n++;
+    if(DB&&ROLE&&(ROLE.type==="cs"||ROLE.type==="owner"))DB.ref(DB_ROOT+"/orders/"+no+"/fromWalkin").set(o.fromWalkin);});
+  return n;}
 function healSplitKids(){ // 自愈:子单(有母单)绝不该带分批标记(旧版拆单曾继承);内存纠正并由客服/Owner 写回一次
   let n=0;Object.values(ORDERS||{}).forEach(o=>{if(o&&o.parentNo&&o.batch){o.batch=false;n++;
     if(DB&&ROLE&&(ROLE.type==="cs"||ROLE.type==="owner"))DB.ref(DB_ROOT+"/orders/"+o.no).update({batch:null,healedAt:Date.now()});}});
