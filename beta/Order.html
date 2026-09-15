@@ -417,6 +417,9 @@ table.sum .z{color:#C9C6B4}
   <div class="seg" id="pendSeg" style="margin:0 0 8px">
     <button data-v="in" class="on">待收款</button><button data-v="out">待退款</button>
   </div>
+  <div id="csTools" style="display:none;margin:0 0 10px;gap:8px">
+    <button class="btn small ghost" id="btnOpsLog2" style="flex:1">今日操作记录</button>
+  </div>
   <div id="ownerTools" style="display:none;margin:0 0 10px;gap:8px">
     <button class="btn small ghost" id="btnCredit2" style="flex:1">挂账清单(Owner)</button>
     <button class="btn small ghost" id="btnLgFix2" style="flex:1">台账补录 / 更正(Owner)</button>
@@ -796,7 +799,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-151";
+const APP_BUILD="b0819-152";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -1450,7 +1453,8 @@ function applyRole(){
     payUIRefresh();
   }
   navBtn("set").style.display="none"; // Owner 功能已移至独立 owner.html
-  {const ot=document.getElementById("ownerTools");if(ot)ot.style.display=(ROLE&&ROLE.type==="owner")?"flex":"none";}
+  {const ot=document.getElementById("ownerTools");if(ot)ot.style.display=(ROLE&&ROLE.type==="owner")?"flex":"none";
+   const ct=document.getElementById("csTools");if(ct)ct.style.display=(ROLE&&ROLE.type==="cs")?"flex":"none";}
   if(isStore){
     const st=ROLE.store;
     fStoreVal=st; // #2: 三店可选,默认登录店
@@ -4446,6 +4450,7 @@ function openOpsLog(){ // 全店操作总览:谁在什么时候改了哪张单
   draw();
 }
 document.getElementById("btnOpsLog").addEventListener("click",openOpsLog);
+document.getElementById("btnOpsLog2").addEventListener("click",openOpsLog);
 function openLedgerFix(){
   if(!(ROLE&&ROLE.type==="owner"))return toast("仅 Owner 可补录台账");
   let lst="CAM";
