@@ -799,7 +799,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-154";
+const APP_BUILD="b0819-155";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -2297,7 +2297,9 @@ function saveEdit(o){
   if(newPay==="部分付"&&!_duePlanV){_duePlanV=o.duePlan||"取货时付";}
   if(newPay==="已付"&&newAmt!=null)newPaid=newAmt;
   if(newPay==="未付")newPaid=0;
-  const _pd=Math.round((newPaid-paidOf(o))*100)/100;
+  const _famKids=Object.values(ORDERS).some(c=>c.parentNo===o.no&&c.status==="有效");
+  if(_famKids){newPaid=paidOf(o);} // 有子单的母单持全家的钱:改单永不动已收、永不入账
+  const _pd=_famKids?0:Math.round((newPaid-paidOf(o))*100)/100;
   const _ePmV=(document.getElementById("ePayM")||{}).value||o.payMethod||"其它";const _ledgerFix=(stf)=>{if(o.parentNo)return; /* 子单钱随母单,永不入账 */ if(Math.abs(_pd)>0.005)addLedger({orderNo:o.no,type:_pd>0?"订单收款":"退款",pm:_ePmV,amt:_pd,staff:stf||null,ref:null,note:"改单更正已收"});};
   const patch={name,phone:document.getElementById("ePhone").value.trim(),store:eStore,
     qty:{...eQty},box6:nb.b6,box2:nb.b2,boxes:nb.total,pieces:nb.pieces,
