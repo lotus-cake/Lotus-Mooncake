@@ -247,7 +247,7 @@ table.sum .z{color:#C9C6B4}
     </div>
     <div id="fDateWrap">
       <label class="f">取货日期 *(9/3 – 9/27)</label>
-      <input type="date" id="fDate" min="2026-09-03" max="2026-09-27" value="2026-09-03">
+      <input type="date" id="fDate" min="2026-09-03" max="2026-09-27" value="" required>
       <label class="f" style="margin-top:8px">取货时间(可选)</label>
       <input type="time" id="fTime" step="600">
       <div class="note" id="fTimeWin"></div>
@@ -799,7 +799,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-153";
+const APP_BUILD="b0819-154";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -1714,8 +1714,12 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
   if(!name)return toast("请填客人姓名");
   if(!fStoreVal)return toast("请选取货门店");
   if(!fBatch){
-    if(!date)return toast("请选取货日期");
+    if(!date)return toast("请选取货日期(每张单都要手选,不再有默认)");
     if(date<DATE_MIN||date>DATE_MAX)return toast("取货日期须在 9/3 – 9/27");
+    if(date<todayStr()){
+      if(!(ROLE&&(ROLE.type==="cs"||ROLE.type==="owner")))return toast("取货日期不能早于今天("+fmtMD(todayStr())+");补录旧单请找客服");
+      if(!confirm(`取货日期 ${fmtMD(date)} 早于今天,确定是补录旧单?`))return;
+    }
     {const tv=(document.getElementById("fTime")||{}).value||"";
      if(tv&&fStoreVal&&PICKUP_WIN[fStoreVal]&&!timeOk(fStoreVal,tv))return toast(`${STORE_NAME[fStoreVal]}取货时间窗 ${PICKUP_WIN[fStoreVal][0]}–${PICKUP_WIN[fStoreVal][1]}`);}
   }
