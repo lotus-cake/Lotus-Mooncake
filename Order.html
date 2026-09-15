@@ -421,6 +421,7 @@ table.sum .z{color:#C9C6B4}
     <button class="btn small ghost" id="btnCredit2" style="flex:1">挂账清单(Owner)</button>
     <button class="btn small ghost" id="btnLgFix2" style="flex:1">台账补录 / 更正(Owner)</button>
     <button class="btn small ghost" id="btnPromoFix" style="flex:1">补正促销价(Owner)</button>
+    <button class="btn small ghost" id="btnOpsLog" style="flex:1">今日操作记录(Owner)</button>
   </div>
   <div class="note" id="pendHint" style="margin:-4px 0 8px">按取货日期排序;取货<b>前一天 17:00</b> 未收到款自动标红。</div><div id="pendUrgent"></div>
   <div id="pendList"></div>
@@ -795,7 +796,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-150";
+const APP_BUILD="b0819-151";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -4419,6 +4420,32 @@ function openPromoFix(){
   };
 }
 document.getElementById("btnPromoFix").addEventListener("click",openPromoFix);
+function openOpsLog(){ // 全店操作总览:谁在什么时候改了哪张单
+  if(!(ROLE&&(ROLE.type==="owner"||ROLE.type==="cs")))return toast("仅 Owner / 客服可查");
+  let d=todayStr(),st="",act="";
+  const draw=()=>{
+    const rows=[];
+    Object.entries(ORDERS||{}).forEach(([no,o])=>{if(!o||!o.history)return;
+      const isSys=/^SYS-/.test(no);const store=isSys?no.slice(4):o.store;
+      Object.values(o.history).forEach(e=>{if(!e||e.date!==d)return;if(st&&store!==st)return;if(act&&!(e.action||"").includes(act))return;
+        rows.push({ts:+e.ts||0,time:e.time||"",who:(e.acct?e.acct+"|":"")+(e.staff||"?"),action:e.action||"",detail:e.detail||"",no:isSys?"":no,name:isSys?"(门店操作)":(o.name||""),store});});});
+    rows.sort((a,b)=>b.ts-a.ts);
+    const cnt={};rows.forEach(r=>{const k=r.action.split(" ")[0];cnt[k]=(cnt[k]||0)+1;});
+    document.getElementById("olStat").innerHTML=`<b>共 ${rows.length} 条</b> · `+Object.entries(cnt).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${esc(k)} ${v}`).join(" · ");
+    document.getElementById("olList").innerHTML=rows.map(r=>`<div class="kv" style="font-size:13px;align-items:flex-start"><span>${r.time} <b>${esc(r.who)}</b> ${esc(r.action)}<br><span class="z">${r.no?`<b class="ono" style="cursor:pointer" onclick="openDetail('${r.no}')">${esc(r.no)}</b> ${esc(r.name)} · `:""}${STORE_NAME[r.store]||r.store||""}${r.detail?" · "+esc(r.detail):""}</span></span></div>`).join("")||'<p class="note">该日无记录</p>';
+  };
+  openModal(mhead("操作记录总览")+`
+    <div class="row"><div><label class="f">日期</label><input type="date" id="olDate" value="${d}"></div>
+      <div><label class="f">动作</label><select id="olAct"><option value="">全部</option><option>修改订单</option><option>取消</option><option>拆分</option><option>标记已取货</option><option>标记已收款</option><option>部分收款</option><option>从现货出货</option><option>现货</option><option>作废</option><option>创建</option></select></div></div>
+    <div class="seg" id="olStore"><button data-v="" class="on">全部门店</button>${Object.entries(STORE_NAME).map(([k,n])=>`<button data-v="${k}">${n}</button>`).join("")}</div>
+    <div class="note" id="olStat" style="margin:8px 0 4px"></div>
+    <div id="olList" style="max-height:56vh;overflow-y:auto"></div>`,true);
+  document.getElementById("olDate").addEventListener("change",function(){d=this.value||todayStr();draw();});
+  document.getElementById("olAct").addEventListener("change",function(){act=this.value;draw();});
+  document.getElementById("olStore").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;st=b.dataset.v;document.querySelectorAll("#olStore button").forEach(x=>x.classList.toggle("on",x===b));draw();});
+  draw();
+}
+document.getElementById("btnOpsLog").addEventListener("click",openOpsLog);
 function openLedgerFix(){
   if(!(ROLE&&ROLE.type==="owner"))return toast("仅 Owner 可补录台账");
   let lst="CAM";
