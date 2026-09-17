@@ -799,7 +799,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-155";
+const APP_BUILD="b0819-156";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -1557,9 +1557,10 @@ function renderFAmount(){
   }else{
     el.textContent=money(d.amt)||"$0";el.style.color="";
     let inner="";
-    if(d.tier&&d.promoDisc>0){
+    if((d.tier||d.tier2)&&d.promoDisc>0){
       const emp=Math.round(((d.gross-d.promoDisc)-d.sub)*100)/100;
-      inner=`<b style="color:var(--ok)">已自动应用优惠:买${d.tier.buy}送${d.tier.free},免 ${money(d.promoDisc)}(六粒盒)${emp>0.001?` · 员工9折 −${money(emp)}`:""}</b>(原价 ${money(d.gross)})`+nextTierHint(d);
+      const parts=[];if(d.tier)parts.push(`六粒盒:买${d.tier.buy}送${d.tier.free}(免${d.free6}盒)`);if(d.tier2)parts.push(`两粒盒:买${d.tier2.buy}送${d.tier2.free}(免${d.free2}盒)`);
+      inner=`<b style="color:var(--ok)">已自动应用优惠:${parts.join(" · ")},共免 ${money(d.promoDisc)}${emp>0.001?` · 员工9折 −${money(emp)}`:""}</b>(原价 ${money(d.gross)})`+nextTierHint(d);
     }else{
       const emp=Math.round((d.gross-d.sub)*100)/100;
       const nt=nextTierHint(d);
