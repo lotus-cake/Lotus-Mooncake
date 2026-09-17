@@ -799,7 +799,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-157";
+const APP_BUILD="b0819-158";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -1519,12 +1519,13 @@ setTimeout(updPickWin,0);
 function renderQtyTable(){
   const c=capState(),t=document.getElementById("qtyTable");
   const row=p=>{
-    const out=p.box===6?c.out6:(p.box===2?c.out2:false), v=fQty[p.k]||0;
+    const closed=isClosedProd(p);
+    const out=(p.box===6?c.out6:(p.box===2?c.out2:false))||closed, v=fQty[p.k]||0;
     return `<tr class="${out&&!v?"soldout":""}">
-      <td class="qname">${p.n}<span class="box-tag">${p.pc?"单颗":`${p.box}粒盒`}</span>${out?'<span class="soldout-tag">售罄</span>':""}</td>
+      <td class="qname">${p.n}<span class="box-tag">${p.pc?"单颗":`${p.box}粒盒`}</span>${closed?'<span class="soldout-tag">已停止接单</span>':(out?'<span class="soldout-tag">售罄</span>':"")}</td>
       <td><div class="stepper">
         <button onclick="stepQty('${p.k}',-1)" ${v?"":"disabled"} style="${v?"":"opacity:.35"}">−</button>
-        <input class="qv qin" type="number" min="0" inputmode="numeric" value="${v||0}" onchange="typeQty('${p.k}',this.value)" style="width:52px;text-align:center;border:1px solid var(--line);border-radius:8px;padding:4px 2px">
+        <input class="qv qin" type="number" min="0" inputmode="numeric" value="${v||0}" onchange="typeQty('${p.k}',this.value)" ${closed?"disabled":""} style="width:52px;text-align:center;border:1px solid var(--line);border-radius:8px;padding:4px 2px">
         <button onclick="stepQty('${p.k}',1)" ${out?"disabled style='opacity:.35'":""}>+</button>
       </div></td></tr>`;};
   t.innerHTML=QTY_GROUPS.map(g=>{
@@ -1536,6 +1537,8 @@ function renderQtyTable(){
   renderFAmount();
 }
 let QG_OPEN={g6:true,g2:false,g1:false};
+const SINGLES_OPEN=false; // 单颗预订接单开关(9/17 起停止接单;现货零售不受影响)
+const isClosedProd=p=>!!(p&&p.pc)&&!SINGLES_OPEN;
 const QTY_GROUPS=[
   {id:"g6",n:"六颗礼盒",f:p=>p.box===6},
   {id:"g2",n:"两颗礼盒",f:p=>p.box===2},
@@ -1715,6 +1718,7 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
   if(!name)return toast("请填客人姓名");
   if(!fStoreVal)return toast("请选取货门店");
   if(!fBatch){
+    if(!SINGLES_OPEN&&Object.entries(fQty).some(([k,v])=>v>0&&isClosedProd(PRODUCTS.find(p=>p.k===k))))return toast("单颗已停止接单,请去掉单颗");
     if(!date)return toast("请选取货日期(每张单都要手选,不再有默认)");
     if(date<DATE_MIN||date>DATE_MAX)return toast("取货日期须在 9/3 – 9/27");
     if(date<todayStr()){
@@ -2237,7 +2241,7 @@ function renderEQty(){
       <td><div class="stepper">
         <button onclick="eStep('${p.k}',-1,${min})" ${v>min?"":"disabled style='opacity:.35'"}>−</button>
         <span class="qv">${v}</span>
-        <button onclick="eStep('${p.k}',1,${min})">+</button>
+        <button onclick="eStep('${p.k}',1,${min})" ${isClosedProd(p)?"disabled style='opacity:.35' title='单颗已停止接单'":""}>+</button>
       </div></td></tr>`;};
   document.getElementById("eQtyTable").innerHTML=QTY_GROUPS.map(g=>{
     const ps=PRODUCTS.filter(g.f);
