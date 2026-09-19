@@ -800,7 +800,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-160";
+const APP_BUILD="b0819-161";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -4468,7 +4468,7 @@ function openCapDetail(){ // 1500 盒额度怎么算出来的:逐项拆开
     const cap=bx===6?CAPS.b6:CAPS.b2;const used=ord+walk+planned;
     return `<div class="note" style="margin:10px 0 4px"><b>${T(bx)}盒</b> 额度 ${cap||"不限"} · 已用 <b>${used}</b> · 剩 <b>${cap?Math.max(0,cap-used):"不限"}</b></div>
       <div class="kv"><span>订单占用</span><b>${ord}</b></div>
-      <div class="kv" style="font-size:13px"><span class="z">　定日单 ${dated} + 分批单 ${batch} − 从现货出 ${minusFw} − 分批现货取走 ${minusBw}</span></div>
+      <div class="kv" style="font-size:13px"><span class="z">　定日单 ${dated} + 分批单 ${batch} − 从现货出 ${minusFw}(含分批客人现货取走)${minusBw?` − 旧式分批取货记录 ${minusBw}`:""}</span></div>
       ${big.length?`<details style="margin:2px 0 6px"><summary class="z" style="cursor:pointer">　≥10 盒的大单(${big.length})</summary>${big.sort((a,b)=>b.n-a.n).map(x=>`<div class="kv" style="font-size:13px"><span><b class="ono" style="cursor:pointer" onclick="openDetail('${x.no}')">${esc(x.no)}</b> ${esc(x.name)}${x.batch?" · 分批":""}</span><b>${x.n}</b></div>`).join("")}</details>`:""}
       <div class="kv"><span>现货占用(到货累计,不含店间调拨)</span><b>${walk}</b></div>
       ${Object.entries(src).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="kv" style="font-size:13px"><span class="z">　${STORE_NAME[k.split("|")[0]]||k.split("|")[0]} · ${k.split("|")[1]}</span><b>${v}</b></div>`).join("")||'<div class="note">　无</div>'}
