@@ -425,6 +425,7 @@ table.sum .z{color:#C9C6B4}
     <button class="btn small ghost" id="btnLgFix2" style="flex:1">台账补录 / 更正(Owner)</button>
     <button class="btn small ghost" id="btnPromoFix" style="flex:1">补正促销价(Owner)</button>
     <button class="btn small ghost" id="btnOpsLog" style="flex:1">今日操作记录(Owner)</button>
+    <button class="btn small ghost" id="btnCapDetail" style="flex:1">额度明细(Owner)</button>
   </div>
   <div class="note" id="pendHint" style="margin:-4px 0 8px">按取货日期排序;取货<b>前一天 17:00</b> 未收到款自动标红。</div><div id="pendUrgent"></div>
   <div id="pendList"></div>
@@ -799,7 +800,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-159";
+const APP_BUILD="b0819-160";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -4445,6 +4446,36 @@ function openPromoFix(){
   };
 }
 document.getElementById("btnPromoFix").addEventListener("click",openPromoFix);
+function openCapDetail(){ // 1500 盒额度怎么算出来的:逐项拆开
+  if(!(ROLE&&ROLE.type==="owner"))return toast("仅 Owner 可查");
+  const boxOf=k=>{if(k==="bb2")return 2;const p=(typeof WALKIN_PRODUCTS!=="undefined"?WALKIN_PRODUCTS:PRODUCTS).find(x=>x.k===k);return p?(p.box===6?6:(p.box===2?2:0)):0;};
+  const T=t=>t===6?"六粒":"两粒";
+  const html=[6,2].map(bx=>{
+    // 订单侧
+    let dated=0,batch=0,minusFw=0,minusBw=0;const big=[];
+    liveOrders().forEach(o=>{const n=bx===6?(o.box6||0):(o.box2||0);if(!n&&!o.fromWalkin)return;
+      if(o.batch)batch+=n;else dated+=n;
+      const fq=(o.fromWalkin&&o.fromWalkin.qty)||{};Object.entries(fq).forEach(([k,v])=>{if(boxOf(k)===bx)minusFw+=(+v||0);});
+      if(o.batch)Object.values(o.pickups||{}).forEach(r=>{if(r&&r.src==="现货"&&!r.voided)Object.entries(r.qty||{}).forEach(([k,v])=>{if(boxOf(k)===bx)minusBw+=(+v||0);});});
+      if(n>=10)big.push({no:o.no,name:o.name||"",n,batch:!!o.batch});});
+    const ord=Math.max(0,dated+batch-minusFw-minusBw);
+    // 现货侧:按店按来源
+    const src={};let walk=0;const D=todayStr();
+    Object.entries(WALKIN||{}).forEach(([st,w])=>Object.values((w&&w.receipts)||{}).forEach(r=>{if(!r||r.auto==="transfer")return;let n=0;Object.entries(r.qty||{}).forEach(([k,v])=>{if(boxOf(k)===bx)n+=(+v||0);});if(!n)return;
+      const kind=r.auto==="arrive"?"到货点收":r.auto==="repack"?"改装/拆盒":r.auto==="cancelrelease"?"取消转现货":r.auto==="resched"?"改期放出":"手动录入";
+      const key=st+"|"+kind;src[key]=(src[key]||0)+n;walk+=n;}));
+    let planned=0;Object.entries(WPLAN||{}).forEach(([d,byStore])=>{if(d<D)return;Object.entries(byStore||{}).forEach(([st,q])=>{if(typeof todayRecvRec==="function"&&todayRecvRec(st,d))return;Object.entries(q||{}).forEach(([k,v])=>{if(boxOf(k)===bx)planned+=(+v||0);});});});
+    const cap=bx===6?CAPS.b6:CAPS.b2;const used=ord+walk+planned;
+    return `<div class="note" style="margin:10px 0 4px"><b>${T(bx)}盒</b> 额度 ${cap||"不限"} · 已用 <b>${used}</b> · 剩 <b>${cap?Math.max(0,cap-used):"不限"}</b></div>
+      <div class="kv"><span>订单占用</span><b>${ord}</b></div>
+      <div class="kv" style="font-size:13px"><span class="z">　定日单 ${dated} + 分批单 ${batch} − 从现货出 ${minusFw} − 分批现货取走 ${minusBw}</span></div>
+      ${big.length?`<details style="margin:2px 0 6px"><summary class="z" style="cursor:pointer">　≥10 盒的大单(${big.length})</summary>${big.sort((a,b)=>b.n-a.n).map(x=>`<div class="kv" style="font-size:13px"><span><b class="ono" style="cursor:pointer" onclick="openDetail('${x.no}')">${esc(x.no)}</b> ${esc(x.name)}${x.batch?" · 分批":""}</span><b>${x.n}</b></div>`).join("")}</details>`:""}
+      <div class="kv"><span>现货占用(到货累计,不含店间调拨)</span><b>${walk}</b></div>
+      ${Object.entries(src).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="kv" style="font-size:13px"><span class="z">　${STORE_NAME[k.split("|")[0]]||k.split("|")[0]} · ${k.split("|")[1]}</span><b>${v}</b></div>`).join("")||'<div class="note">　无</div>'}
+      <div class="kv"><span>已安排未点收的现货(今起)</span><b>${planned}</b></div>`;}).join("");
+  openModal(mhead("额度明细(1500 盒那本账)")+`<div class="note">已用 = 订单占用 + 现货占用 + 已安排未点收;虚高常见于:门店把订单货手动录成到货、同一批到货点收两次、调拨旧版重复入库。可在现货页「收货记录明细」作废多余记录。</div>`+html,true);
+}
+document.getElementById("btnCapDetail").addEventListener("click",openCapDetail);
 function openOpsLog(){ // 全店操作总览:谁在什么时候改了哪张单
   if(!(ROLE&&(ROLE.type==="owner"||ROLE.type==="cs")))return toast("仅 Owner / 客服可查");
   let d=todayStr(),st="",act="";
