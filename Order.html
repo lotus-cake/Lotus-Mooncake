@@ -661,7 +661,7 @@ const PAY_METHODS = ["Square Online","Credit Card","Gift Card","现金","EMT","S
 const CREDIT_PLAN="Owner 挂账";const isCredit=o=>o&&o.pay==="未付"&&o.unpaidPlan===CREDIT_PLAN;
 const pmDisp=m=>m==="微信"?"SL":m;
 const LEGACY_PM = m=>m&&!PAY_METHODS.includes(m); // 老单历史值(Square/SL WeChat)兼容
-const WALK_PAY = ["Credit Card","Gift Card","现金","AlphaPay(微信&支付宝)","SL","EMT","其它"];
+const WALK_PAY = ["Credit Card","Gift Card","现金","AlphaPay(微信&支付宝)","SL","EMT"]; // 9/19 起现货卖货不再提供「其它」
 const DEFAULT_PRICES = {p6:88, p6cash:80, p2:28, bb2:28, s1:11.5, emp:0.9,
   promos:[{buy:10,free:1},{buy:20,free:3},{buy:30,free:5}]};
 let PRICES = {...DEFAULT_PRICES};
@@ -800,7 +800,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-161";
+const APP_BUILD="b0819-162";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
