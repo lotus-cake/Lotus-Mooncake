@@ -499,7 +499,7 @@ const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,pureeBeanG:68
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 const NF=n=>(+n).toLocaleString("en-US");
 const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
-const APP_BUILD="b0819-162";
+const APP_BUILD="b0819-163";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -1997,8 +1997,14 @@ function initRecFilters(){
   flSel.innerHTML='<option value="all">全部口味</option>'+FLAVORS.map(f=>`<option value="${f.k}">${f.n}</option>`).join("");
   ["recFrom","recTo","recStage","recFlavor","recText"].forEach(id=>document.getElementById(id).addEventListener("input",renderTodayRecs));
 }
+let _snapTs=0;
+function pushStockSnapshot(){ // 口味级库存快照 → /prod/stock(节流 60s),供 Owner 端做库存 vs 需求
+  if(!DB)return;const now=Date.now();if(now-_snapTs<60000)return;_snapTs=now;
+  try{const S=calcStock();const pick=o=>{const r={};Object.entries(o||{}).forEach(([k,v])=>{if(v)r[k]=Math.round(v*100)/100;});return r;};
+    DB.ref(DB_ROOT+"/prod/stock").set({ts:now,packed:pick(S.packed),baked:pick(S.baked),rdy:pick(S.rdy),wet:pick(S.wet),gift:pick(S.gift)});}catch(e){}
+}
 function renderAll(){
-  initRecFilters();renderDash();renderStageGrid();renderTodayRecs();renderStock();renderTh();renderPrm();}
+  initRecFilters();renderDash();renderStageGrid();renderTodayRecs();renderStock();renderTh();renderPrm();pushStockSnapshot();}
 initData();renderAll();
 if(!isConfigured)document.getElementById("loginHint").textContent="演示模式访问码:厨房 7777 · Owner 0000";
 try{
