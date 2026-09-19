@@ -676,7 +676,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-163";
+const APP_BUILD="b0819-164";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -1980,18 +1980,24 @@ function renderSupply(){
   const el=document.getElementById("supplyCard");if(!el)return;
   const need={};FLV.forEach(([k])=>need[k]=0);need.any=0;
   liveOrders().forEach(o=>{const q=o.batch?batchRemainQty(o):(o.pickedUp?null:o.qty);if(!q)return;const f=prodToFlavors(q);Object.keys(need).forEach(k=>need[k]+=f[k]||0);});
-  const st=STOCK||{};const have={},wip={};FLV.forEach(([k])=>{have[k]=0;wip[k]=0;});have.any=0;
-  FLV.forEach(([k])=>{have[k]+=(st.packed||{})[k]||0;wip[k]+=((st.baked||{})[k]||0)+((st.rdy||{})[k]||0);});
-  {const f=prodToFlavors(st.gift||{});Object.keys(have).forEach(k=>have[k]+=f[k]||0);}
-  Object.keys(WALKIN||{}).forEach(s=>{const c=walkinCalc(s,todayStr());const q={};Object.keys(c).forEach(k=>{if(c[k].remain>0)q[k]=c[k].remain;});const f=prodToFlavors(q);Object.keys(have).forEach(k=>have[k]+=f[k]||0);});
+  const st=STOCK||{};const have={},wip={},part={kp:{},kg:{},sr:{},sw:{}};FLV.forEach(([k])=>{have[k]=0;wip[k]=0;});have.any=0;
+  const addPart=(tag,f)=>{Object.keys(have).forEach(k=>{const v=f[k]||0;if(!v)return;have[k]+=v;part[tag][k]=(part[tag][k]||0)+v;});};
+  {const f={};FLV.forEach(([k])=>{f[k]=(st.packed||{})[k]||0;wip[k]+=((st.baked||{})[k]||0)+((st.rdy||{})[k]||0);});addPart("kp",f);}   // 厨房已包装单颗
+  addPart("kg",prodToFlavors(st.gift||{}));                                                                                    // 厨房装盒成品
+  // 门店订单预留(已送未取)= 厨房发出的订单用盒 − 已取走的定日单盒(非现货供)− 分批取货记录(非现货)
+  {const shipped={};Object.values(PRODRECS||{}).forEach(r=>{if(r&&!r.voided&&r.stage==="ship"&&r.use==="订单"&&r.product)shipped[r.product]=(shipped[r.product]||0)+(+r.good||0);});
+   const taken={};liveOrders().forEach(o=>{if(!o.batch&&o.pickedUp){const fq=(o.fromWalkin&&o.fromWalkin.qty)||{};Object.entries(o.qty||{}).forEach(([k,v])=>{const n=Math.max(0,(+v||0)-(fq[k]||0));if(n)taken[k]=(taken[k]||0)+n;});}
+     if(o.batch)Object.values(o.pickups||{}).forEach(r=>{if(r&&!r.voided&&r.src!=="现货")Object.entries(r.qty||{}).forEach(([k,v])=>taken[k]=(taken[k]||0)+(+v||0));});});
+   const resv={};Object.keys(shipped).forEach(k=>{const n=shipped[k]-(taken[k]||0);if(n>0)resv[k]=n;});addPart("sr",prodToFlavors(resv));}
+  Object.keys(WALKIN||{}).forEach(s=>{const c=walkinCalc(s,todayStr());const q={};Object.keys(c).forEach(k=>{if(c[k].remain>0)q[k]=c[k].remain;});addPart("sw",prodToFlavors(q));});
   const fc=prodToFlavors(FORECAST||{});
   const FP=[["mix6","六粒混合"],["js6","六粒金沙"],["js2","两粒金沙"],["mt2","两粒抹茶柚子"],["tr2","两粒黑松露"],["cp2","两粒陈皮红豆"],["mk2","两粒摩卡"],["wl2","两粒乌龙"],["bb2","两粒盲盒"]];
   const rows=FLV.map(([k,n])=>{const bal=have[k]-need[k]-(fc[k]||0);const bal2=bal+wip[k];
-    return `<tr><td>${n}</td><td>${have[k]}</td><td class="z">${wip[k]}</td><td>${need[k]}</td><td>${fc[k]||0}</td><td style="font-weight:800;color:${bal<0?"var(--danger)":"var(--ok)"}">${bal}</td><td class="z" style="color:${bal2<0?"var(--danger)":"inherit"}">${bal2}</td></tr>`;}).join("");
+    return `<tr><td>${n}<br><span class="z" style="font-size:11px">厨包${part.kp[k]||0}·厨盒${part.kg[k]||0}·店预留${part.sr[k]||0}·店现货${part.sw[k]||0}</span></td><td>${have[k]}</td><td class="z">${wip[k]}</td><td>${need[k]}</td><td>${fc[k]||0}</td><td style="font-weight:800;color:${bal<0?"var(--danger)":"var(--ok)"}">${bal}</td><td class="z" style="color:${bal2<0?"var(--danger)":"inherit"}">${bal2}</td></tr>`;}).join("");
   const anyLine=(need.any||fc.any||have.any)?`<div class="note" style="margin-top:4px">盲盒(不限口味):现货 ${have.any} 颗 · 预订需 ${need.any} 颗 · 预测 ${fc.any} 颗 —— 从各口味结余里出</div>`:"";
   el.innerHTML=`<div class="note" style="margin:0 0 6px"><b>库存 vs 需求(按口味,单位:颗)</b>${st.ts?` · 厨房库存快照 ${new Date(st.ts).toLocaleString("zh-CN",{hour12:false})}`:' · <span style="color:var(--danger)">厨房端尚未上传库存快照(打开厨房端即同步)</span>'}</div>
     <div class="twrap"><table class="sum"><tr><th>口味</th><th>成品在手</th><th>在制</th><th>预订未取</th><th>预测再卖</th><th>结余</th><th>含在制</th></tr>${rows}</table></div>
-    <div class="note" style="margin-top:4px">成品在手 = 厨房已包装单颗 + 厨房装盒成品 + 三店现货;在制 = 烤好未包装 + 待烘烤;结余 = 成品 − 预订未取 − 预测;负数标红=不够。</div>${anyLine}
+    <div class="note" style="margin-top:4px">成品在手 = 厨房已包装单颗(厨包)+ 厨房装盒成品(厨盒)+ 门店订单预留·已送未取(店预留)+ 三店现货(店现货);在制 = 烤好未包装 + 待烘烤;结余 = 成品 − 预订未取 − 预测;负数标红=不够。</div>${anyLine}
     <details style="margin-top:8px"><summary style="cursor:pointer"><b>预测再卖(按产品填盒数,存库)</b></summary>
       <div style="margin-top:6px">${FP.map(([k,n])=>`<div class="kv"><span>${n}</span><input type="number" class="fcIn" data-k="${k}" min="0" value="${(FORECAST||{})[k]||0}" style="width:70px;text-align:center"></div>`).join("")}
       <button class="btn small" id="fcSave" style="margin-top:8px">保存预测</button></div></details>`;
