@@ -800,7 +800,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-166";
+const APP_BUILD="b0819-167";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -3368,7 +3368,7 @@ function renderArrive(){
   const st=ROLE.store,d=todayStr();
   const plan=planForStore(d,st);
   const shp=shippedFor(d,st),shipQ={};WALKIN_PRODUCTS.forEach(p=>{const v=(shp["订单"][p.k]||0)+(shp["现货"][p.k]||0);if(v)shipQ[p.k]=v;});
-  const xin=Object.values(((WALKIN[st]||{}).receipts)||{}).filter(r=>r&&r.auto==="transfer"&&r.date===d);
+  const xin=Object.values(((WALKIN[st]||{}).receipts)||{}).filter(r=>r&&r.auto==="transfer"&&(r.pending||r.date===d));
   const xinQ={};xin.forEach(r=>Object.entries(r.qty||{}).forEach(([k,v])=>xinQ[k]=(xinQ[k]||0)+(+v||0)));
   const xinHtml=xin.length?`<div class="note" style="margin:0 0 8px;background:#EEF3E6;border-radius:8px;padding:6px 8px">⇄ 今日调入:${xin.map(r=>Object.entries(r.qty||{}).map(([k,v])=>((WALKIN_PRODUCTS.find(p=>p.k===k)||{n:k}).n)+"×"+v).join("、")+" ← "+(STORE_NAME[r.fromStore]||r.fromStore||"")+(r.pending?"(待签收)":"(已签收)")).join(";")}<br><span class="z">调入的货和厨房送的一起<b>按实物总数点收</b>;点收后调入才计入本店现货</span></div>`:"";
   const prods=WALKIN_PRODUCTS.filter(p=>((plan.ord[p.k]||0)+(plan.walk[p.k]||0))>0||(shipQ[p.k]||0)>0||(xinQ[p.k]||0)>0);
@@ -3411,7 +3411,7 @@ function renderArrive(){
     const staff=getStaff();if(!staff)return;
     const key=(done&&done.k)||("rv"+Date.now());
     const rec={kind:"arrive",date:d,store:st,qty,status,note,staff,acct:acctLabel(),ts:Date.now(),xin:transferredIn(st,d)};
-    Object.entries(((WALKIN[st]||{}).receipts)||{}).forEach(([rid,r])=>{if(r&&r.auto==="transfer"&&r.pending&&r.date===d){if(DB)DB.ref(DB_ROOT+"/walkin/"+st+"/receipts/"+rid+"/pending").set(false);else r.pending=false;}});
+    Object.entries(((WALKIN[st]||{}).receipts)||{}).forEach(([rid,r])=>{if(r&&r.auto==="transfer"&&r.pending){if(DB)DB.ref(DB_ROOT+"/walkin/"+st+"/receipts/"+rid+"/pending").set(false);else r.pending=false;}});
     if(DB)DB.ref(DB_ROOT+"/prod/recv/"+key).set(rec);else RECV[key]=rec;
     // 自动现货 = 实收 − 当日订单需求(替换当日 auto 收货)
     const rel=releasedQty(st,d),xinNow=transferredIn(st,d);const autoQty={};WALKIN_PRODUCTS.forEach(p=>{const v=Math.max(0,(qty[p.k]||0)-(plan.ord[p.k]||0)-(rel[p.k]||0)-(xinNow[p.k]||0));if(v>0)autoQty[p.k]=v;});
@@ -3766,7 +3766,8 @@ function renderBatchPage(){
 
 /* ---------------- 汇总页(门店配送,当日置顶) ---------------- */
 function z(v){return v?v:'<span class="z">·</span>';}
-function transferredIn(st,d){const out={};Object.values(((WALKIN[st]||{}).receipts)||{}).forEach(r=>{if(r&&r.auto==="transfer"&&r.date===d)Object.entries(r.qty||{}).forEach(([k,v])=>out[k]=(out[k]||0)+(+v||0));});return out;}
+function transferredIn(st,d){ // 待签收的调入(不分日期)+ 当天的调入
+  const out={};Object.values(((WALKIN[st]||{}).receipts)||{}).forEach(r=>{if(r&&r.auto==="transfer"&&(r.pending||r.date===d))Object.entries(r.qty||{}).forEach(([k,v])=>out[k]=(out[k]||0)+(+v||0));});return out;}
 function releasedQty(st,d){ // 当日"取消转现货/改期放出"直接入库量(点收自动入库要扣掉,避免重复)
   const out={};Object.values(((WALKIN[st]||{}).receipts)||{}).forEach(r=>{if(r&&r.date===d&&(r.auto==="cancelrelease"||r.auto==="resched"))Object.entries(r.qty||{}).forEach(([k,v])=>out[k]=(out[k]||0)+(+v||0));});return out;}
 function releaseToWalkin(o,kind,staff){ // 订单的货直接放入该店现货(有点收记录与否都成立)
