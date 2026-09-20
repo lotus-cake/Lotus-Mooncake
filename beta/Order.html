@@ -800,7 +800,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-165";
+const APP_BUILD="b0819-166";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -3046,10 +3046,9 @@ function openSplit(no){
     saveOrder(child,()=>patchOrder(no,{qty:remain,box6:rb.b6,box2:rb.b2,boxes:rb.total,pieces:rb.pieces,
       },
       ()=>{
-        logOp(no,staff,"拆分订单",`拆出 ${itemsText(sQty)}(${mb.total}盒)→ ${newNo}(${fmtMD(nd)} ${ss}),原单剩 ${rb.total}盒;两边金额已按标准价重算`);
+        logOp(no,staff,"拆分订单",`拆出 ${itemsText(sQty)}(${mb.total}盒)→ ${newNo}(${fmtMD(nd)} ${ss}),原单剩 ${rb.total}盒;母单持钱,家族总额不变 ${money(o.amount)}${wasManual?"(手动价)":""}`);
         logOp(newNo,staff,"拆分生成",`自 ${no} 拆出 · 取货人 ${(spN||"").trim()||o.name} · 付款随原单`);
-        toast(`已拆分:${newNo}(${fmtMD(nd)} ${ss} ${mb.total}盒 ${money(childAuto)}),原单剩 ${rb.total}盒 ${money(origAuto)}`);
-        if(wasManual)setTimeout(()=>alert(`⚠ 原单 ${base} 曾手动改价。拆分后两边已按标准价重算:\n原单 ${money(origAuto)} / 子单 ${money(childAuto)}\n请人工核对两边金额是否需要再调整。`),300);
+        toast(`已拆分:${newNo}(${fmtMD(nd)} ${ss} ${mb.total}盒,付款随母单),原单剩 ${rb.total}盒;家族总额不变 ${money(o.amount)}`);
       }));
   };
 }
