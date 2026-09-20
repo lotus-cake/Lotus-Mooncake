@@ -800,7 +800,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-168";
+const APP_BUILD="b0819-169";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -4478,7 +4478,16 @@ function openCapDetail(){ // 1500 盒额度怎么算出来的:逐项拆开
       <div class="kv"><span>现货占用(到货累计,不含店间调拨)</span><b>${walk}</b></div>
       ${Object.entries(src).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="kv" style="font-size:13px"><span class="z">　${STORE_NAME[k.split("|")[0]]||k.split("|")[0]} · ${k.split("|")[1]}</span><b>${v}</b></div>`).join("")||'<div class="note">　无</div>'}
       <div class="kv"><span>已安排未点收的现货(今起)</span><b>${planned}</b></div>`;}).join("");
-  openModal(mhead("额度明细(1500 盒那本账)")+`<div class="note">已用 = 订单占用 + 现货占用 + 已安排未点收;虚高常见于:门店把订单货手动录成到货、同一批到货点收两次、调拨旧版重复入库。可在现货页「收货记录明细」作废多余记录。</div>`+html,true);
+  // 按日期:订单按取货日(扣从现货出)、现货到货按收货日(不含调拨)、已安排未点收按安排日;分批单无日期单独一行
+  const byDate=bx=>{const rows={};const add=(d,f,n)=>{if(!n)return;const r=rows[d]=rows[d]||{o:0,w:0,p:0};r[f]+=n;};
+    liveOrders().forEach(o=>{const n=bx===6?(o.box6||0):(o.box2||0);const fq=(o.fromWalkin&&o.fromWalkin.qty)||{};let fw=0;Object.entries(fq).forEach(([k,v])=>{if(boxOf(k)===bx)fw+=(+v||0);});
+      let bw=0;if(o.batch)Object.values(o.pickups||{}).forEach(r=>{if(r&&r.src==="现货"&&!r.voided)Object.entries(r.qty||{}).forEach(([k,v])=>{if(boxOf(k)===bx)bw+=(+v||0);});});
+      const eff=Math.max(0,n-fw-bw);add(o.batch?"分批(无日期)":(o.pickupDate||"无日期"),"o",eff);});
+    Object.values(WALKIN||{}).forEach(w=>Object.values((w&&w.receipts)||{}).forEach(r=>{if(!r||r.auto==="transfer")return;let n=0;Object.entries(r.qty||{}).forEach(([k,v])=>{if(boxOf(k)===bx)n+=(+v||0);});add(r.date||"无日期","w",n);}));
+    const D=todayStr();Object.entries(WPLAN||{}).forEach(([d,byStore])=>{if(d<D)return;Object.entries(byStore||{}).forEach(([st,q])=>{if(typeof todayRecvRec==="function"&&todayRecvRec(st,d))return;let n=0;Object.entries(q||{}).forEach(([k,v])=>{if(boxOf(k)===bx)n+=(+v||0);});add(d,"p",n);});});
+    const keys=Object.keys(rows).sort((a,b)=>{const A=/^\d/.test(a),B=/^\d/.test(b);if(A&&B)return a.localeCompare(b);if(A)return -1;if(B)return 1;return a.localeCompare(b);});
+    let cum=0;return `<div class="note" style="margin:10px 0 4px"><b>${T(bx)}盒 · 按日期</b>(订单按取货日 · 现货按到货日 · 安排按计划日)</div><div class="twrap"><table class="sum"><tr><th>日期</th><th>订单</th><th>现货到货</th><th>已安排</th><th>当日</th><th>累计</th></tr>${keys.map(k=>{const r=rows[k];const t=r.o+r.w+r.p;cum+=t;const lbl=/^\d/.test(k)?fmtMD(k)+(k===D?"(今)":""):k;return `<tr style="${k===D?"background:var(--cream)":""}"><td>${lbl}</td><td>${r.o||""}</td><td>${r.w||""}</td><td>${r.p||""}</td><td><b>${t}</b></td><td>${cum}</td></tr>`;}).join("")}</table></div>`;};
+  openModal(mhead("额度明细(1500 盒那本账)")+`<div class="note">已用 = 订单占用 + 现货占用 + 已安排未点收;虚高常见于:门店把订单货手动录成到货、同一批到货点收两次、调拨旧版重复入库。可在现货页「收货记录明细」作废多余记录。</div>`+html+byDate(6)+byDate(2),true);
 }
 document.getElementById("btnCapDetail").addEventListener("click",openCapDetail);
 function openOpsLog(){ // 全店操作总览:谁在什么时候改了哪张单
