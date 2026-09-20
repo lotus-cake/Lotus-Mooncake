@@ -800,7 +800,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-164";
+const APP_BUILD="b0819-165";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -834,8 +834,8 @@ function initData(){
     firebase.auth().onAuthStateChanged(u=>{AUTHED=!!u;setConn(!!u,"未登录");});
     firebase.auth().signInAnonymously().catch(e=>{AUTHED=false;setConn(false,"连接失败:"+e.message);toast("云端连接失败:"+e.message+"(检查 Firebase 匿名登录是否启用)");});
     DB=firebase.database();
-    DB.ref(DB_ROOT+"/orders").on("value",s=>{ORDERS=s.val()||{};healSplitKids();healWalkTakes();renderAll();});
-    DB.ref(DB_ROOT+"/ledger").on("value",s=>{LEDGER=s.val()||{};});
+    DB.ref(DB_ROOT+"/orders").on("value",s=>{ORDERS=s.val()||{};healSplitKids();healWalkTakes();healPayMethod();renderAll();});
+    DB.ref(DB_ROOT+"/ledger").on("value",s=>{LEDGER=s.val()||{};healPayMethod();});
     DB.ref(DB_ROOT+"/closes").on("value",s=>{CLOSES=s.val()||{};renderAll();});
     DB.ref(DB_ROOT+"/selfloss").on("value",s=>{SELFLOSS=s.val()||{};});
     DB.ref(DB_ROOT+"/meta/caps").on("value",s=>{CAPS=Object.assign({b6:0,b2:0},s.val()||{});renderAll();});
@@ -1104,6 +1104,11 @@ function addBatchPickup(no,rec,cb){
 function saveCaps(){ if(DB) DB.ref(DB_ROOT+"/meta/caps").set(CAPS); }
 
 /* ---------------- 统计 ---------------- */
+function healPayMethod(){ // 自愈:已收款却没付款方式的单,按台账里该单的收款方式补上
+  let n=0;const byNo={};Object.values(LEDGER||{}).forEach(r=>{if(r&&r.orderNo&&r.type==="订单收款"&&r.pm&&(+r.amt||0)>0){const b=byNo[r.orderNo]=byNo[r.orderNo]||{};b[r.pm]=(b[r.pm]||0)+(+r.amt||0);}});
+  Object.values(ORDERS||{}).forEach(o=>{if(!o||o.payMethod||!(paidOf(o)>0)||!byNo[o.no])return;const best=Object.entries(byNo[o.no]).sort((a,b)=>b[1]-a[1])[0][0];o.payMethod=best;n++;
+    if(DB&&ROLE&&(ROLE.type==="cs"||ROLE.type==="owner"))DB.ref(DB_ROOT+"/orders/"+o.no+"/payMethod").set(best);});
+  return n;}
 function healWalkTakes(){ // 自愈:现货取走铸的子单(旧版无记号)按其现货流水补 fromWalkin
   let n=0;const byNo={};
   Object.entries(WALKIN||{}).forEach(([st,w])=>Object.values((w&&w.sales)||{}).forEach(s=>{if(s&&s.src==="familywalk"&&s.orderNo){const b=byNo[s.orderNo]=byNo[s.orderNo]||{store:st,date:s.date,qty:{}};b.qty[s.product]=(b.qty[s.product]||0)+(+s.qty||0);}}));
@@ -2599,7 +2604,7 @@ function settleDue(no,alsoPick){
     const balNow=Math.max(0,Math.round(byPm(pm==="其它"?(o.payMethod||pm):pm)*100)/100);
     if(collected>0&&collected<balNow-EPS){ // 部分收款:总额不动,记部分付,余额继续待收
       if(!confirm(`只收 ${money(collected)},还欠 ${money(Math.round((balNow-collected)*100)/100)},记为「部分付」?`))return;
-      const pp={pay:"部分付",paid:newPaid,dueNote:"待收差额 $"+Math.round((balNow-collected)*100)/100,duePlan:o.duePlan||"取货时付",dueQty:null,dueNegAmt:null};
+      const pp={pay:"部分付",paid:newPaid,dueNote:"待收差额 $"+Math.round((balNow-collected)*100)/100,duePlan:o.duePlan||"取货时付",dueQty:null,dueNegAmt:null,payMethod:pmLbl};
       if(alsoPick){pp.pickedUp=true;pp.pickedAt=todayStr();}
       patchOrder(no,pp,()=>{
         logOp(no,staff,alsoPick?"取货并部分收款":"部分收款",`收 ${money(collected)}(${pmLbl}),累计已收 ${money(newPaid)},仍欠 ${money(Math.round((balNow-collected)*100)/100)}`);
@@ -2608,7 +2613,7 @@ function settleDue(no,alsoPick){
       });
       return;
     }
-    const patch={pay:"已付",paid:newPaid,amount:newPaid,dueNote:null,dueQty:null,dueNegAmt:null};
+    const patch={pay:"已付",paid:newPaid,amount:newPaid,dueNote:null,dueQty:null,dueNegAmt:null,payMethod:pmLbl};
     // 多收退差:重算原始差额(未截断),负数=欠客人的,统一走退款路由
     {const pmCalc=(pm==="其它")?(o.payMethod||pm):pm;
      const raw=o.manualPrice?due0:(dueQ?Math.round((calcAmount(dueQ,pmCalc,o.channel,(o.gstOn?0:1))-negA)*100)/100:null);
