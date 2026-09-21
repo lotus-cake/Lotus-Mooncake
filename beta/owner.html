@@ -676,7 +676,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-169";
+const APP_BUILD="b0819-170";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -821,9 +821,9 @@ function capState(){
 function walkinCalc(store,date){
   const w=WALKIN[store]||{}; const res={};
   WALKIN_PRODUCTS.forEach(p=>res[p.k]={recv:0,sold:0,trecv:0,tsold:0});
-  Object.values(w.receipts||{}).forEach(r=>WALKIN_PRODUCTS.forEach(p=>{
-    const v=(r.qty&&r.qty[p.k])||0; res[p.k].recv+=v; if(r.date===date)res[p.k].trecv+=v; }));
-  Object.values(w.sales||{}).forEach(s=>{ if(res[s.product]){res[s.product].sold++; if(s.date===date)res[s.product].tsold++;} });
+  Object.values(w.receipts||{}).forEach(r=>{if(!r||r.pending)return;WALKIN_PRODUCTS.forEach(p=>{
+    const v=(r.qty&&r.qty[p.k])||0; res[p.k].recv+=v; if(r.date===date)res[p.k].trecv+=v; });});
+  Object.values(w.sales||{}).forEach(s=>{ const q=+s.qty||1;const pk=s.product||s.pk,sd=s.date||s.d; if(res[pk]){res[pk].sold+=q; if(sd===date)res[pk].tsold+=q;} });
   WALKIN_PRODUCTS.forEach(p=>res[p.k].remain=res[p.k].recv-res[p.k].sold);
   return res;
 }
@@ -3107,7 +3107,7 @@ window.renderSelfLoss=function(){
 window.slApprove=function(id){
   const q=(SELFLOSS||{})[id]; if(!q||q.status!=="pending")return;
   askStaff("Owner 批准自损("+(STORE_NAME[q.store]||q.store)+")",s=>{
-    addSale(q.store,{d:todayStr(),t:nowHM(),pk:q.pk,qty:q.qty,amt:0,pm:"—",src:"自损",staff:s,ref:id});
+    addSale(q.store,{date:todayStr(),time:nowHM(),product:q.pk,qty:q.qty,amt:0,pm:"—",src:"自损",staff:s,ref:id,ts:Date.now()});
     const patch={status:"approved",aprvBy:s,aprvAt:Date.now()};
     if(DB)DB.ref(DB_ROOT+"/selfloss/"+id).update(patch); else Object.assign(SELFLOSS[id],patch);
     toast("已批准并 $0 出库"); renderSelfLoss();
