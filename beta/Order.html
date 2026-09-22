@@ -800,7 +800,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-172";
+const APP_BUILD="b0819-173";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -1528,7 +1528,7 @@ function renderQtyTable(){
     const closed=isClosedProd(p);
     const out=(p.box===6?c.out6:(p.box===2?c.out2:false))||closed, v=fQty[p.k]||0;
     return `<tr class="${out&&!v?"soldout":""}">
-      <td class="qname">${p.n}<span class="box-tag">${p.pc?"单颗":`${p.box}粒盒`}</span>${closed?'<span class="soldout-tag">已停止接单</span>':(out?'<span class="soldout-tag">售罄</span>':"")}</td>
+      <td class="qname">${p.n}<span class="box-tag">${p.pc?"单颗":`${p.box}粒盒`}</span>${closed?'<span class="soldout-tag">已截单·不可下</span>':(isCutProd(p)?'<span class="soldout-tag">已截单</span>':(out?'<span class="soldout-tag">售罄</span>':""))}</td>
       <td><div class="stepper">
         <button onclick="stepQty('${p.k}',-1)" ${v?"":"disabled"} style="${v?"":"opacity:.35"}">−</button>
         <input class="qv qin" type="number" min="0" inputmode="numeric" value="${v||0}" onchange="typeQty('${p.k}',this.value)" ${closed?"disabled":""} style="width:52px;text-align:center;border:1px solid var(--line);border-radius:8px;padding:4px 2px">
@@ -1545,7 +1545,8 @@ function renderQtyTable(){
 let QG_OPEN={g6:true,g2:false,g1:false};
 const SINGLES_OPEN=false; // 单颗预订接单开关(9/17 起停止接单;现货零售不受影响)
 const CLOSED_PRODUCTS=new Set(["js6","js2"]); // 9/21 起截单的盒型(六粒金沙、两粒金沙);现货零售不受影响
-const isClosedProd=p=>!!p&&!(ROLE&&ROLE.type==="owner")&&(CLOSED_PRODUCTS.has(p.k)||(!!p.pc&&!SINGLES_OPEN)); // Owner 例外
+const isCutProd=p=>!!p&&(CLOSED_PRODUCTS.has(p.k)||(!!p.pc&&!SINGLES_OPEN)); // 已截单(标签,所有角色可见)
+const isClosedProd=p=>isCutProd(p)&&!(ROLE&&(ROLE.type==="owner"||ROLE.type==="cs")); // 门店不可下;Owner/客服可下但标已截单
 const QTY_GROUPS=[
   {id:"g6",n:"六颗礼盒",f:p=>p.box===6},
   {id:"g2",n:"两颗礼盒",f:p=>p.box===2},
@@ -1725,7 +1726,8 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
   if(!name)return toast("请填客人姓名");
   if(!fStoreVal)return toast("请选取货门店");
   if(!fBatch){
-    if(Object.entries(fQty).some(([k,v])=>v>0&&isClosedProd(PRODUCTS.find(p=>p.k===k))))return toast("该产品已停止接单,请去掉");
+    if(Object.entries(fQty).some(([k,v])=>v>0&&isClosedProd(PRODUCTS.find(p=>p.k===k))))return toast("该产品已截单,门店不能下;请找客服");
+    if(Object.entries(fQty).some(([k,v])=>v>0&&isCutProd(PRODUCTS.find(p=>p.k===k)))&&!confirm("本单含已截单产品(金沙盒/单颗),确认仍要下单?"))return;
     if(!date)return toast("请选取货日期(每张单都要手选,不再有默认)");
     if(date<DATE_MIN||date>DATE_MAX)return toast("取货日期须在 9/3 – 9/27");
     if(date<todayStr()){
@@ -2249,7 +2251,7 @@ function renderEQty(){
       <td><div class="stepper">
         <button onclick="eStep('${p.k}',-1,${min})" ${v>min?"":"disabled style='opacity:.35'"}>−</button>
         <span class="qv">${v}</span>
-        <button onclick="eStep('${p.k}',1,${min})" ${isClosedProd(p)?"disabled style='opacity:.35' title='单颗已停止接单'":""}>+</button>
+        <button onclick="eStep('${p.k}',1,${min})" ${isClosedProd(p)?"disabled style='opacity:.35' title='已截单'":(isCutProd(p)?"title='已截单(客服/Owner 可加)'":"")}>+</button>
       </div></td></tr>`;};
   document.getElementById("eQtyTable").innerHTML=QTY_GROUPS.map(g=>{
     const ps=PRODUCTS.filter(g.f);
