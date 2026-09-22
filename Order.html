@@ -800,7 +800,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-170";
+const APP_BUILD="b0819-171";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -1544,7 +1544,8 @@ function renderQtyTable(){
 }
 let QG_OPEN={g6:true,g2:false,g1:false};
 const SINGLES_OPEN=false; // 单颗预订接单开关(9/17 起停止接单;现货零售不受影响)
-const isClosedProd=p=>!!(p&&p.pc)&&!SINGLES_OPEN;
+const CLOSED_PRODUCTS=new Set(["js6","js2"]); // 9/21 起截单的盒型(六粒金沙、两粒金沙);现货零售不受影响
+const isClosedProd=p=>!!p&&(CLOSED_PRODUCTS.has(p.k)||(!!p.pc&&!SINGLES_OPEN));
 const QTY_GROUPS=[
   {id:"g6",n:"六颗礼盒",f:p=>p.box===6},
   {id:"g2",n:"两颗礼盒",f:p=>p.box===2},
