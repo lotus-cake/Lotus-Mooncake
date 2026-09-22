@@ -800,7 +800,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-171";
+const APP_BUILD="b0819-172";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -1545,7 +1545,7 @@ function renderQtyTable(){
 let QG_OPEN={g6:true,g2:false,g1:false};
 const SINGLES_OPEN=false; // 单颗预订接单开关(9/17 起停止接单;现货零售不受影响)
 const CLOSED_PRODUCTS=new Set(["js6","js2"]); // 9/21 起截单的盒型(六粒金沙、两粒金沙);现货零售不受影响
-const isClosedProd=p=>!!p&&(CLOSED_PRODUCTS.has(p.k)||(!!p.pc&&!SINGLES_OPEN));
+const isClosedProd=p=>!!p&&!(ROLE&&ROLE.type==="owner")&&(CLOSED_PRODUCTS.has(p.k)||(!!p.pc&&!SINGLES_OPEN)); // Owner 例外
 const QTY_GROUPS=[
   {id:"g6",n:"六颗礼盒",f:p=>p.box===6},
   {id:"g2",n:"两颗礼盒",f:p=>p.box===2},
@@ -1725,7 +1725,7 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
   if(!name)return toast("请填客人姓名");
   if(!fStoreVal)return toast("请选取货门店");
   if(!fBatch){
-    if(!SINGLES_OPEN&&Object.entries(fQty).some(([k,v])=>v>0&&isClosedProd(PRODUCTS.find(p=>p.k===k))))return toast("单颗已停止接单,请去掉单颗");
+    if(Object.entries(fQty).some(([k,v])=>v>0&&isClosedProd(PRODUCTS.find(p=>p.k===k))))return toast("该产品已停止接单,请去掉");
     if(!date)return toast("请选取货日期(每张单都要手选,不再有默认)");
     if(date<DATE_MIN||date>DATE_MAX)return toast("取货日期须在 9/3 – 9/27");
     if(date<todayStr()){
@@ -4825,7 +4825,7 @@ function renderAll(){
   }
 }
 function _renderAllCore(){
-  autoReleaseReserves();
+  autoReleaseReserves();if(typeof renderQtyTable==="function"&&document.getElementById("qtyTable"))renderQtyTable();
   renderPend();
   renderArrive();
   renderStoreRefunds();
