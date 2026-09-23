@@ -800,7 +800,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-176";
+const APP_BUILD="b0819-177";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -4490,7 +4490,19 @@ function openCapDetail(){ // 1500 盒额度怎么算出来的:逐项拆开
     const D=todayStr();Object.entries(WPLAN||{}).forEach(([d,byStore])=>{if(d<D)return;Object.entries(byStore||{}).forEach(([st,q])=>{if(typeof todayRecvRec==="function"&&todayRecvRec(st,d))return;let n=0;Object.entries(q||{}).forEach(([k,v])=>{if(boxOf(k)===bx)n+=(+v||0);});add(d,"p",n);});});
     const keys=Object.keys(rows).sort((a,b)=>{const A=/^\d/.test(a),B=/^\d/.test(b);if(A&&B)return a.localeCompare(b);if(A)return -1;if(B)return 1;return a.localeCompare(b);});
     let cum=0;return `<div class="note" style="margin:10px 0 4px"><b>${T(bx)}盒 · 按日期</b>(订单按取货日 · 现货按到货日 · 安排按计划日)</div><div class="twrap"><table class="sum"><tr><th>日期</th><th>订单</th><th>现货到货</th><th>已安排</th><th>当日</th><th>累计</th></tr>${keys.map(k=>{const r=rows[k];const t=r.o+r.w+r.p;cum+=t;const lbl=/^\d/.test(k)?fmtMD(k)+(k===D?"(今)":""):k;return `<tr style="${k===D?"background:var(--cream)":""}"><td>${lbl}</td><td>${r.o||""}</td><td>${r.w||""}</td><td>${r.p||""}</td><td><b>${t}</b></td><td>${cum}</td></tr>`;}).join("")}</table></div>`;};
-  openModal(mhead("额度明细(1500 盒那本账)")+`<div class="note">已用 = 订单占用 + 现货占用 + 已安排未点收;虚高常见于:门店把订单货手动录成到货、同一批到货点收两次、调拨旧版重复入库。可在现货页「收货记录明细」作废多余记录。</div>`+html+byDate(6)+byDate(2),true);
+  // 疑似多算体检(六粒盒):逐店逐日 到货自动入库 vs 厨房交接「现货用」;入库多于交接现货 → 多出的很可能是订单货被算成现货;另列手动录入/取消转现货/改期放出
+  const sus=(()=>{const rows=[];let tot=0;const shipW={};Object.values(PRODRECS||{}).forEach(r=>{if(!r||r.voided||r.stage!=="ship"||r.use!=="现货")return;if(boxOf(r.product)!==6)return;const k=r.store+"|"+r.date;shipW[k]=(shipW[k]||0)+(+r.good||0);});
+    const autoR={},man=[];Object.entries(WALKIN||{}).forEach(([st,w])=>Object.entries((w&&w.receipts)||{}).forEach(([id,r])=>{if(!r||r.auto==="transfer"||r.auto==="repack")return;let n=0;Object.entries(r.qty||{}).forEach(([k,v])=>{if(boxOf(k)===6)n+=(+v||0);});if(!n)return;
+      if(r.auto==="arrive"){const k=st+"|"+r.date;autoR[k]=(autoR[k]||0)+n;}else man.push({st,date:r.date,n,kind:r.auto==="cancelrelease"?"取消转现货":r.auto==="resched"?"改期放出":"手动录入",note:r.note||"",staff:r.staff||""});}));
+    Object.keys(autoR).sort().forEach(k=>{const [st,dt]=k.split("|");const ex=autoR[k]-(shipW[k]||0);if(ex>0){tot+=ex;rows.push({st,dt,a:autoR[k],s:shipW[k]||0,ex});}});
+    const manTot=man.reduce((s,x)=>s+x.n,0);
+    return `<div class="note" style="margin:12px 0 4px"><b>疑似多算体检(六粒)</b></div>
+      <div class="kv"><span>到货自动入库 > 厨房交接现货用 的差额合计</span><b style="color:${tot?"var(--danger)":"var(--ok)"}">${tot} 盒</b></div>
+      ${rows.map(x=>`<div class="kv" style="font-size:13px"><span>${STORE_NAME[x.st]||x.st} ${fmtMD(x.dt)} <span class="z">| 自动入库 ${x.a} | 交接现货用 ${x.s}</span></span><b style="color:var(--danger)">多 ${x.ex}</b></div>`).join("")||'<div class="note">　无</div>'}
+      <div class="note" style="margin-top:4px">多出的部分通常=那天订单的货被点进了现货(如厨房提前送了次日订单)。核实后到该店现货页「收货记录明细」→ 该日「到货确认自动入库」作废,再让门店按"现货用"数重新「修改点收」。</div>
+      <div class="kv" style="margin-top:6px"><span>手动录入 / 取消转现货 / 改期放出 合计</span><b>${manTot} 盒</b></div>
+      ${man.sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(x=>`<div class="kv" style="font-size:13px"><span>${STORE_NAME[x.st]||x.st} ${fmtMD(x.date)} · ${x.kind}${x.note?" · "+esc(x.note):""}${x.staff?" · "+esc(x.staff):""}</span><b>${x.n}</b></div>`).join("")||'<div class="note">　无</div>'}`;})();
+  openModal(mhead("额度明细(1500 盒那本账)")+`<div class="note">已用 = 订单占用 + 现货占用 + 已安排未点收;虚高常见于:门店把订单货手动录成到货、同一批到货点收两次、调拨旧版重复入库。可在现货页「收货记录明细」作废多余记录。</div>`+html+sus+byDate(6)+byDate(2),true);
 }
 document.getElementById("btnCapDetail").addEventListener("click",openCapDetail);
 function openOpsLog(){ // 全店操作总览:谁在什么时候改了哪张单
