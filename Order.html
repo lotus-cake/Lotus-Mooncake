@@ -800,7 +800,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-181";
+const APP_BUILD="b0819-182";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -2963,6 +2963,11 @@ function openChase(no){
 
 /* ---------------- 拆分订单 ---------------- */
 let sQty={};
+function nextChildNo(noOrBase){ // 子单编号:A–Z 用完后 AA、AB…ZZ(共 702 个)
+  const base=String(noOrBase).replace(/-[A-Z]{1,2}$/,"");const A="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  for(const L of A){if(!ORDERS[base+"-"+L])return base+"-"+L;}
+  for(const L1 of A)for(const L2 of A){if(!ORDERS[base+"-"+L1+L2])return base+"-"+L1+L2;}
+  return null;}
 function openSplit(no){
   const o=ORDERS[no]; sQty={};
   setTimeout(()=>{const n=document.getElementById("spName"),p=document.getElementById("spPhone");
@@ -3041,10 +3046,10 @@ function openSplit(no){
     const rb=boxCounts(remain), mb=boxCounts(sQty);
     closeModal();
     // #6 家族字母子号:MC-0001-A/B/C…(不烧新单号)
-    const base=no.replace(/-[A-Z]$/,"");
+    const base=no.replace(/-[A-Z]{1,2}$/,"");
     let newNo=null;
-    for(const L of "ABCDEFGHIJKLMNOPQRSTUVWXYZ"){ if(!ORDERS[base+"-"+L]){ newNo=base+"-"+L; break; } }
-    if(!newNo)return toast("该单拆分次数已达上限(26)");
+    newNo=nextChildNo(base);
+    if(!newNo)return toast("该单拆分次数已达上限(702)");
     // #4a 两边按定价引擎重算金额
     const wasManual=o.manualPrice||(o.autoAmount!=null&&o.amount!==o.autoAmount);
     const childAuto=calcAmount(sQty,o.payMethod,o.channel,(o.gstOn?0:1));
