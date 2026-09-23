@@ -499,7 +499,7 @@ const PRM=k=>({molds:29,perMold:21,coreG:8,yolkBagG:1229.1,fenG:22,pureeBeanG:68
 const isConfigured=!Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 const NF=n=>(+n).toLocaleString("en-US");
 const lossFmt=(g,c)=>[g?`${Math.round(g*10)/10} g`:"",c?`${c} 颗`:""].filter(Boolean).join(" + ");
-const APP_BUILD="b0819-179";
+const APP_BUILD="b0819-180";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -751,12 +751,15 @@ function ordersFor(d,st){
   });
   return out;
 }
+function orderNeedOn(o,d){ // 该单在日期 d 需厨房供货的数量:货已在店不计;从现货出的品项扣掉;分批"现货取走"的取货记录不计
+  const q={};
+  if(!o.batch){if(o.pickupDate!==d||o.atStore)return q;const fq=(o.fromWalkin&&o.fromWalkin.qty)||{};
+    Object.entries(o.qty||{}).forEach(([k,v])=>{const n=Math.max(0,(+v||0)-(fq[k]||0));if(n)q[k]=n;});return q;}
+  Object.values(o.pickups||{}).forEach(r=>{if(r&&r.date===d&&r.src!=="现货"&&!r.voided)Object.entries(r.qty||{}).forEach(([k,v])=>q[k]=(q[k]||0)+(+v||0));});
+  return q;}
 function bakeNeed(d){
   const q={};
-  liveOrders().forEach(o=>{
-    if(!o.batch&&o.pickupDate===d)Object.entries(o.qty||{}).forEach(([k,v])=>q[k]=(q[k]||0)+v);
-    if(o.batch)Object.values(o.pickups||{}).forEach(r=>{if(r.date===d)Object.entries(r.qty||{}).forEach(([k,v])=>q[k]=(q[k]||0)+v);});
-  });
+  liveOrders().forEach(o=>{Object.entries(orderNeedOn(o,d)).forEach(([k,v])=>q[k]=(q[k]||0)+v);});
   Object.values(WPLAN[d]||{}).forEach(sq=>Object.entries(sq||{}).forEach(([k,v])=>q[k]=(q[k]||0)+v));
   return q;
 }
@@ -769,13 +772,7 @@ function bakePieces(qty){
 let planDaySel="D",shipDaySel="D";
 function shipMatrixHtml(d){
   const perStore={};["CAM","BBY","ALD"].forEach(st=>perStore[st]={});
-  liveOrders().forEach(o=>{
-    if(!o.batch&&o.pickupDate===d&&perStore[o.store])
-      Object.entries(o.qty||{}).forEach(([k,v])=>perStore[o.store][k]=(perStore[o.store][k]||0)+v);
-    if(o.batch)Object.values(o.pickups||{}).forEach(r=>{
-      if(r.date===d&&perStore[o.store])
-        Object.entries(r.qty||{}).forEach(([k,v])=>perStore[o.store][k]=(perStore[o.store][k]||0)+v);});
-  });
+  liveOrders().forEach(o=>{if(!perStore[o.store])return;Object.entries(orderNeedOn(o,d)).forEach(([k,v])=>perStore[o.store][k]=(perStore[o.store][k]||0)+v);});
   const walk={};
   Object.values(WPLAN[d]||{}).forEach(sq=>Object.entries(sq||{}).forEach(([k,v])=>walk[k]=(walk[k]||0)+(+v||0)));
   const cols=PRODUCTS;
@@ -806,7 +803,11 @@ function shipDayBlock(d,isToday){
   <div class="pksum" style="margin-bottom:10px">${
     FLAVORS.filter(f=>fp[f.k]).map(f=>`<span class="pi">${f.n}<b>${fp[f.k]}</b></span>`).join("")}${
     bb?`<span class="pi">盲盒散颗(口味自选)<b>${bb}</b></span>`:""}
-    <span class="pi">合计<b>${tot}颗</b></span></div>`;
+    <span class="pi">合计<b>${tot}颗</b></span></div>
+  ${(()=>{try{const S=calcStock();const have={};FLAVORS.forEach(f=>have[f.k]=(S.packed[f.k]||0));
+      Object.entries(S.gift||{}).forEach(([pk,n])=>{if(!n||n<=0)return;if(pk==="mix6")FLAVORS.forEach(f=>have[f.k]+=n);else if(pk==="js6")have.js+=6*n;else{let m=/^(\w+)2$/.exec(pk);if(m&&have[m[1]]!=null)have[m[1]]+=2*n;m=/^s_(\w+)$/.exec(pk);if(m&&have[m[1]]!=null)have[m[1]]+=n;}});
+      const net={};let netTot=0;FLAVORS.forEach(f=>{net[f.k]=Math.max(0,(fp[f.k]||0)-(have[f.k]||0));netTot+=net[f.k];});
+      return `<div class="note" style="margin:-4px 0 10px"><b>扣库存后净需</b>(已装盒成品 + 已包装单颗 可抵):${FLAVORS.filter(f=>fp[f.k]).map(f=>`${f.n} ${net[f.k]}${(have[f.k]||0)?`<span class="z">(库存${have[f.k]})</span>`:""}`).join(" · ")} · 合计 <b>${netTot}</b>颗${bb?" + 盲盒散颗 "+bb:""}</div>`;}catch(e){return "";}})()}`;
   // 各店装车对照
   const shipped={CAM:0,BBY:0,ALD:0};
   Object.values(RECS).forEach(r=>{
