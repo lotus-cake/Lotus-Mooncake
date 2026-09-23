@@ -800,7 +800,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-178";
+const APP_BUILD="b0819-179";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -845,6 +845,7 @@ function initData(){
     DB.ref(DB_ROOT+"/todos").on("value",s=>{TODOS=s.val()||{};renderTodos();});
     DB.ref(DB_ROOT+"/walkin").on("value",s=>{WALKIN=s.val()||{};healWalkTakes();renderWalkin();});
     DB.ref(DB_ROOT+"/prod/records").on("value",s=>{PRODRECS=s.val()||{};renderSum();renderPickup();});
+    DB.ref(DB_ROOT+"/prod/stock").on("value",s=>{STOCK=s.val()||null;renderAll();});
     DB.ref(DB_ROOT+"/prod/walkplan").on("value",s=>{WPLAN=s.val()||{};renderSum();});
     DB.ref(DB_ROOT+"/prod/recv").on("value",s=>{RECV=s.val()||{};renderSum();renderPickup();});
     DB.ref(DB_ROOT+"/prod/plan").on("value",s=>{PLAN=s.val()||{};renderSettings();});
@@ -1143,12 +1144,27 @@ function walkinUsage(){ // 现货占用(盒):各店到货累计(店间调拨不�
   Object.values(WALKIN||{}).forEach(w=>Object.values((w&&w.receipts)||{}).forEach(r=>{if(!r||r.auto==="transfer")return;addQ(r.qty);}));
   Object.entries(WPLAN||{}).forEach(([d,byStore])=>{if(d<D)return;Object.entries(byStore||{}).forEach(([st,q])=>{if(typeof todayRecvRec==="function"&&todayRecvRec(st,d))return;addQ(q);});});
   return u;}
+function kitchenLine(){ // 厨房线:剩 = 套装库存 + 已装盒未发 − 未发订单需求(明天起,扣在店/从现货出;分批余额)− 已安排未点收(明天起)
+  if(!STOCK||!STOCK.mat)return null;
+  const D=todayStr();const boxOf=k=>{if(k==="bb2")return 2;const p=PRODUCTS.find(x=>x.k===k);return p?(p.box===6?6:(p.box===2?2:0)):0;};
+  const r={kits6:+((STOCK.mat||{}).kit6||0),kits2:+((STOCK.mat||{}).kit2||0),gift6:0,gift2:0,demand6:0,demand2:0,plan6:0,plan2:0};
+  Object.entries(STOCK.gift||{}).forEach(([k,v])=>{const b=boxOf(k);if(b===6)r.gift6+=(+v||0);else if(b===2)r.gift2+=(+v||0);});
+  liveOrders().forEach(o=>{
+    if(o.batch){const q=batchRemainQty(o);Object.entries(q).forEach(([k,v])=>{const b=boxOf(k);if(b===6)r.demand6+=v;else if(b===2)r.demand2+=v;});return;}
+    if(!o.pickupDate||o.pickupDate<=D||o.pickedUp||o.atStore)return;
+    const fq=(o.fromWalkin&&o.fromWalkin.qty)||{};
+    Object.entries(o.qty||{}).forEach(([k,v])=>{const n=Math.max(0,(+v||0)-(fq[k]||0));const b=boxOf(k);if(b===6)r.demand6+=n;else if(b===2)r.demand2+=n;});});
+  Object.entries(WPLAN||{}).forEach(([d,byStore])=>{if(d<=D)return;Object.entries(byStore||{}).forEach(([st,q])=>{if(typeof todayRecvRec==="function"&&todayRecvRec(st,d))return;Object.entries(q||{}).forEach(([k,v])=>{const b=boxOf(k);if(b===6)r.plan6+=(+v||0);else if(b===2)r.plan2+=(+v||0);});});});
+  r.free6=r.kits6+r.gift6-r.demand6-r.plan6;r.free2=r.kits2+r.gift2-r.demand2-r.plan2;r.ts=STOCK.ts||0;return r;}
 function capState(){
   const s=soldTotals(),wu=walkinUsage();
   const used6=s.b6+wu.b6,used2=s.b2+wu.b2;
-  return { sold6:used6, sold2:used2, ord6:s.b6, ord2:s.b2, walk6:wu.b6, walk2:wu.b2,
+  const base={ sold6:used6, sold2:used2, ord6:s.b6, ord2:s.b2, walk6:wu.b6, walk2:wu.b2,
     left6:CAPS.b6>0?Math.max(0,CAPS.b6-used6):null, left2:CAPS.b2>0?Math.max(0,CAPS.b2-used2):null,
-    out6:CAPS.b6>0&&used6>=CAPS.b6, out2:CAPS.b2>0&&used2>=CAPS.b2 };
+    out6:CAPS.b6>0&&used6>=CAPS.b6, out2:CAPS.b2>0&&used2>=CAPS.b2, mode:"quota" };
+  const kl=kitchenLine();if(!kl)return base; // 厨房端未上传快照 → 退回额度线
+  return Object.assign(base,{mode:"kitchen",kl,demand6:kl.demand6,demand2:kl.demand2,gift6:kl.gift6,gift2:kl.gift2,kits6:kl.kits6,kits2:kl.kits2,
+    left6:Math.max(0,kl.free6),left2:Math.max(0,kl.free2),out6:kl.free6<=0,out2:kl.free2<=0,quotaLeft6:base.left6,quotaLeft2:base.left2});
 }
 function walkinCalc(store,date){
   const w=WALKIN[store]||{}; const res={};
@@ -1192,6 +1208,7 @@ function mhead(t){ return `<div class="mhead"><b>${t}</b><button class="mclose" 
 
 /* ---------------- 员工留痕 ---------------- */
 let STAFF="";
+let STOCK=null; // 厨房库存快照(/prod/stock):packed/baked/rdy/wet/gift/mat{kit6,kit2}
 function staffField(){ // 门店码不记忆上一位操作人(防止偷懒直接确认);客服/Owner 保留记忆
   const remember=!(ROLE&&ROLE.type==="store");
   return `<label class="f">操作人 Staff Name *</label>
@@ -4504,7 +4521,9 @@ function openCapDetail(){ // 1500 盒额度怎么算出来的:逐项拆开
       <div class="note" style="margin-top:4px">多出的部分通常=那天订单的货被点进了现货(如厨房提前送了次日订单)。核实后到该店现货页「收货记录明细」→ 该日「到货确认自动入库」作废,再让门店按"现货用"数重新「修改点收」。</div>
       <div class="kv" style="margin-top:6px"><span>手动录入 / 取消转现货 / 改期放出 合计</span><b>${manTot} 盒</b></div>
       ${man.sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(x=>`<div class="kv" style="font-size:13px"><span>${STORE_NAME[x.st]||x.st} ${fmtMD(x.date)} · ${x.kind}${x.note?" · "+esc(x.note):""}${x.staff?" · "+esc(x.staff):""}</span><b>${x.n}</b></div>`).join("")||'<div class="note">　无</div>'}`;})();
-  openModal(mhead("额度明细(1500 盒那本账)")+`<div class="note">已用 = 订单占用 + 现货占用 + 已安排未点收;虚高常见于:门店把订单货手动录成到货、同一批到货点收两次、调拨旧版重复入库。可在现货页「收货记录明细」作废多余记录。</div>`+html+sus+byDate(6)+byDate(2),true);
+  const klh=(()=>{const kl=kitchenLine();if(!kl)return `<div class="note" style="color:var(--danger)">厨房端尚未上传库存快照,当前按额度线(1500)算;打开厨房端即切到厨房线</div>`;
+    return `<div class="note" style="background:#EEF3E6;border-radius:8px;padding:8px 10px;margin:0 0 8px"><b>厨房线(当前生效)</b> · 快照 ${new Date(kl.ts).toLocaleString("zh-CN",{hour12:false})}<br>六粒:套装 ${kl.kits6} + 已装盒未发 ${kl.gift6} − 未发订单 ${kl.demand6} − 已安排 ${kl.plan6} = <b style="color:${kl.free6<=0?"var(--danger)":"var(--ok)"}">剩 ${kl.free6}</b><br>两粒:套装 ${kl.kits2} + 已装盒未发 ${kl.gift2} − 未发订单 ${kl.demand2} − 已安排 ${kl.plan2} = <b style="color:${kl.free2<=0?"var(--danger)":"var(--ok)"}">剩 ${kl.free2}</b><br><span class="z">未发订单 = 明天起取货的定日单(扣货已在店 / 从现货出)+ 分批未取余额;下面的额度线仅供对照</span></div>`;})();
+  openModal(mhead("额度明细")+klh+`<div class="note">额度线(对照):已用 = 订单占用 + 现货占用 + 已安排未点收;虚高常见于:门店把订单货手动录成到货、同一批到货点收两次、调拨旧版重复入库。可在现货页「收货记录明细」作废多余记录。</div>`+html+sus+byDate(6)+byDate(2),true);
 }
 document.getElementById("btnCapDetail").addEventListener("click",openCapDetail);
 function openOpsLog(){ // 全店操作总览:谁在什么时候改了哪张单
@@ -4691,8 +4710,12 @@ function renderSettings(){
   fill("pr6",PRICES.p6);fill("pr6c",PRICES.p6cash);fill("pr2",PRICES.p2);fill("prbb",PRICES.bb2);fill("prEmp",PRICES.emp);fill("prS1",PRICES.s1!=null?PRICES.s1:11.5);renderTaxTable();
   const pr=PRICES.promos||[];
   [0,1,2].forEach(i=>{fill("pmB"+(i+1),(pr[i]||{}).buy||0);fill("pmF"+(i+1),(pr[i]||{}).free||0);});
+  if(c.mode==="kitchen"){
+    document.getElementById("sold6t").textContent=`厨房线:套装 ${c.kits6} + 已装盒 ${c.gift6} − 未发订单 ${c.demand6} − 已安排 ${c.kl.plan6} = 剩 ${c.left6}(额度线剩 ${c.quotaLeft6===null?"不限":c.quotaLeft6})`;
+    document.getElementById("sold2t").textContent=`厨房线:套装 ${c.kits2} + 已装盒 ${c.gift2} − 未发订单 ${c.demand2} − 已安排 ${c.kl.plan2} = 剩 ${c.left2}(额度线剩 ${c.quotaLeft2===null?"不限":c.quotaLeft2})`;
+  }else{
   document.getElementById("sold6t").textContent=`订单 ${c.ord6} + 现货 ${c.walk6} = ${c.sold6} / 剩 ${c.left6===null?"不限":c.left6}`;
-  document.getElementById("sold2t").textContent=`订单 ${c.ord2} + 现货 ${c.walk2} = ${c.sold2} / 剩 ${c.left2===null?"不限":c.left2}`;
+  document.getElementById("sold2t").textContent=`订单 ${c.ord2} + 现货 ${c.walk2} = ${c.sold2} / 剩 ${c.left2===null?"不限":c.left2}`;}
   document.getElementById("statAll").textContent=Object.keys(ORDERS).length;
   document.getElementById("statLive").textContent=liveOrders().length;
   const rev=liveOrders().reduce((s,o)=>s+(o.amount||0),0);
