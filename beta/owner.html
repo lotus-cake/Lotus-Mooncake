@@ -676,7 +676,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-174";
+const APP_BUILD="b0819-175";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -2015,13 +2015,21 @@ function renderOpenTable(){ // 未取总览:过期(日期<今天)/未来(≥明�
   const rows=PRODUCTS.filter(p=>(qp[p.k]||0)+(qf[p.k]||0)+(qb[p.k]||0)>0);
   const sum=(m,pc)=>PRODUCTS.filter(p=>!!p.pc===pc).reduce((s,p)=>s+(m[p.k]||0),0);
   const tb=sum(qp,false)+sum(qf,false)+sum(qb,false),tp=sum(qp,true)+sum(qf,true)+sum(qb,true);
+  // 与配送单对账(六粒/两粒盒数口径):未来 = 配送(店∈三店 且 日期≤DATE_MAX,扣在店)+ 在店 + 其它(店不在三店 / 日期越界)
+  const DMAX=(typeof DATE_MAX!=="undefined"?DATE_MAX:"2026-09-27");const STS3=["CAM","BBY","ALD"];
+  const recon={fut:0,del:0,ins:0,oth:0,list:[]};
+  future.forEach(o=>{const bx=(o.boxes||0);if(!bx)return;const fq=(o.fromWalkin&&o.fromWalkin.qty)||{};let fw=0;Object.entries(fq).forEach(([k,v])=>{const p=PRODUCTS.find(x=>x.k===k);if(p&&!p.pc)fw+=(+v||0);});
+    const ins=o.atStore?bx:Math.min(bx,fw);recon.fut+=bx;recon.ins+=ins;
+    const ok=STS3.includes(o.store)&&o.pickupDate<=DMAX;
+    if(ok)recon.del+=bx-ins;else{recon.oth+=bx-ins;recon.list.push({no:o.no,name:o.name||"",bx:bx-ins,why:!STS3.includes(o.store)?("门店="+(o.store||"空")):("日期 "+fmtMD(o.pickupDate)+" 超出取货期")});}});
+  const reconHtml=`<div class="note" style="margin-top:6px"><b>与配送单对账(盒)</b>:未来 ${recon.fut} = 配送 ${recon.del} + 在店 ${recon.ins} + 其它 ${recon.oth}${recon.list.length?`<details style="margin-top:4px"><summary style="cursor:pointer">其它 ${recon.list.length} 单(不在配送单里的原因)</summary>${recon.list.map(x=>`<div class="kv" style="font-size:13px"><span><b class="ono" style="cursor:pointer" onclick="openDetail('${x.no}')">${esc(x.no)}</b> ${esc(x.name)} · <span class="z">${esc(x.why)}</span></span><b>${x.bx}盒</b></div>`).join("")}</details>`:""}</div>`;
   const list=(lbl,arr,color)=>arr.length?`<details style="margin:6px 0"><summary style="cursor:pointer"><b style="color:${color}">${lbl}</b> ${arr.length} 单</summary>
       ${arr.sort((x,y)=>String(x.pickupDate).localeCompare(String(y.pickupDate))).map(o=>`<div class="kv" style="font-size:13px"><span><b class="ono" style="cursor:pointer" onclick="openDetail('${o.no}')">${esc(o.no)}</b> ${esc(o.name||"")} · ${fmtMD(o.pickupDate)}${o.pickupTime?" "+o.pickupTime:""} · ${STORE_NAME[o.store]||o.store}</span><b>${o.boxes||0}盒${piecesOfO(o)?"+"+piecesOfO(o)+"颗":""}${o.pay!=="已付"?` <span class="badge due" style="font-size:10px">${esc(o.pay)}</span>`:""}</b></div>`).join("")}</details>`:"";
   el.innerHTML=`<div class="note" style="margin:0 0 6px"><b>未取总览</b>(已订出、还没取走;今天要取的不计入)· 小字「在店」=货已在门店(改期保留 / 从现货出)、厨房不再送;未来 − 在店 = 汇总配送单要送的数</div>
     <div class="twrap"><table class="sum"><tr><th>产品</th><th>过期未取</th><th>未来</th><th>分批余额</th><th>总未取</th></tr>
     ${rows.map(p=>`<tr><td>${p.n}</td><td>${qp[p.k]||0}${sp[p.k]?`<br><span class="z" style="font-size:11px">(在店${sp[p.k]})</span>`:""}</td><td>${qf[p.k]||0}${sf[p.k]?`<br><span class="z" style="font-size:11px">(在店${sf[p.k]})</span>`:""}</td><td>${qb[p.k]||0}</td><td><b>${(qp[p.k]||0)+(qf[p.k]||0)+(qb[p.k]||0)}</b>${p.pc?"颗":""}</td></tr>`).join("")||'<tr><td colspan="5" class="note">暂无未取</td></tr>'}
     <tr><td><b>合计</b></td><td>${sum(qp,false)}盒${sum(qp,true)?"+"+sum(qp,true)+"颗":""}</td><td>${sum(qf,false)}盒${sum(qf,true)?"+"+sum(qf,true)+"颗":""}</td><td>${sum(qb,false)}盒${sum(qb,true)?"+"+sum(qb,true)+"颗":""}</td><td><b>${tb}盒${tp?"+"+tp+"颗":""}</b></td></tr></table></div>
-    ${list("过期未取",past,"var(--danger)")}${list("未来待取(明天起)",future,"var(--bronze)")}`;
+    ${reconHtml}${list("过期未取",past,"var(--danger)")}${list("未来待取(明天起)",future,"var(--bronze)")}`;
 }
 function renderSum(){
   renderOpenTable();renderSupply();
