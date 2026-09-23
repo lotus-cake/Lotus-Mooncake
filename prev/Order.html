@@ -800,7 +800,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-177";
+const APP_BUILD="b0819-178";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -4488,8 +4488,10 @@ function openCapDetail(){ // 1500 盒额度怎么算出来的:逐项拆开
       const eff=Math.max(0,n-fw-bw);add(o.batch?"分批(无日期)":(o.pickupDate||"无日期"),"o",eff);});
     Object.values(WALKIN||{}).forEach(w=>Object.values((w&&w.receipts)||{}).forEach(r=>{if(!r||r.auto==="transfer")return;let n=0;Object.entries(r.qty||{}).forEach(([k,v])=>{if(boxOf(k)===bx)n+=(+v||0);});add(r.date||"无日期","w",n);}));
     const D=todayStr();Object.entries(WPLAN||{}).forEach(([d,byStore])=>{if(d<D)return;Object.entries(byStore||{}).forEach(([st,q])=>{if(typeof todayRecvRec==="function"&&todayRecvRec(st,d))return;let n=0;Object.entries(q||{}).forEach(([k,v])=>{if(boxOf(k)===bx)n+=(+v||0);});add(d,"p",n);});});
+    // 厨房交接(按交接日):订单用 / 现货用
+    const shipO={},shipW={};Object.values(PRODRECS||{}).forEach(r=>{if(!r||r.voided||r.stage!=="ship"||boxOf(r.product)!==bx)return;const m=r.use==="现货"?shipW:shipO;m[r.date]=(m[r.date]||0)+(+r.good||0);if(!rows[r.date])rows[r.date]={o:0,w:0,p:0};});
     const keys=Object.keys(rows).sort((a,b)=>{const A=/^\d/.test(a),B=/^\d/.test(b);if(A&&B)return a.localeCompare(b);if(A)return -1;if(B)return 1;return a.localeCompare(b);});
-    let cum=0;return `<div class="note" style="margin:10px 0 4px"><b>${T(bx)}盒 · 按日期</b>(订单按取货日 · 现货按到货日 · 安排按计划日)</div><div class="twrap"><table class="sum"><tr><th>日期</th><th>订单</th><th>现货到货</th><th>已安排</th><th>当日</th><th>累计</th></tr>${keys.map(k=>{const r=rows[k];const t=r.o+r.w+r.p;cum+=t;const lbl=/^\d/.test(k)?fmtMD(k)+(k===D?"(今)":""):k;return `<tr style="${k===D?"background:var(--cream)":""}"><td>${lbl}</td><td>${r.o||""}</td><td>${r.w||""}</td><td>${r.p||""}</td><td><b>${t}</b></td><td>${cum}</td></tr>`;}).join("")}</table></div>`;};
+    let cum=0;return `<div class="note" style="margin:10px 0 4px"><b>${T(bx)}盒 · 按日期</b>(订单按取货日 · 现货按到货日 · 安排按计划日 · 交接按厨房发货日)</div><div class="twrap"><table class="sum"><tr><th>日期</th><th>订单</th><th>现货到货</th><th>已安排</th><th>当日</th><th>累计</th><th class="z">交接订单用</th><th class="z">交接现货用</th></tr>${keys.map(k=>{const r=rows[k];const t=r.o+r.w+r.p;cum+=t;const lbl=/^\d/.test(k)?fmtMD(k)+(k===D?"(今)":""):k;const sw=shipW[k]||0,so=shipO[k]||0;return `<tr style="${k===D?"background:var(--cream)":""}"><td>${lbl}</td><td>${r.o||""}</td><td style="${r.w&&sw!==r.w?"color:var(--danger);font-weight:700":""}">${r.w||""}</td><td>${r.p||""}</td><td><b>${t}</b></td><td>${cum}</td><td class="z">${so||""}</td><td class="z" style="${r.w&&sw!==r.w?"color:var(--danger)":""}">${sw||""}</td></tr>`;}).join("")}</table></div><div class="note">现货到货 ≠ 交接现货用 的那天标红(多出的通常是订单货被点成现货);订单列按取货日,厨房提前送会比"交接订单用"晚一天出现,属正常。</div>`;};
   // 疑似多算体检(六粒盒):逐店逐日 到货自动入库 vs 厨房交接「现货用」;入库多于交接现货 → 多出的很可能是订单货被算成现货;另列手动录入/取消转现货/改期放出
   const sus=(()=>{const rows=[];let tot=0;const shipW={};Object.values(PRODRECS||{}).forEach(r=>{if(!r||r.voided||r.stage!=="ship"||r.use!=="现货")return;if(boxOf(r.product)!==6)return;const k=r.store+"|"+r.date;shipW[k]=(shipW[k]||0)+(+r.good||0);});
     const autoR={},man=[];Object.entries(WALKIN||{}).forEach(([st,w])=>Object.entries((w&&w.receipts)||{}).forEach(([id,r])=>{if(!r||r.auto==="transfer"||r.auto==="repack")return;let n=0;Object.entries(r.qty||{}).forEach(([k,v])=>{if(boxOf(k)===6)n+=(+v||0);});if(!n)return;
