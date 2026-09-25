@@ -800,7 +800,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-185";
+const APP_BUILD="b0819-186";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -2296,8 +2296,11 @@ function saveEdit(o){
   const newStoreV=(typeof eStore!=="undefined"&&eStore)||o.store;
   if(!o.batch&&newStoreV&&newStoreV!==o.store){
     const d=(document.getElementById("eDate")&&document.getElementById("eDate").value)||o.pickupDate;
-    const shippedOld=(sumQ2(shippedFor(d,o.store)["订单"])+sumQ2(shippedFor(d,o.store)["现货"]))>0;
-    if(shippedOld)return toast(`原定 ${STORE_NAME[o.store]} 当日已装车交接,不能再改门店;客人到店请用「跨店代取」`);
+    // 原店的闸要看"这张单原来的日期"有没有装过车(货是否已经发去原店),不是看新日期
+    const oldD=o.pickupDate||d;
+    const shippedOld=(sumQ2(shippedFor(oldD,o.store)["订单"])+sumQ2(shippedFor(oldD,o.store)["现货"]))>0;
+    if(shippedOld&&!(ROLE&&ROLE.type==="owner"))return toast(`原定 ${STORE_NAME[o.store]} ${fmtMD(oldD)} 已装车交接,货可能已在原店,不能再改门店;客人到店请用「跨店代取」`);
+    if(shippedOld&&!confirm(`原定 ${STORE_NAME[o.store]} ${fmtMD(oldD)} 已装车交接,货可能已发去原店。Owner 确认仍改店?(需自行安排货物)`))return;
     const shippedNew=(sumQ2(shippedFor(d,newStoreV)["订单"])+sumQ2(shippedFor(d,newStoreV)["现货"]))>0;
     if(shippedNew){
       const wc=walkinCalc(newStoreV,d),lack=[];
