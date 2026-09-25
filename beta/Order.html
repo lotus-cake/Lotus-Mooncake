@@ -800,7 +800,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-184";
+const APP_BUILD="b0819-185";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -1543,9 +1543,11 @@ function renderQtyTable(){
   const c=capState(),t=document.getElementById("qtyTable");
   const row=p=>{
     const closed=isClosedProd(p);
-    const out=(p.box===6?c.out6:(p.box===2?c.out2:false))||closed, v=fQty[p.k]||0;
+    const capOut=(p.box===6?c.out6:(p.box===2?c.out2:false));
+    const priv=ROLE&&(ROLE.type==="owner"||ROLE.type==="cs"); // Owner/客服:超额度仍可下,只提醒
+    const out=(capOut&&!priv)||closed, v=fQty[p.k]||0;
     return `<tr class="${out&&!v?"soldout":""}">
-      <td class="qname">${p.n}<span class="box-tag">${p.pc?"单颗":`${p.box}粒盒`}</span>${closed?'<span class="soldout-tag">已截单·不可下</span>':(isCutProd(p)?'<span class="soldout-tag">已截单</span>':(out?'<span class="soldout-tag">售罄</span>':""))}</td>
+      <td class="qname">${p.n}<span class="box-tag">${p.pc?"单颗":`${p.box}粒盒`}</span>${closed?'<span class="soldout-tag">已截单·不可下</span>':(isCutProd(p)?'<span class="soldout-tag">已截单</span>':(capOut?(priv?'<span class="soldout-tag">超额度</span>':'<span class="soldout-tag">售罄</span>'):""))}</td>
       <td><div class="stepper">
         <button onclick="stepQty('${p.k}',-1)" ${v?"":"disabled"} style="${v?"":"opacity:.35"}">−</button>
         <input class="qv qin" type="number" min="0" inputmode="numeric" value="${v||0}" onchange="typeQty('${p.k}',this.value)" ${closed?"disabled":""} style="width:52px;text-align:center;border:1px solid var(--line);border-radius:8px;padding:4px 2px">
@@ -1745,6 +1747,8 @@ document.getElementById("btnSubmit").addEventListener("click",()=>{
   if(!fBatch){
     if(Object.entries(fQty).some(([k,v])=>v>0&&isClosedProd(PRODUCTS.find(p=>p.k===k))))return toast("该产品已截单,门店不能下;请找客服");
     if(Object.entries(fQty).some(([k,v])=>v>0&&isCutProd(PRODUCTS.find(p=>p.k===k)))&&!confirm("本单含已截单产品(金沙盒/单颗),确认仍要下单?"))return;
+    {const cc=capState();const over6=cc.out6&&Object.entries(fQty).some(([k,v])=>v>0&&(PRODUCTS.find(p=>p.k===k)||{}).box===6),over2=cc.out2&&Object.entries(fQty).some(([k,v])=>v>0&&(PRODUCTS.find(p=>p.k===k)||{}).box===2);
+     if(over6||over2){if(!(ROLE&&(ROLE.type==="owner"||ROLE.type==="cs")))return toast("盒子额度已用完,门店不能再下;请找客服");if(!confirm(`盒子额度已用完(${over6?"六粒":""}${over6&&over2?"、":""}${over2?"两粒":""}),Owner/客服确认仍要下单?`))return;}}
     if(!date)return toast("请选取货日期(每张单都要手选,不再有默认)");
     if(date<DATE_MIN||date>DATE_MAX)return toast("取货日期须在 9/3 – 9/27");
     if(date<todayStr()){
