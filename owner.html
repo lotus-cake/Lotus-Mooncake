@@ -676,7 +676,7 @@ const RAWU=k=>{const m=allRaw().find(x=>x.k===k);return m?m.u:"";};
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());};
 const isConfigured = !Object.values(firebaseConfig).some(v=>String(v).includes("粘贴"));
 
-const APP_BUILD="b0819-186";
+const APP_BUILD="b0819-187";
 /* 自动更新:核对线上 version.txt;旧版且无弹窗打开 → 3 秒后自动刷新;有弹窗则先弹条,关掉弹窗后再刷 */
 (function(){try{
   var fired=false;
@@ -2821,7 +2821,8 @@ function renderReport(){
   el.innerHTML=
     `<div class="kv"><span>已售盒数</span><b>六粒 ${s6.b6} · 两粒 ${s6.b2}</b></div>`+
     ["CAM","BBY","ALD"].map(st=>`<div class="kv"><span>${STORE_NAME[st]}</span><b>${byStore[st].b}盒 · ${money(byStore[st].a)}</b></div>`).join("")+
-    `<div class="kv"><span style="color:var(--danger)">待收款订单</span><b style="color:var(--danger)">${dueList.length}单 · ${money(dueSum)}</b></div>`+
+    `<details><summary class="kv" style="cursor:pointer;list-style:none"><span style="color:var(--danger)">待收款订单 <span class="z">(点开看单)</span></span><b style="color:var(--danger)">${dueList.length}单 · ${money(dueSum)}</b></summary>
+      <div style="margin:4px 0 8px 8px">${dueList.slice().sort((x,y)=>String(x.pickupDate||"").localeCompare(String(y.pickupDate||""))).map(o=>`<div class="kv" style="font-size:13px"><span><b class="ono" style="cursor:pointer" onclick="openDetail('${o.no}')">${esc(o.no)}</b> ${esc(o.name||"")} · ${STORE_NAME[o.store]||o.store||""} · ${o.batch?"分批":fmtMD(o.pickupDate)} · <span class="z">${esc(o.pay||"")}${o.unpaidPlan||o.duePlan?" · "+esc(o.duePlan||o.unpaidPlan):""}</span></span><b>${money(dueAmt(o))}</b></div>`).join("")||'<div class="note">无</div>'}</div></details>`+
     `<div class="note" style="margin:6px 0 2px">已收款按方式:</div>`+
     (Object.keys(byPm).length?Object.entries(byPm).sort((a,b)=>b[1]-a[1])
       .map(([k,v])=>{const os=byPmOrders[k]||[];if(!os.length)return `<div class="kv"><span>${esc(k)}</span><b>${money(Math.round(v*100)/100)}</b></div>`;
